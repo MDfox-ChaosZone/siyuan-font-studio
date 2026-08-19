@@ -1,0 +1,24 @@
+{
+  "name": "siyuan-font-studio",
+  "author": "MDfox",
+  "url": "https://github.com/MDfox-ChaosZone/siyuan-font-studio",
+  "version": "0.1.0",
+  "minAppVersion": "3.1.0",
+  "backends": ["all"],
+  "frontends": ["desktop", "browser-desktop", "desktop-window"],
+  "disabledInPublish": true,
+  "displayName": {
+    "default": "SiYuan Font Studio",
+    "zh-CN": "思源字体工坊"
+  },
+  "description": {
+    "default": "Import local fonts and configure font stacks and sizes for SiYuan's interface, editor, code, formulas and diagrams.",
+    "zh-CN": "导入本地字体，为思源的界面、正文、代码、公式与图表分别配置字体、回退顺序和字号。"
+  },
+  "readme": {
+    "default": "README.md",
+    "zh-CN": "README.zh-CN.md"
+  },
+  "funding": {"github": "MDfox-ChaosZone"},
+  "keywords": ["字体", "字体管理", "排版", "font", "font manager", "typography", "外观", "appearance"]
+}
