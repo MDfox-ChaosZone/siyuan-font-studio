@@ -16,7 +16,7 @@ Customize every font element in SiYuan!
 - SiYuan's bundled KaTeX is specially adapted for dedicated math fonts. Keeping `KaTeX_Math` as the first choice and adding other fonts as fallbacks for Chinese characters is recommended.
 - Some Mermaid elements use independent fixed font sizes, so the plugin cannot override the font size of every diagram element.
 - WOFF2 is recommended because it is smaller. TTF/OTF fonts can be converted online with [CloudConvert](https://cloudconvert.com/ttf-to-woff2) or with my [FontConvert](https://github.com/MDfox-ChaosZone/Font-Converter) project.
-- Example font presets can be downloaded manually from the [Release](https://github.com/MDfox-ChaosZone/siyuan-font-studio/releases/tag/%E7%A4%BA%E4%BE%8B%E5%AD%97%E4%BD%93%E6%96%B9%E6%A1%88) and imported into the plugin. You are welcome to share your own presets through [GitHub Issues](https://github.com/MDfox-ChaosZone/siyuan-font-studio/issues); suitable submissions will also be published in that Release.
+- Example font presets can be downloaded manually from the [Release](https://github.com/MDfox-ChaosZone/siyuan-font-studio/releases/tag/%E7%A4%BA%E4%BE%8B%E5%AD%97%E4%BD%93%E6%96%B9%E6%A1%88) and imported into the plugin. You are welcome to share your own presets through [GitHub Issues](https://github.com/MDfox-ChaosZone/siyuan-font-studio/issues); presets will be manually added to that Release.
 
 ![Example font preset](assets/screenshots/font-preset-example.png)
 
