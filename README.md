@@ -2,7 +2,7 @@
 
 [English](https://github.com/MDfox-ChaosZone/siyuan-font-studio/blob/main/README.en.md)
 
-来自定义思源里的所有字体元素吧！
+自定义思源里的所有字体元素！
 
 ## 功能
 
@@ -16,6 +16,9 @@
 - 思源内置的 KaTeX 对专用字体进行了特殊适配，因此建议保留 `KaTeX_Math` 作为首选字体，可次选其他字体来候补中文字符。
 - Mermaid 的部分元素使用独立固定字号，因此插件无法覆盖所有图表元素的字号修改。
 - 推荐使用体积更小的 WOFF2 字体格式。TTF/OTF 格式字体可以通过 [CloudConvert](https://cloudconvert.com/ttf-to-woff2) 在线转换，或使用本人项目 [FontConvert](https://github.com/MDfox-ChaosZone/Font-Converter) 转换。
+- 示例字体方案可以在 [Release](https://github.com/MDfox-ChaosZone/siyuan-font-studio/releases/tag/%E7%A4%BA%E4%BE%8B%E5%AD%97%E4%BD%93%E6%96%B9%E6%A1%88) 中手动下载并导入插件。欢迎通过 [GitHub Issues](https://github.com/MDfox-ChaosZone/siyuan-font-studio/issues) 分享自己的字体方案；合适的方案将同步发布到该 Release。
+
+![示例字体方案效果](assets/screenshots/font-preset-example.png)
 
 ## 许可证
 
