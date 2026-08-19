@@ -1,8 +1,8 @@
 import {strFromU8, strToU8, unzipSync, zip} from "fflate";
-import {migrateState} from "./state";
+import {parseState} from "./state";
 import {FontChoice, FontPreset, FontTarget, ImportedFont, TARGETS, TargetSettings} from "./types";
 
-export const PRESET_FILE_FORMAT = "siyuan-better-font-preset";
+export const PRESET_FILE_FORMAT = "siyuan-font-studio-preset";
 export const PRESET_FILE_VERSION = 1;
 export const MAX_PRESET_PACKAGE_BYTES = 500 * 1024 * 1024;
 
@@ -193,7 +193,7 @@ export function parsePresetConfig(value: unknown, fonts: ImportedFont[]): Import
     }
     return {
         name: source.name.trim().slice(0, 100),
-        targets: migrateState({version: 2, fonts, targets}).targets,
+        targets: parseState({version: 3, fonts, targets}).targets,
         missingFonts: Array.from(new Set(missingFonts)),
     };
 }

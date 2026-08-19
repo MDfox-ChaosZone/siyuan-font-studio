@@ -1,7 +1,6 @@
 import {ImportedFont} from "./types";
 
-export const FONT_STORAGE_ROOT = "/data/storage/petal/siyuan-better-font-manager/fonts";
-export const LEGACY_PLUGIN_STORAGE_ROOT = "/data/storage/petal/siyuan-better-font-manager";
+export const FONT_STORAGE_ROOT = "/data/storage/petal/siyuan-font-studio/fonts";
 
 type StoredFont = Pick<ImportedFont, "storageName">;
 
@@ -58,16 +57,6 @@ export async function readFontFile(font: StoredFont): Promise<ArrayBuffer> {
         throw new Error(error.msg || "Unable to read font");
     }
     return response.arrayBuffer();
-}
-
-export async function readLegacyState(fileName: string): Promise<unknown | null> {
-    const response = await fetch("/api/file/getFile", {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({path: `${LEGACY_PLUGIN_STORAGE_ROOT}/${fileName}`}),
-    });
-    if (!response.ok || response.status === 202) return null;
-    return response.json();
 }
 
 export async function deleteFontFile(font: StoredFont): Promise<void> {
