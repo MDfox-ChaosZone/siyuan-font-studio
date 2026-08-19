@@ -17,7 +17,6 @@ module.exports = (_env, argv) => {
             {from: "icon.png", to: "dist/"},
             {from: "README*.md", to: "dist/"},
             {from: "assets/donate", to: "dist/assets/donate"},
-            {from: "assets/screenshots", to: "dist/assets/screenshots"},
             {from: "plugin.json", to: "dist/"},
             {from: "src/i18n", to: "dist/i18n"}
         ]}));
