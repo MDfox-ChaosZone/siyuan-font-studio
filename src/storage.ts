@@ -1,6 +1,7 @@
 import {ImportedFont} from "./types";
 
-export const FONT_STORAGE_ROOT = "/data/storage/petal/siyuan-font-studio/fonts";
+export const PLUGIN_STORAGE_ROOT = "/data/storage/petal/siyuan-font-studio";
+export const FONT_STORAGE_ROOT = `${PLUGIN_STORAGE_ROOT}/fonts`;
 
 type StoredFont = Pick<ImportedFont, "storageName">;
 
@@ -64,5 +65,13 @@ export async function deleteFontFile(font: StoredFont): Promise<void> {
         method: "POST",
         headers: {"Content-Type": "application/json"},
         body: JSON.stringify({path: fontPath(font)}),
+    }));
+}
+
+export async function deletePluginStorage(): Promise<void> {
+    await parseKernelResponse(await fetch("/api/file/removeFile", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({path: PLUGIN_STORAGE_ROOT}),
     }));
 }

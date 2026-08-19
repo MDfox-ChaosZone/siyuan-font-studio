@@ -1,5 +1,5 @@
 import {afterEach, describe, expect, it, vi} from "vitest";
-import {deleteFontFile, ensureFontDirectory, readFontFile, storedFontFileName, writeFontFile} from "../src/storage";
+import {deleteFontFile, deletePluginStorage, ensureFontDirectory, readFontFile, storedFontFileName, writeFontFile} from "../src/storage";
 
 const font = {storageName: "Demo__safeid.woff2"};
 
@@ -54,5 +54,14 @@ describe("font storage API", () => {
     it("surfaces kernel deletion errors", async () => {
         vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({code: -1, msg: "denied"}), {headers: {"content-type": "application/json"}})));
         await expect(deleteFontFile(font)).rejects.toThrow("denied");
+    });
+
+    it("removes all plugin-owned data on uninstall", async () => {
+        const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({code: 0}), {headers: {"content-type": "application/json"}}));
+        vi.stubGlobal("fetch", fetchMock);
+        await deletePluginStorage();
+        const [url, init] = fetchMock.mock.calls[0];
+        expect(url).toBe("/api/file/removeFile");
+        expect(JSON.parse(init.body as string)).toEqual({path: "/data/storage/petal/siyuan-font-studio"});
     });
 });

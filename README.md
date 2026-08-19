@@ -1,6 +1,6 @@
 # 思源字体工坊
 
-[English](README.en.md)
+[English](https://github.com/MDfox-ChaosZone/siyuan-font-studio/blob/main/README.en.md)
 
 来自定义思源里的所有字体元素吧！
 
@@ -27,19 +27,17 @@
 
 ### 微信支付与支付宝
 
-<p align="center">
-  <img src="assets/donate/wechat-pay.png" alt="微信支付收款码" width="32%">
-  <img src="assets/donate/alipay.jpg" alt="支付宝收款码" width="32%">
-</p>
+| 微信支付 | 支付宝 |
+| :---: | :---: |
+| ![微信支付收款码](assets/donate/wechat-pay.png) | ![支付宝收款码](assets/donate/alipay.jpg) |
 
 ### USDT
 
 - Plasma：`0x742fa2ac27c5d3ff0c337b93ad688d39a77da4c8`
 - Aptos：`0xb3ba1611884cc1c2d2d970d081f6c24089d363817a772bddab52a0a278c6ffef`
 
-<p align="center">
-  <img src="assets/donate/usdt-plasma.jpg" alt="Plasma 网络 USDT 充值二维码" width="32%">
-  <img src="assets/donate/usdt-aptos.jpg" alt="Aptos 网络 USDT 充值二维码" width="32%">
-</p>
+| Plasma | Aptos |
+| :---: | :---: |
+| ![Plasma 网络 USDT 充值二维码](assets/donate/usdt-plasma.jpg) | ![Aptos 网络 USDT 充值二维码](assets/donate/usdt-aptos.jpg) |
 
 转账 USDT 时，请同时核对网络和钱包地址。

@@ -26,7 +26,7 @@ import {
     readPresetContainer,
     serializePreset,
 } from "./preset-io";
-import {deleteFontFile, ensureFontDirectory, FONT_STORAGE_ROOT, readFontFile, storedFontFileName, writeFontFile} from "./storage";
+import {deleteFontFile, deletePluginStorage, ensureFontDirectory, FONT_STORAGE_ROOT, readFontFile, storedFontFileName, writeFontFile} from "./storage";
 import {StyleManager} from "./style-manager";
 import {ADVANCED_TARGETS, FontChoice, FontPreset, FontRuntimeStatus, FontTarget, ImportedFont, PluginState, SIMPLE_TARGETS, SystemFont} from "./types";
 
@@ -140,6 +140,10 @@ export default class SiYuanFontStudio extends Plugin {
         for (const face of this.emojiFaces.values()) document.fonts.delete(face);
         this.faces.clear();
         this.emojiFaces.clear();
+    }
+
+    uninstall(): void {
+        void deletePluginStorage().catch((error) => console.warn(`[${this.name}] failed to remove plugin data`, error));
     }
 
     private async loadStoredFont(font: ImportedFont): Promise<boolean> {

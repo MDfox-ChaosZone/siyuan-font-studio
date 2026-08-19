@@ -7,11 +7,13 @@ declare module "siyuan" {
         onload(): void | Promise<void>;
         onLayoutReady(): void;
         onunload(): void;
+        uninstall(): void;
         addIcons(svg: string): void;
         addCommand(command: {langKey: string; hotkey: string; callback: () => void}): void;
         addTopBar(options: {icon: string; title: string; position?: "south" | "left" | "right"; callback: (event: MouseEvent) => void}): HTMLElement;
         loadData(storageName: string): Promise<unknown>;
         saveData(storageName: string, data: unknown): Promise<unknown>;
+        removeData(storageName: string): Promise<unknown>;
     }
 
     export class Dialog {

@@ -1,6 +1,6 @@
 # SiYuan Font Studio
 
-[简体中文](README.md)
+[简体中文](https://github.com/MDfox-ChaosZone/siyuan-font-studio/blob/main/README.md)
 
 Customize every font element in SiYuan!
 
@@ -27,19 +27,17 @@ If this project is useful to you, you are welcome to leave a tip. Any sponsorshi
 
 ### WeChat Pay and Alipay
 
-<p align="center">
-  <img src="assets/donate/wechat-pay.png" alt="WeChat Pay QR code" width="32%">
-  <img src="assets/donate/alipay.jpg" alt="Alipay QR code" width="32%">
-</p>
+| WeChat Pay | Alipay |
+| :---: | :---: |
+| ![WeChat Pay QR code](assets/donate/wechat-pay.png) | ![Alipay QR code](assets/donate/alipay.jpg) |
 
 ### USDT
 
 - Plasma: `0x742fa2ac27c5d3ff0c337b93ad688d39a77da4c8`
 - Aptos: `0xb3ba1611884cc1c2d2d970d081f6c24089d363817a772bddab52a0a278c6ffef`
 
-<p align="center">
-  <img src="assets/donate/usdt-plasma.jpg" alt="USDT deposit QR code on Plasma" width="32%">
-  <img src="assets/donate/usdt-aptos.jpg" alt="USDT deposit QR code on Aptos" width="32%">
-</p>
+| Plasma | Aptos |
+| :---: | :---: |
+| ![USDT deposit QR code on Plasma](assets/donate/usdt-plasma.jpg) | ![USDT deposit QR code on Aptos](assets/donate/usdt-aptos.jpg) |
 
 When transferring USDT, please verify both the network and wallet address.
