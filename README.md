@@ -1,83 +1,50 @@
-# SiYuan Font Studio
+# 思源字体工坊
 
-[简体中文](README.zh-CN.md)
+[English](README.en.md)
 
-Import local fonts into [SiYuan](https://github.com/siyuan-note/siyuan), then configure font families, fallback order, and sizes independently for different parts of the interface and editor.
+来自定义思源里的所有字体元素吧！
 
-![SiYuan Font Studio preview](preview.png)
+## 功能
 
-## Features
+- 支持自定义界面、正文、等宽、数学公式、关系图、Emoji 和 Mermaid 的字体和字号。
+- 可自定义字体预设方案，支持导入、导出、切换字体方案。
+- 可多选字体来候补字符。
 
-- Customize fonts and sizes for the interface, document content, monospace text, math, graphs, Emoji, and Mermaid.
-- Create, rename, switch, import, and export font presets.
-- Select and reorder multiple fonts to build fallback stacks for missing characters.
-- Import WOFF2, WOFF, TTF, and OTF files in batches.
-- Preview, rename, delete, validate, and automatically deduplicate imported fonts.
-- Use imported fonts, installed system fonts, or SiYuan defaults.
-- Keep separate font settings for inline/block code and inline/block math.
-- Apply changes immediately and restore them after restarts or theme changes.
+## 额外说明
 
-## Usage
+- 关系图字体：思源 3.8 及以上版本采用新版关系图渲染器。新版本仍支持修改字体，但暂未提供独立的字号接口，因此关系图字号设置对于 3.8 及以上版本不会生效。
+- 思源内置的 KaTeX 对专用字体进行了特殊适配，因此建议保留 `KaTeX_Math` 作为首选字体，可次选其他字体来候补中文字符。
+- Mermaid 的部分元素使用独立固定字号，因此插件无法覆盖所有图表元素的字号修改。
+- 推荐使用体积更小的 WOFF2 字体格式。TTF/OTF 格式字体可以通过 [CloudConvert](https://cloudconvert.com/ttf-to-woff2) 在线转换，或使用本人项目 [FontConvert](https://github.com/MDfox-ChaosZone/Font-Converter) 转换。
+- 本插件会在 Release 中提供示例字体预设方案，喜欢的朋友可以下载后导入插件。
 
-After enabling the plugin, click the font icon in SiYuan's top bar or run **Open SiYuan Font Studio** from the command palette. Import fonts into the library, then assign them to the desired targets in priority order.
+  ![示例字体预设方案](assets/screenshots/font-preset-demo.png)
 
-WOFF2 is recommended because it is usually much smaller than TTF or OTF. Existing TTF/OTF files can be converted with [CloudConvert](https://cloudconvert.com/ttf-to-woff2) or [FontConvert](https://github.com/MDfox-ChaosZone/Font-Converter).
+- 也欢迎大家分享自己的字体方案，可以在 GitHub 中提 Issue，我会将字体方案展示在这里。
 
-Imported font files are stored under `data/storage/petal/siyuan-font-studio/fonts/`.
-
-## Additional notes
-
-- SiYuan 3.8.0 or later is required.
-- SiYuan 3.8 and later use a new graph renderer. It still supports changing the graph font family, but does not expose an independent graph-label size option, so the graph size control currently has no effect.
-- SiYuan's bundled KaTeX is optimized for dedicated math fonts. Keep `KaTeX_Math` first and use additional fonts as fallbacks for Chinese characters.
-- Some Mermaid elements use independent font-size rules. The plugin changes the primary diagram text but cannot override every element.
-- PDF viewers, third-party iframe content, and exported documents are outside the plugin's styling scope.
-- Each imported file is a separate font entry; different weights are not grouped automatically.
-- The plugin declares support for all SiYuan frontend and backend platforms. **Open installed font folder** is available only on desktop.
-- Example font presets will be provided in Releases for users to download and import.
-- Community presets are welcome through [GitHub Issues](https://github.com/MDfox-ChaosZone/siyuan-font-studio/issues). Approved submissions may be featured in Releases.
-
-## Development
-
-Node.js 24 and pnpm 11 are required.
-
-```bash
-pnpm install
-pnpm check
-```
-
-For local development, close SiYuan and create a development link in a workspace:
-
-```powershell
-pnpm dev:setup -- "D:\\path\\to\\your\\SiYuanWorkspace"
-pnpm dev
-```
-
-`pnpm dev` watches the source and writes `index.js`, `index.css`, and `i18n/`. Production builds are written to `dist/`, and the generated `package.zip` can be attached directly to a GitHub Release.
-
-## License
+## 许可证
 
 [MIT](LICENSE)
 
-## Support and sponsorship
+## 支持与赞助
 
-If SiYuan Font Studio is useful to you, you are welcome to leave a tip for the project. Any sponsorship is greatly appreciated.
+如果这个项目对你有帮助，欢迎给这个项目点心。任何赞助都不胜感激哦。
 
-### WeChat Pay and Alipay
+### 微信支付与支付宝
 
 <p align="center">
-  <img src="assets/donate/wechat-pay.png" alt="WeChat Pay QR code" width="32%">
-  <img src="assets/donate/alipay.jpg" alt="Alipay QR code" width="32%">
+  <img src="assets/donate/wechat-pay.png" alt="微信支付收款码" width="32%">
+  <img src="assets/donate/alipay.jpg" alt="支付宝收款码" width="32%">
 </p>
 
 ### USDT
 
-- Plasma: `0x742fa2ac27c5d3ff0c337b93ad688d39a77da4c8`
-- Aptos: `0xb3ba1611884cc1c2d2d970d081f6c24089d363817a772bddab52a0a278c6ffef`
+- Plasma：`0x742fa2ac27c5d3ff0c337b93ad688d39a77da4c8`
+- Aptos：`0xb3ba1611884cc1c2d2d970d081f6c24089d363817a772bddab52a0a278c6ffef`
 
 <p align="center">
-  <img src="assets/donate/usdt-plasma.jpg" alt="USDT deposit QR code on Plasma" width="32%">
-  <img src="assets/donate/usdt-aptos.jpg" alt="USDT deposit QR code on Aptos" width="32%">
+  <img src="assets/donate/usdt-plasma.jpg" alt="Plasma 网络 USDT 充值二维码" width="32%">
+  <img src="assets/donate/usdt-aptos.jpg" alt="Aptos 网络 USDT 充值二维码" width="32%">
 </p>
 
-When transferring USDT, please verify both the network and wallet address.
+转账 USDT 时，请同时核对网络和钱包地址。
