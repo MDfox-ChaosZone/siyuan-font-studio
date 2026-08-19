@@ -16,9 +16,6 @@
 - 思源内置的 KaTeX 对专用字体进行了特殊适配，因此建议保留 `KaTeX_Math` 作为首选字体，可次选其他字体来候补中文字符。
 - Mermaid 的部分元素使用独立固定字号，因此插件无法覆盖所有图表元素的字号修改。
 - 推荐使用体积更小的 WOFF2 字体格式。TTF/OTF 格式字体可以通过 [CloudConvert](https://cloudconvert.com/ttf-to-woff2) 在线转换，或使用本人项目 [FontConvert](https://github.com/MDfox-ChaosZone/Font-Converter) 转换。
-- 本插件会在 Release 中提供示例字体预设方案，喜欢的朋友可以下载后导入插件。欢迎大家分享自己的字体方案，可以在 GitHub 中提 Issue，我也会分享在此。
-
-  ![示例字体预设方案](assets/screenshots/font-preset-demo.png)
 
 ## 许可证
 
