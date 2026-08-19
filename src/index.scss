@@ -48,7 +48,7 @@
   }
 }
 
-.bfm-preset-bar {
+.sfs-preset-bar {
   align-items: center;
   display: flex;
   gap: 16px;
@@ -689,7 +689,7 @@
   }
 }
 
-.bfm-preset-export {
+.sfs-preset-export {
   &__option {
     align-items: flex-start;
     border: 1px solid var(--b3-border-color);
@@ -745,7 +745,7 @@
 }
 
 @media (max-width: 760px) {
-  .bfm-preset-bar {
+  .sfs-preset-bar {
     align-items: stretch;
     flex-direction: column;
 

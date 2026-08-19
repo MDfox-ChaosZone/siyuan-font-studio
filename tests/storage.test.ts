@@ -1,5 +1,5 @@
 import {afterEach, describe, expect, it, vi} from "vitest";
-import {deleteFontFile, ensureFontDirectory, readFontFile, readLegacyState, storedFontFileName, writeFontFile} from "../src/storage";
+import {deleteFontFile, ensureFontDirectory, readFontFile, storedFontFileName, writeFontFile} from "../src/storage";
 
 const font = {storageName: "Demo__safeid.woff2"};
 
@@ -25,7 +25,7 @@ describe("font storage API", () => {
         await writeFontFile(font, new File(["font"], "demo.woff2"));
         const [url, init] = fetchMock.mock.calls[0];
         expect(url).toBe("/api/file/putFile");
-        expect((init.body as FormData).get("path")).toBe("/data/storage/petal/siyuan-better-font-manager/fonts/Demo__safeid.woff2");
+        expect((init.body as FormData).get("path")).toBe("/data/storage/petal/siyuan-font-studio/fonts/Demo__safeid.woff2");
     });
 
     it("returns binary font data", async () => {
@@ -33,26 +33,12 @@ describe("font storage API", () => {
         expect(Array.from(new Uint8Array(await readFontFile(font)))).toEqual([1, 2, 3]);
     });
 
-    it("reads settings from the legacy plugin namespace during the rename migration", async () => {
-        const legacyState = {version: 3, fonts: []};
-        const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify(legacyState), {headers: {"content-type": "application/json"}}));
-        vi.stubGlobal("fetch", fetchMock);
-        await expect(readLegacyState("font-manager.json")).resolves.toEqual(legacyState);
-        expect(JSON.parse(fetchMock.mock.calls[0][1].body as string).path)
-            .toBe("/data/storage/petal/siyuan-better-font-manager/font-manager.json");
-    });
-
-    it("treats a missing legacy settings file as absent", async () => {
-        vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, {status: 404})));
-        await expect(readLegacyState("font-manager.json")).resolves.toBeNull();
-    });
-
     it("uses the readable storage name when present", async () => {
         const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({code: 0}), {headers: {"content-type": "application/json"}}));
         vi.stubGlobal("fetch", fetchMock);
         await writeFontFile({storageName: "Demo__12345678.woff2"}, new File(["font"], "demo.woff2"));
         expect((fetchMock.mock.calls[0][1].body as FormData).get("path"))
-            .toBe("/data/storage/petal/siyuan-better-font-manager/fonts/Demo__12345678.woff2");
+            .toBe("/data/storage/petal/siyuan-font-studio/fonts/Demo__12345678.woff2");
     });
 
     it("creates the font directory before opening it", async () => {
@@ -61,7 +47,7 @@ describe("font storage API", () => {
         await ensureFontDirectory();
         const [url, init] = fetchMock.mock.calls[0];
         expect(url).toBe("/api/file/putFile");
-        expect((init.body as FormData).get("path")).toBe("/data/storage/petal/siyuan-better-font-manager/fonts");
+        expect((init.body as FormData).get("path")).toBe("/data/storage/petal/siyuan-font-studio/fonts");
         expect((init.body as FormData).get("isDir")).toBe("true");
     });
 

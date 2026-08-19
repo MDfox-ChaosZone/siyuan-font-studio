@@ -1,20 +1,21 @@
 # 思源字体工坊
 
-为[思源笔记](https://github.com/siyuan-note/siyuan)导入本地字体，并针对不同使用场景分别配置字体、回退顺序和字号。
-
 [English](README.md)
+
+为[思源笔记](https://github.com/siyuan-note/siyuan)导入本地字体，并针对不同使用场景分别配置字体、回退顺序和字号。来自定义思源中的字体元素吧！
+
+![思源字体工坊预览](preview.png)
 
 ## 功能
 
-- 批量导入 WOFF2、WOFF、TTF 和 OTF 字体
-- 预览、重命名、删除、校验字体，并自动跳过重复文件
-- 使用已导入字体、操作系统字体或思源默认字体
-- 为每个场景建立可排序的字体回退栈
-- 分别配置界面、正文、行内代码和代码块字体及字号
-- 配置数学公式、关系图、Mermaid 和 Emoji 字体
-- 为行内/块级代码及行级/块级公式分别设置字体
-- 新建、重命名、切换、导入和导出字体方案
-- 设置即时生效，并在重启或切换主题后自动恢复
+- 支持自定义界面、正文、等宽、数学公式、关系图、Emoji 和 Mermaid 的字体与字号。
+- 可创建、重命名、切换、导入和导出字体预设方案。
+- 可多选字体并调整顺序，建立字符缺失时的字体回退栈。
+- 支持批量导入 WOFF2、WOFF、TTF 和 OTF 字体。
+- 支持预览、重命名、删除和校验字体，并自动跳过重复文件。
+- 可使用已导入字体、操作系统字体或思源默认字体。
+- 支持为行内/块级代码及行级/块级公式分别设置字体。
+- 设置即时生效，并在重启或切换主题后自动恢复。
 
 ## 使用方法
 
@@ -22,15 +23,19 @@
 
 推荐使用体积通常更小的 WOFF2 字体。已有 TTF/OTF 字体可以通过 [CloudConvert](https://cloudconvert.com/ttf-to-woff2) 在线转换，或使用本人项目 [FontConvert](https://github.com/MDfox-ChaosZone/Font-Converter) 转换。
 
-为兼容早期开发版本，已导入字体继续保存在 `data/storage/petal/siyuan-better-font-manager/fonts/`。插件更名不会移动或删除已有字体，首次运行新版时会将旧配置迁移到新的插件命名空间。
+导入的字体文件保存在 `data/storage/petal/siyuan-font-studio/fonts/`。
 
-## 兼容性说明
+## 额外说明
 
+- 本插件要求思源 3.8.0 或更高版本。
 - 思源 3.8 及以上版本采用新版关系图渲染器。新版仍支持修改字体，但暂未提供独立的标签字号接口，因此关系图字号设置目前不会生效。
-- KaTeX 针对专用数学字体进行了适配，建议保留 `KaTeX_Math` 作为首选字体，将其他字体作为后备。
-- Mermaid 的部分元素使用独立字号；插件可以修改主要文字，但无法覆盖所有图表元素。
+- 思源内置的 KaTeX 对专用数学字体进行了特殊适配，建议保留 `KaTeX_Math` 作为首选字体，将其他字体作为中文字符的后备字体。
+- Mermaid 的部分元素使用独立字号，插件可以修改主要文字，但无法覆盖所有图表元素。
 - PDF 阅读器、第三方 iframe 内容和导出文件不在插件样式覆盖范围内。
 - 每个导入文件会作为一个独立字体条目，不同字重不会自动合并。
+- 插件支持思源声明的全部前端和后端平台；“打开已安装字体文件夹”功能仅在桌面端可用。
+- 本插件会在 Release 中提供示例字体预设方案，喜欢的朋友可以下载后导入插件。
+- 也欢迎大家通过 [GitHub Issues](https://github.com/MDfox-ChaosZone/siyuan-font-studio/issues) 分享自己的字体方案。审核通过后，我会将方案展示在 Release 中。
 
 ## 开发
 
@@ -53,3 +58,26 @@ pnpm dev
 ## 许可证
 
 [MIT](LICENSE)
+
+## 支持与赞助
+
+如果思源字体工坊对你有帮助，欢迎给这个项目点心。任何赞助都不胜感激。
+
+### 微信支付与支付宝
+
+<p align="center">
+  <img src="assets/donate/wechat-pay.png" alt="微信支付收款码" width="32%">
+  <img src="assets/donate/alipay.jpg" alt="支付宝收款码" width="32%">
+</p>
+
+### USDT
+
+- Plasma：`0x742fa2ac27c5d3ff0c337b93ad688d39a77da4c8`
+- Aptos：`0xb3ba1611884cc1c2d2d970d081f6c24089d363817a772bddab52a0a278c6ffef`
+
+<p align="center">
+  <img src="assets/donate/usdt-plasma.jpg" alt="Plasma 网络 USDT 充值二维码" width="32%">
+  <img src="assets/donate/usdt-aptos.jpg" alt="Aptos 网络 USDT 充值二维码" width="32%">
+</p>
+
+转账 USDT 时，请同时核对网络和钱包地址。

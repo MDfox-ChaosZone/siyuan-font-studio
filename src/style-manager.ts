@@ -1,7 +1,7 @@
 import {EMOJI_UNICODE_RANGE, emojiRuntimeFamily, familyForChoices, quoteFamily, runtimeFamily} from "./font-utils";
 import {FontChoice, FontTarget, ImportedFont, PluginState} from "./types";
 
-const STYLE_ID = "siyuan-better-font-manager-overrides";
+const STYLE_ID = "siyuan-font-studio-overrides";
 const SIYUAN_UI_FALLBACK = '"Emojis Additional", "Emojis Reset", BlinkMacSystemFont, Helvetica, "Luxi Sans", "DejaVu Sans", arial, sans-serif, emojis';
 const SIYUAN_MONO_FALLBACK = '"Emojis Additional", "Emojis Reset", "JetBrainsMono-Regular", mononoki, Consolas, "Liberation Mono", var(--b3-font-family)';
 const SIYUAN_EMOJI_FALLBACK = '"Emojis Additional", emojis';

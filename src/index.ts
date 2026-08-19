@@ -14,7 +14,7 @@ import {
     sha256,
     SUPPORTED_EXTENSIONS,
 } from "./font-utils";
-import {activatePreset, clampLibraryPreviewWidth, cloneTargets, migrateState, removeFontFromState, syncActivePreset} from "./state";
+import {activatePreset, clampLibraryPreviewWidth, cloneTargets, parseState, removeFontFromState, syncActivePreset} from "./state";
 import {mergeMermaidConfig, mermaidOverrides} from "./mermaid";
 import {
     BundledFontDescriptor,
@@ -22,10 +22,11 @@ import {
     importedFontIdsInTargets,
     MAX_PRESET_PACKAGE_BYTES,
     parsePresetConfig,
+    PRESET_FILE_FORMAT,
     readPresetContainer,
     serializePreset,
 } from "./preset-io";
-import {deleteFontFile, ensureFontDirectory, FONT_STORAGE_ROOT, readFontFile, readLegacyState, storedFontFileName, writeFontFile} from "./storage";
+import {deleteFontFile, ensureFontDirectory, FONT_STORAGE_ROOT, readFontFile, storedFontFileName, writeFontFile} from "./storage";
 import {StyleManager} from "./style-manager";
 import {ADVANCED_TARGETS, FontChoice, FontPreset, FontRuntimeStatus, FontTarget, ImportedFont, PluginState, SIMPLE_TARGETS, SystemFont} from "./types";
 
@@ -50,7 +51,7 @@ class ManagerSetting extends Setting {
 }
 
 export default class SiYuanFontStudio extends Plugin {
-    private state: PluginState = migrateState(null);
+    private state: PluginState = parseState(null);
     private styleManager?: StyleManager;
     private faces = new Map<string, FontFace>();
     private emojiFaces = new Map<string, FontFace>();
@@ -79,19 +80,10 @@ export default class SiYuanFontStudio extends Plugin {
   <circle cx="27" cy="22" r="3"></circle>
 </symbol>`);
         this.styleManager = new StyleManager();
-        let storedState = await this.loadData(STATE_FILE);
-        let migratedLegacyNamespace = false;
-        if (!storedState) {
-            storedState = await readLegacyState(STATE_FILE).catch(() => null);
-            migratedLegacyNamespace = Boolean(storedState);
-        }
-        const needsMigration = !storedState || typeof storedState !== "object"
-            || (storedState as {version?: unknown}).version !== 3
-            || !Array.isArray((storedState as {presets?: unknown}).presets);
-        this.state = migrateState(storedState);
+        this.state = parseState(await this.loadData(STATE_FILE));
         this.observeMermaidRuntime();
         const metadataChanged = (await Promise.all(this.state.fonts.map((font) => this.loadStoredFont(font)))).some(Boolean);
-        if (metadataChanged || needsMigration || migratedLegacyNamespace) await this.persist();
+        if (metadataChanged) await this.persist();
         this.applySettings();
         void this.loadSystemFonts();
 
@@ -196,22 +188,13 @@ export default class SiYuanFontStudio extends Plugin {
 
     private updateGraphModels(): void {
         const family = getComputedStyle(document.body).getPropertyValue("--b3-font-family-graph").trim();
-        const size = this.state.targets.graph.size ?? 32;
         if (!family) return;
         type GraphModel = {
-            network?: {setOptions: (options: unknown) => void; redraw?: () => void};
             onGraph?: (highlight: boolean, resetLayout?: boolean) => void;
         };
         for (const model of getAllModels().graph as GraphModel[]) {
             try {
-                if (model.network) {
-                    model.network.setOptions({nodes: {font: {face: family, size}}});
-                    model.network.redraw?.();
-                } else {
-                    // SiYuan 3.8+ replaced vis-network with its own graph engine.
-                    // Re-rendering makes the canvas label renderer re-read --b3-font-family-graph.
-                    model.onGraph?.(false);
-                }
+                model.onGraph?.(false);
             } catch (error) {
                 console.warn(`[${this.name}] unable to refresh graph font`, error);
             }
@@ -327,9 +310,9 @@ export default class SiYuanFontStudio extends Plugin {
             .map((input) => [`${input.dataset.target}-${input.dataset.secondary}`, input.value]));
         root.innerHTML = `
 <section class="bfm-section">
-  <div class="bfm-preset-bar">
+  <div class="sfs-preset-bar">
     <h2>${this.i18n.presets}</h2>
-    <div class="bfm-preset-bar__controls">
+    <div class="sfs-preset-bar__controls">
       <select class="b3-select" data-role="preset-select" aria-label="${escapeHtml(this.i18n.presets)}">${this.state.presets.map((preset) => `<option value="${escapeHtml(preset.id)}" ${preset.id === this.state.activePresetId ? "selected" : ""}>${escapeHtml(this.presetDisplayName(preset))}</option>`).join("")}</select>
       <button type="button" class="b3-button b3-button--outline" data-action="new-preset">＋ ${this.i18n.newPreset}</button>
       <button type="button" class="b3-button b3-button--outline" data-action="import-preset">${this.i18n.importPreset}</button>
@@ -337,7 +320,7 @@ export default class SiYuanFontStudio extends Plugin {
       <button type="button" class="b3-button b3-button--outline" data-action="rename-preset">${this.i18n.rename}</button>
       <button type="button" class="b3-button b3-button--cancel" data-action="delete-preset" ${this.state.presets.length <= 1 ? "disabled" : ""}>${this.i18n.delete}</button>
     </div>
-    <input class="fn__none" type="file" data-role="preset-input" accept=".json,.zip,.bfm-preset,application/json,application/zip" multiple>
+    <input class="fn__none" type="file" data-role="preset-input" accept=".json,.zip,application/json,application/zip" multiple>
   </div>
   <details class="bfm-advanced bfm-primary" ${primaryOpen ? "open" : ""}>
     <summary><span>${this.i18n.primaryFonts}</span><small>${this.i18n.primaryFontsDescription}</small></summary>
@@ -512,7 +495,7 @@ export default class SiYuanFontStudio extends Plugin {
     }
 
     private openPresetMenu(event: MouseEvent): void {
-        const menu = new Menu("bfm-preset-menu");
+        const menu = new Menu("sfs-preset-menu");
         menu.addItem({
             type: "readonly",
             label: this.i18n.fontPresets,
@@ -562,18 +545,18 @@ export default class SiYuanFontStudio extends Plugin {
         this.presetTransferDialog = new Dialog({
             title: this.i18n.exportPreset,
             width: "520px",
-            content: `<form class="bfm-preset-export">
+            content: `<form class="sfs-preset-export">
   <div class="b3-dialog__content">
-    <label class="bfm-preset-export__option"><input type="radio" name="export-mode" value="config" checked><span><strong>${this.i18n.exportConfigOnly}</strong><small>${this.i18n.exportConfigOnlyDescription}</small></span></label>
-    <label class="bfm-preset-export__option"><input type="radio" name="export-mode" value="package"><span><strong>${this.i18n.exportWithFonts}</strong><small>${this.i18n.exportWithFontsDescription}</small></span></label>
-    <label class="bfm-preset-export__unused"><input type="checkbox" data-role="include-unused-fonts" disabled><span>${this.i18n.includeUnusedFonts}</span></label>
-    <p class="bfm-preset-export__notice">${this.i18n.exportFontExclusionNotice}</p>
+    <label class="sfs-preset-export__option"><input type="radio" name="export-mode" value="config" checked><span><strong>${this.i18n.exportConfigOnly}</strong><small>${this.i18n.exportConfigOnlyDescription}</small></span></label>
+    <label class="sfs-preset-export__option"><input type="radio" name="export-mode" value="package"><span><strong>${this.i18n.exportWithFonts}</strong><small>${this.i18n.exportWithFontsDescription}</small></span></label>
+    <label class="sfs-preset-export__unused"><input type="checkbox" data-role="include-unused-fonts" disabled><span>${this.i18n.includeUnusedFonts}</span></label>
+    <p class="sfs-preset-export__notice">${this.i18n.exportFontExclusionNotice}</p>
   </div>
   <div class="b3-dialog__action"><button class="b3-button b3-button--cancel" type="button">${this.i18n.cancel}</button><div class="fn__space"></div><button class="b3-button b3-button--text" type="submit">${this.i18n.exportPreset}</button></div>
 </form>`,
             destroyCallback: () => { this.presetTransferDialog = undefined; },
         });
-        const form = this.presetTransferDialog.element.querySelector<HTMLFormElement>(".bfm-preset-export");
+        const form = this.presetTransferDialog.element.querySelector<HTMLFormElement>(".sfs-preset-export");
         const includeUnused = form?.querySelector<HTMLInputElement>("input[data-role='include-unused-fonts']");
         form?.querySelectorAll<HTMLInputElement>("input[name='export-mode']").forEach((input) => {
             input.addEventListener("change", () => {
@@ -601,7 +584,7 @@ export default class SiYuanFontStudio extends Plugin {
             syncActivePreset(this.state);
             const displayName = this.presetDisplayName(preset);
             if (!withFonts) {
-                downloadFile(new Blob([serializePreset(preset, this.state.fonts, displayName)], {type: "application/json;charset=utf-8"}), `${safeFileName(displayName)}.bfm-preset.json`);
+                downloadFile(new Blob([serializePreset(preset, this.state.fonts, displayName)], {type: "application/json;charset=utf-8"}), `${safeFileName(displayName)}.${PRESET_FILE_FORMAT}.json`);
             } else {
                 const includedIds = importedFontIdsInTargets(preset.targets);
                 if (includeUnused) {
@@ -616,7 +599,7 @@ export default class SiYuanFontStudio extends Plugin {
                 if (totalSize > MAX_PRESET_PACKAGE_BYTES) throw new Error(this.i18n.presetPackageTooLarge);
                 const files = await Promise.all(includedFonts.map(async (font) => ({font, data: await readFontFile(font)})));
                 const archive = await createPresetPackage(preset, this.state.fonts, files, displayName);
-                downloadFile(new Blob([archive], {type: "application/zip"}), `${safeFileName(displayName)}.bfm-preset.zip`);
+                downloadFile(new Blob([archive], {type: "application/zip"}), `${safeFileName(displayName)}.${PRESET_FILE_FORMAT}.zip`);
             }
             this.presetTransferDialog?.destroy();
             showMessage(this.i18n.exportPresetSuccess, 3500, "info");

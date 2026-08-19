@@ -4,16 +4,21 @@ const cloneDefault = (): PluginState => JSON.parse(JSON.stringify(DEFAULT_STATE)
 export const cloneTargets = (targets: Record<FontTarget, TargetSettings>): Record<FontTarget, TargetSettings> =>
     JSON.parse(JSON.stringify(targets)) as Record<FontTarget, TargetSettings>;
 
-export function migrateState(value: unknown): PluginState {
+export function parseState(value: unknown): PluginState {
     const fallback = cloneDefault();
-    const source = value && typeof value === "object" ? value as Partial<PluginState> : {};
+    if (!value || typeof value !== "object" || (value as {version?: unknown}).version !== DEFAULT_STATE.version) {
+        fallback.presets = [{id: "default", name: "", targets: cloneTargets(fallback.targets)}];
+        fallback.activePresetId = "default";
+        return fallback;
+    }
+    const source = value as Partial<PluginState>;
     const fonts = Array.isArray(source.fonts)
         ? source.fonts.filter(isImportedFont).map((font) => ({...font}))
         : [];
     fallback.layout.libraryPreviewWidth = clampLibraryPreviewWidth(source.layout?.libraryPreviewWidth);
 
     for (const target of TARGETS) {
-        fallback.targets[target] = migrateTargetSettings(source.targets?.[target], target);
+        fallback.targets[target] = parseTargetSettings(source.targets?.[target], target);
     }
     fallback.fonts = fonts;
     const sourcePresets = (source as {presets?: unknown}).presets;
@@ -23,7 +28,7 @@ export function migrateState(value: unknown): PluginState {
             const preset = value as {id?: unknown; name?: unknown; targets?: Partial<Record<FontTarget, unknown>>};
             if (typeof preset.id !== "string" || !preset.id || typeof preset.name !== "string" || !preset.targets || typeof preset.targets !== "object") return [];
             const targets = cloneTargets(DEFAULT_STATE.targets);
-            for (const target of TARGETS) targets[target] = migrateTargetSettings(preset.targets[target], target);
+            for (const target of TARGETS) targets[target] = parseTargetSettings(preset.targets[target], target);
             return [{id: preset.id, name: preset.name.slice(0, 100), targets}];
         });
     }
@@ -37,17 +42,17 @@ export function migrateState(value: unknown): PluginState {
     return sanitizeAssignments(fallback);
 }
 
-function migrateTargetSettings(value: unknown, target: FontTarget): TargetSettings {
-    const candidate = value && typeof value === "object" ? value as {fonts?: unknown; font?: unknown; size?: unknown; decoupled?: unknown; secondary?: unknown} : {};
+function parseTargetSettings(value: unknown, target: FontTarget): TargetSettings {
+    const candidate = value && typeof value === "object" ? value as {fonts?: unknown; size?: unknown; decoupled?: unknown; secondary?: unknown} : {};
     const fonts = Array.isArray(candidate.fonts)
         ? candidate.fonts.filter(isFontChoice).map((choice) => ({...choice}))
-        : isFontChoice(candidate.font) && candidate.font.kind !== "default" ? [{...candidate.font}] : [];
+        : [];
     const secondary = candidate.secondary && typeof candidate.secondary === "object"
-        ? candidate.secondary as {fonts?: unknown; font?: unknown; size?: unknown}
+        ? candidate.secondary as {fonts?: unknown; size?: unknown}
         : {};
     const secondaryFonts = Array.isArray(secondary.fonts)
         ? secondary.fonts.filter(isFontChoice).map((choice) => ({...choice}))
-        : isFontChoice(secondary.font) && secondary.font.kind !== "default" ? [{...secondary.font}] : [];
+        : [];
     return {
         fonts,
         size: typeof candidate.size === "number" && Number.isFinite(candidate.size) ? candidate.size : null,
@@ -114,7 +119,7 @@ export function clampSize(target: FontTarget, size: number | null): number | nul
 }
 
 export function removeFontFromState(state: PluginState, id: string): PluginState {
-    const next = migrateState(state);
+    const next = parseState(state);
     next.fonts = next.fonts.filter((font) => font.id !== id);
     const allTargets = [next.targets, ...next.presets.map((preset) => preset.targets)];
     for (const targets of allTargets) {

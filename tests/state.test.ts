@@ -1,5 +1,5 @@
 import {describe, expect, it} from "vitest";
-import {activatePreset, clampLibraryPreviewWidth, clampSize, cloneTargets, migrateState, removeFontFromState, syncActivePreset} from "../src/state";
+import {activatePreset, clampLibraryPreviewWidth, clampSize, cloneTargets, parseState, removeFontFromState, syncActivePreset} from "../src/state";
 import {detectFontCoverage, emojiRuntimeFamily, extractFontMetadata, familyForChoice, familyForChoices, extensionOf, hasDuplicateHash, localizedFamilyName, nameWithoutExtension, quoteFamily, runtimeFamily} from "../src/font-utils";
 import {mergeMermaidConfig, mermaidOverrides} from "../src/mermaid";
 import {
@@ -24,25 +24,23 @@ const font: ImportedFont = {
     importedAt: "2026-01-01T00:00:00.000Z",
 };
 
-describe("state migration", () => {
+describe("state parsing", () => {
     it("creates defaults for missing data", () => {
-        expect(migrateState("").targets.ui).toEqual({fonts: [], size: null});
-        expect(migrateState({version: 1, fonts: [], targets: {}}).targets.graph).toEqual({fonts: [], size: null});
+        const initial = parseState("");
+        expect(initial.targets.ui).toEqual({fonts: [], size: null});
+        expect(initial.presets).toHaveLength(1);
+        expect(initial.activePresetId).toBe("default");
+        expect(parseState({version: 3, fonts: [], targets: {}}).targets.graph).toEqual({fonts: [], size: null});
     });
 
     it("drops dangling imported assignments", () => {
-        const state = migrateState({version: 1, fonts: [], targets: {ui: {font: {kind: "imported", id: "missing"}, size: 15}}});
+        const state = parseState({version: 3, fonts: [], targets: {ui: {fonts: [{kind: "imported", id: "missing"}], size: 15}}});
         expect(state.targets.ui.fonts).toEqual([]);
         expect(state.targets.ui.size).toBe(15);
     });
 
-    it("migrates legacy assignments and preserves ordered stacks", () => {
-        const legacy = migrateState({version: 1, fonts: [font], targets: {ui: {font: {kind: "imported", id: font.id}, size: 14}}});
-        expect(legacy.version).toBe(3);
-        expect(legacy.targets.ui.fonts).toEqual([{kind: "imported", id: font.id}]);
-        expect(legacy.presets).toHaveLength(1);
-        expect(legacy.presets[0].targets.ui.fonts).toEqual([{kind: "imported", id: font.id}]);
-        const stacked = migrateState({version: 2, fonts: [font], targets: {ui: {fonts: [
+    it("preserves ordered font stacks", () => {
+        const stacked = parseState({version: 3, fonts: [font], targets: {ui: {fonts: [
             {kind: "system", family: "First", displayName: "First", weight: 400},
             {kind: "default"},
             {kind: "imported", id: font.id},
@@ -51,13 +49,13 @@ describe("state migration", () => {
     });
 
     it("resets categories when a font is removed", () => {
-        const state = migrateState({
-            version: 1,
+        const state = parseState({
+            version: 3,
             fonts: [font],
             targets: {
-                ui: {font: {kind: "imported", id: font.id}, size: 14},
-                content: {font: {kind: "default"}, size: null},
-                mono: {font: {kind: "imported", id: font.id}, size: 13},
+                ui: {fonts: [{kind: "imported", id: font.id}], size: 14},
+                content: {fonts: [{kind: "default"}], size: null},
+                mono: {fonts: [{kind: "imported", id: font.id}], size: 13},
             },
         });
         const next = removeFontFromState(state, font.id);
@@ -67,7 +65,7 @@ describe("state migration", () => {
     });
 
     it("preserves, switches, and updates presets independently", () => {
-        const state = migrateState({version: 2, fonts: [], targets: {ui: {fonts: [], size: 14}}});
+        const state = parseState({version: 3, fonts: [], targets: {ui: {fonts: [], size: 14}}});
         state.presets[0].name = "Reading";
         const codingTargets = cloneTargets(state.targets);
         codingTargets.ui.size = 18;
@@ -83,7 +81,7 @@ describe("state migration", () => {
     });
 
     it("removes a deleted font from every preset", () => {
-        const state = migrateState({version: 2, fonts: [font], targets: {ui: {fonts: [{kind: "imported", id: font.id}], size: 14}}});
+        const state = parseState({version: 3, fonts: [font], targets: {ui: {fonts: [{kind: "imported", id: font.id}], size: 14}}});
         state.presets.push({id: "second", name: "Second", targets: cloneTargets(state.targets)});
         const next = removeFontFromState(state, font.id);
 
@@ -96,7 +94,7 @@ describe("size constraints", () => {
         expect(clampLibraryPreviewWidth(90)).toBe(140);
         expect(clampLibraryPreviewWidth(280.4)).toBe(280);
         expect(clampLibraryPreviewWidth(900)).toBe(420);
-        expect(migrateState({layout: {libraryPreviewWidth: 315}}).layout.libraryPreviewWidth).toBe(315);
+        expect(parseState({version: 3, layout: {libraryPreviewWidth: 315}}).layout.libraryPreviewWidth).toBe(315);
     });
 
     it("uses target-specific ranges", () => {
@@ -111,15 +109,15 @@ describe("size constraints", () => {
         expect(clampSize("ui", null)).toBeNull();
     });
 
-    it("clears legacy emoji size because document emoji cannot be sized independently", () => {
-        const state = migrateState({version: 2, fonts: [], targets: {emoji: {fonts: [], size: 28}}});
+    it("clears emoji size because document emoji cannot be sized independently", () => {
+        const state = parseState({version: 3, fonts: [], targets: {emoji: {fonts: [], size: 28}}});
         expect(state.targets.emoji.size).toBeNull();
     });
 });
 
 describe("Mermaid configuration", () => {
     it("injects an ordered font stack and size before Mermaid layout", () => {
-        const state = migrateState({version: 2, fonts: [font], targets: {mermaid: {
+        const state = parseState({version: 3, fonts: [font], targets: {mermaid: {
             fonts: [
                 {kind: "imported", id: font.id},
                 {kind: "default"},
@@ -137,7 +135,7 @@ describe("Mermaid configuration", () => {
     });
 
     it("leaves Mermaid defaults untouched when no override is configured", () => {
-        const state = migrateState(null);
+        const state = parseState(null);
         expect(mermaidOverrides(state, new Set())).toEqual({});
         state.targets.mermaid.fonts = [{kind: "default"}];
         expect(mermaidOverrides(state, new Set())).toEqual({});
@@ -146,13 +144,13 @@ describe("Mermaid configuration", () => {
 
 describe("preset transfer", () => {
     it("exports portable configuration and restores imported fonts by hash", () => {
-        const state = migrateState({version: 2, fonts: [font], targets: {
+        const state = parseState({version: 3, fonts: [font], targets: {
             ui: {fonts: [{kind: "imported", id: font.id}, {kind: "default"}], size: 15},
         }});
         const preset = state.presets[0];
         preset.name = "Reading";
         preset.targets = cloneTargets(state.targets);
-        const container = readPresetContainer(new TextEncoder().encode(serializePreset(preset, state.fonts)), "reading.bfm-preset.json");
+        const container = readPresetContainer(new TextEncoder().encode(serializePreset(preset, state.fonts)), "reading.siyuan-font-studio-preset.json");
         const raw = container.config as {format: string; version: number; targets: {ui: {fonts: unknown[]}}};
 
         expect(raw.format).toBe(PRESET_FILE_FORMAT);
@@ -163,13 +161,13 @@ describe("preset transfer", () => {
     });
 
     it("packs and reads selected font files", async () => {
-        const state = migrateState({version: 2, fonts: [font], targets: {ui: {fonts: [{kind: "imported", id: font.id}], size: 14}}});
+        const state = parseState({version: 3, fonts: [font], targets: {ui: {fonts: [{kind: "imported", id: font.id}], size: 14}}});
         const preset = state.presets[0];
         preset.name = "Portable";
         preset.targets = cloneTargets(state.targets);
         const bytes = new Uint8Array([1, 2, 3]).buffer;
         const archive = await createPresetPackage(preset, state.fonts, [{font: {...font, size: 3}, data: bytes}]);
-        const container = readPresetContainer(archive, "portable.bfm-preset.zip");
+        const container = readPresetContainer(archive, "portable.siyuan-font-studio-preset.zip");
 
         expect(container.bundledFonts).toHaveLength(1);
         expect(Array.from(container.bundledFonts[0].data)).toEqual([1, 2, 3]);
@@ -177,7 +175,7 @@ describe("preset transfer", () => {
     });
 
     it("reports bundled fonts that are absent from the local library", () => {
-        const state = migrateState({version: 2, fonts: [font], targets: {content: {fonts: [{kind: "imported", id: font.id}], size: 16}}});
+        const state = parseState({version: 3, fonts: [font], targets: {content: {fonts: [{kind: "imported", id: font.id}], size: 16}}});
         const preset = state.presets[0];
         preset.name = "Missing";
         preset.targets = cloneTargets(state.targets);
