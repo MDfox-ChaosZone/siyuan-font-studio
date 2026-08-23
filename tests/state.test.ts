@@ -113,6 +113,11 @@ describe("size constraints", () => {
         const state = parseState({version: 3, fonts: [], targets: {emoji: {fonts: [], size: 28}}});
         expect(state.targets.emoji.size).toBeNull();
     });
+
+    it("clears legacy graph sizes because SiYuan 3.8+ has no graph size API", () => {
+        const state = parseState({version: 3, fonts: [], targets: {graph: {fonts: [], size: 32}}});
+        expect(state.targets.graph.size).toBeNull();
+    });
 });
 
 describe("Mermaid configuration", () => {

@@ -101,9 +101,9 @@ function sanitizeTargets(targets: Record<FontTarget, TargetSettings>, ids: Set<s
     for (const target of TARGETS) {
         targets[target].fonts = uniqueChoices(targets[target].fonts.filter((choice) => choice.kind !== "imported" || ids.has(choice.id)));
         targets[target].size = clampSize(target, targets[target].size);
-        // Raw emoji in SiYuan documents are Unicode characters inside ordinary
-        // text nodes, so they cannot have a font size independent from the text.
-        if (target === "emoji") targets[target].size = null;
+        // Raw emoji share text nodes with document content, while SiYuan 3.8+
+        // does not expose an independent graph font-size API.
+        if (target === "emoji" || target === "graph") targets[target].size = null;
         if (targets[target].secondary) {
             targets[target].secondary!.fonts = uniqueChoices(targets[target].secondary!.fonts.filter((choice) => choice.kind !== "imported" || ids.has(choice.id)));
             targets[target].secondary!.size = clampSize(target, targets[target].secondary!.size);
@@ -113,7 +113,7 @@ function sanitizeTargets(targets: Record<FontTarget, TargetSettings>, ids: Set<s
 
 export function clampSize(target: FontTarget, size: number | null): number | null {
     if (size === null || !Number.isFinite(size)) return null;
-    const min = target === "ui" || target === "mermaid" ? 10 : target === "graph" || target === "emoji" || target === "math" ? 8 : 9;
+    const min = target === "ui" || target === "mermaid" ? 10 : target === "emoji" || target === "math" ? 8 : 9;
     const max = target === "ui" ? 24 : target === "mermaid" ? 32 : 72;
     return Math.min(max, Math.max(min, Math.round(size)));
 }

@@ -463,11 +463,10 @@ export default class SiYuanFontStudio extends Plugin {
         const description = this.i18n[`${target}Description`];
         const bounds = target === "ui" ? {min: 10, max: 24, fallback: 14}
             : target === "content" ? {min: 9, max: 72, fallback: window.siyuan.config?.editor.fontSize || 16}
-                : target === "graph" ? {min: 8, max: 72, fallback: 32}
-                    : target === "emoji" ? {min: 8, max: 72, fallback: 19}
-                        : target === "mermaid" ? {min: 10, max: 32, fallback: 16}
-                        : target === "math" ? {min: 8, max: 72, fallback: window.siyuan.config?.editor.fontSize || 16}
-                            : {min: 9, max: 72, fallback: 14};
+                : target === "emoji" || target === "graph" ? {min: 8, max: 72, fallback: 19}
+                    : target === "mermaid" ? {min: 10, max: 32, fallback: 16}
+                    : target === "math" ? {min: 8, max: 72, fallback: window.siyuan.config?.editor.fontSize || 16}
+                        : {min: 9, max: 72, fallback: 14};
         const supportsDecoupling = target === "mono" || target === "math";
         const decouple = supportsDecoupling ? `<label class="bfm-decouple"><input type="checkbox" data-role="decouple" data-target="${target}" ${config.decoupled ? "checked" : ""}><span>${this.i18n.separateSettings}</span></label>` : "";
         const primaryLabel = target === "mono" ? this.i18n.inlineCode : target === "math" ? this.i18n.inlineFormula : "";
@@ -480,9 +479,8 @@ export default class SiYuanFontStudio extends Plugin {
 </div>${this.settingControlsHtml(target, secondaryActive, bounds)}`
             : this.settingControlsHtml(target, false, bounds);
         const hint = target === "math" ? this.i18n.mathFontHint
-            : target === "graph" ? this.i18n.graphFontHint
-                : target === "mermaid" ? this.i18n.mermaidSizeHint
-                    : "";
+            : target === "mermaid" ? this.i18n.mermaidSizeHint
+                : "";
         const hintPositionClass = target === "math" ? " bfm-info-tip--start" : "";
         const titleHint = hint
             ? `<span class="bfm-info-tip${hintPositionClass}" tabindex="0" aria-label="${escapeHtml(hint)}"><span aria-hidden="true">i</span><span class="bfm-info-tip__content" role="tooltip">${escapeHtml(hint)}</span></span>`
@@ -798,8 +796,9 @@ export default class SiYuanFontStudio extends Plugin {
     private settingControlsHtml(target: FontTarget, secondary: boolean, bounds: {min: number; max: number; fallback: number}): string {
         const config = this.settingsFor(target, secondary);
         const size = config.size ?? bounds.fallback;
-        const sizeControls = target === "emoji" ? "" : `<div class="bfm-size"><input type="range" data-role="size" data-target="${target}" data-secondary="${secondary}" min="${bounds.min}" max="${bounds.max}" step="1" value="${size}"><output data-size-output="${target}-${secondary}">${size}px</output></div>`;
-        const resetSize = target === "emoji" ? "" : `<button class="b3-button bfm-reset ${config.size === null ? "" : "bfm-reset--active"}" data-reset-size="${target}" data-secondary="${secondary}">${this.i18n.resetSize}</button>`;
+        const supportsSize = target !== "emoji" && target !== "graph";
+        const sizeControls = supportsSize ? `<div class="bfm-size"><input type="range" data-role="size" data-target="${target}" data-secondary="${secondary}" min="${bounds.min}" max="${bounds.max}" step="1" value="${size}"><output data-size-output="${target}-${secondary}">${size}px</output></div>` : "";
+        const resetSize = supportsSize ? `<button class="b3-button bfm-reset ${config.size === null ? "" : "bfm-reset--active"}" data-reset-size="${target}" data-secondary="${secondary}">${this.i18n.resetSize}</button>` : "";
         return `<div class="bfm-setting-pane">${this.fontPickerHtml(target, secondary, config.fonts)}
   ${sizeControls}
   <div class="bfm-target__actions"><button class="b3-button bfm-reset ${config.fonts.length ? "bfm-reset--active" : ""}" data-reset-font="${target}" data-secondary="${secondary}">${this.i18n.resetFont}</button>${resetSize}</div></div>`;
