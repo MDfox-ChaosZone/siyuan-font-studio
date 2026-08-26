@@ -51,8 +51,8 @@
 .sfs-preset-bar {
   align-items: center;
   display: flex;
-  gap: 16px;
-  justify-content: space-between;
+  gap: 12px;
+  justify-content: flex-start;
 
   h2 {
     margin: 0;
@@ -63,7 +63,7 @@
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
-    justify-content: flex-end;
+    justify-content: flex-start;
     min-width: 0;
 
     select {
@@ -76,6 +76,23 @@
     }
   }
 
+  &__example.b3-button {
+    background: transparent;
+    box-shadow: none;
+    color: var(--b3-theme-on-surface-light);
+    flex: none;
+    font-size: 12px !important;
+    font-weight: 400;
+    margin-left: auto;
+    padding: 4px 2px;
+
+    &:hover,
+    &:focus-visible {
+      background: transparent;
+      box-shadow: none;
+      color: var(--b3-theme-on-surface);
+    }
+  }
 }
 
 .bfm-targets {
@@ -738,6 +755,20 @@
   }
 }
 
+.sfs-example-download {
+  p {
+    color: var(--b3-theme-on-surface);
+    margin: 0 0 12px;
+  }
+
+  progress {
+    accent-color: var(--b3-theme-primary);
+    display: block;
+    height: 8px;
+    width: 100%;
+  }
+}
+
 .bfm-empty {
   color: var(--b3-theme-on-surface-light);
   padding: 36px;
@@ -756,6 +787,11 @@
         flex: 1 1 100%;
         max-width: none;
       }
+    }
+
+    &__example.b3-button {
+      align-self: flex-end;
+      margin-left: 0;
     }
   }
 

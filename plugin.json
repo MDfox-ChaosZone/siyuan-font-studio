@@ -2,7 +2,7 @@
   "name": "siyuan-font-studio",
   "author": "MDfox",
   "url": "https://github.com/MDfox-ChaosZone/siyuan-font-studio",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "minAppVersion": "3.8.0",
   "backends": ["all"],
   "frontends": ["all"],
@@ -13,7 +13,7 @@
   },
   "description": {
     "default": "Customize every font element in SiYuan!",
-    "zh-CN": "自定义思源里所有的字体元素!"
+    "zh-CN": "轻松自定义思源中的所有字体元素！"
   },
   "readme": {
     "default": "README.md",

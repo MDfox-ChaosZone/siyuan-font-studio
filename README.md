@@ -24,7 +24,12 @@
 - 关系图字体：思源 3.8 及以上版本采用新版关系图渲染器，目前仅支持修改字体，不提供字号设置。
 - 思源内置的 KaTeX 对专用字体进行了特殊适配，因此建议保留 `KaTeX_Math` 作为首选字体，可次选其他字体来候补中文字符。
 - 推荐使用体积更小的 WOFF2 字体格式。TTF/OTF 格式字体可以通过 [CloudConvert](https://cloudconvert.com/ttf-to-woff2) 在线转换，或使用本人项目 [FontConvert](https://github.com/MDfox-ChaosZone/Font-Converter) 转换。
-- 示例字体方案可以在 [Release](https://github.com/MDfox-ChaosZone/siyuan-font-studio/releases/tag/%E7%A4%BA%E4%BE%8B%E5%AD%97%E4%BD%93%E6%96%B9%E6%A1%88) 中手动下载并导入插件。欢迎通过 [GitHub Issues](https://github.com/MDfox-ChaosZone/siyuan-font-studio/issues) 分享自己的字体方案，方案将手动同步到该 Release中。
+- 可在预设方案工具栏中按需下载并自动导入[示例字体方案](https://github.com/MDfox-ChaosZone/siyuan-font-studio/releases/tag/%E7%A4%BA%E4%BE%8B%E5%AD%97%E4%BD%93%E6%96%B9%E6%A1%88)，示例字体不会打包进插件或随插件更新重复下载。欢迎通过 [GitHub Issues](https://github.com/MDfox-ChaosZone/siyuan-font-studio/issues) 分享自己的字体方案，方案将手动同步到该 Release 中。
+
+## 更新记录
+
+- **2026 年 8 月 26 日以前**：完成插件基本功能。
+- **2026 年 8 月 26 日（v0.1.5）**：新增示例字体方案的按需下载与自动导入功能，并优化预设方案工具栏布局。
 
 ## 许可证
 

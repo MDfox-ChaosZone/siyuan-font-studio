@@ -14,6 +14,14 @@ import {
     sha256,
     SUPPORTED_EXTENSIONS,
 } from "./font-utils";
+import {
+    downloadExamplePreset,
+    EXAMPLE_PRESET_ASSET_NAME,
+    EXAMPLE_PRESET_RELEASE_URL,
+    ExamplePresetAsset,
+    fetchExamplePresetViaSiyuanProxy,
+    resolveExamplePresetAsset,
+} from "./example-preset";
 import {activatePreset, clampLibraryPreviewWidth, cloneTargets, parseState, removeFontFromState, syncActivePreset} from "./state";
 import {mergeMermaidConfig, mermaidOverrides} from "./mermaid";
 import {
@@ -60,6 +68,8 @@ export default class SiYuanFontStudio extends Plugin {
     private managerDialog?: Dialog;
     private renameDialog?: Dialog;
     private presetTransferDialog?: Dialog;
+    private exampleDownloadDialog?: Dialog;
+    private exampleDownloadAbort?: AbortController;
     private themeObserver?: MutationObserver;
     private graphObserver?: MutationObserver;
     private mermaidScriptObserver?: MutationObserver;
@@ -134,6 +144,8 @@ export default class SiYuanFontStudio extends Plugin {
         this.restoreMermaidRuntime();
         this.renameDialog?.destroy();
         this.presetTransferDialog?.destroy();
+        this.exampleDownloadAbort?.abort();
+        this.exampleDownloadDialog?.destroy();
         this.managerDialog?.destroy();
         this.styleManager?.destroy();
         for (const face of this.faces.values()) document.fonts.delete(face);
@@ -318,12 +330,13 @@ export default class SiYuanFontStudio extends Plugin {
     <h2>${this.i18n.presets}</h2>
     <div class="sfs-preset-bar__controls">
       <select class="b3-select" data-role="preset-select" aria-label="${escapeHtml(this.i18n.presets)}">${this.state.presets.map((preset) => `<option value="${escapeHtml(preset.id)}" ${preset.id === this.state.activePresetId ? "selected" : ""}>${escapeHtml(this.presetDisplayName(preset))}</option>`).join("")}</select>
-      <button type="button" class="b3-button b3-button--outline" data-action="new-preset">＋ ${this.i18n.newPreset}</button>
-      <button type="button" class="b3-button b3-button--outline" data-action="import-preset">${this.i18n.importPreset}</button>
-      <button type="button" class="b3-button b3-button--outline" data-action="export-preset">${this.i18n.exportPreset}</button>
+      <button type="button" class="b3-button b3-button--outline" data-action="new-preset">＋ ${this.i18n.newPresetAction}</button>
+      <button type="button" class="b3-button b3-button--outline" data-action="import-preset">${this.i18n.importPresetAction}</button>
+      <button type="button" class="b3-button b3-button--outline" data-action="export-preset">${this.i18n.exportPresetAction}</button>
       <button type="button" class="b3-button b3-button--outline" data-action="rename-preset">${this.i18n.rename}</button>
       <button type="button" class="b3-button b3-button--cancel" data-action="delete-preset" ${this.state.presets.length <= 1 ? "disabled" : ""}>${this.i18n.delete}</button>
     </div>
+    <button type="button" class="b3-button b3-button--text sfs-preset-bar__example" data-action="download-example-preset" title="${escapeHtml(this.i18n.downloadExamplePresetDescription)}">${this.i18n.downloadExamplePreset}</button>
     <input class="fn__none" type="file" data-role="preset-input" accept=".json,.zip,application/json,application/zip" multiple>
   </div>
   <details class="bfm-advanced bfm-primary" ${primaryOpen ? "open" : ""}>
@@ -368,6 +381,7 @@ export default class SiYuanFontStudio extends Plugin {
         });
         root.querySelector<HTMLButtonElement>("button[data-action='new-preset']")?.addEventListener("click", () => this.openPresetNameDialog());
         root.querySelector<HTMLButtonElement>("button[data-action='import-preset']")?.addEventListener("click", () => root.querySelector<HTMLInputElement>("input[data-role='preset-input']")?.click());
+        root.querySelector<HTMLButtonElement>("button[data-action='download-example-preset']")?.addEventListener("click", () => void this.confirmExamplePresetDownload());
         root.querySelector<HTMLButtonElement>("button[data-action='export-preset']")?.addEventListener("click", () => this.openPresetExportDialog());
         root.querySelector<HTMLButtonElement>("button[data-action='rename-preset']")?.addEventListener("click", () => this.openPresetNameDialog(this.state.activePresetId));
         root.querySelector<HTMLButtonElement>("button[data-action='delete-preset']")?.addEventListener("click", () => this.confirmDeletePreset(this.state.activePresetId));
@@ -538,6 +552,107 @@ export default class SiYuanFontStudio extends Plugin {
         this.applySettings();
         await this.persist();
         this.renderManager();
+    }
+
+    private async confirmExamplePresetDownload(): Promise<void> {
+        if (this.exampleDownloadAbort) return;
+        try {
+            const asset = await resolveExamplePresetAsset();
+            const message = asset.size
+                ? this.i18n.downloadExamplePresetConfirmWithSize.replace("${size}", formatFileSize(asset.size))
+                : this.i18n.downloadExamplePresetConfirm;
+            confirm(this.i18n.downloadExamplePreset, message, () => {
+                void this.downloadAndImportExamplePreset(asset);
+            });
+        } catch (error) {
+            showMessage(`${this.i18n.examplePresetDownloadFailed}: ${this.examplePresetError(error)}`, 7000, "error");
+        }
+    }
+
+    private async downloadAndImportExamplePreset(asset: ExamplePresetAsset): Promise<void> {
+        if (this.exampleDownloadAbort) return;
+        const controller = new AbortController();
+        this.exampleDownloadAbort = controller;
+        let completed = false;
+        this.exampleDownloadDialog?.destroy();
+        const dialog = new Dialog({
+            title: this.i18n.downloadExamplePreset,
+            width: "520px",
+            content: `<div class="sfs-example-download">
+  <div class="b3-dialog__content">
+    <p data-example-download-status>${this.i18n.downloadingExamplePreset}</p>
+    <progress max="100" data-example-download-progress></progress>
+  </div>
+  <div class="b3-dialog__action"><button class="b3-button b3-button--outline" type="button" data-open-example-release>${this.i18n.openExamplePresetRelease}</button><div class="fn__space"></div><button class="b3-button b3-button--cancel" type="button" data-cancel-example-download>${this.i18n.cancel}</button></div>
+</div>`,
+            destroyCallback: () => {
+                if (!completed) controller.abort();
+                if (this.exampleDownloadDialog === dialog) this.exampleDownloadDialog = undefined;
+                if (this.exampleDownloadAbort === controller) this.exampleDownloadAbort = undefined;
+            },
+        });
+        this.exampleDownloadDialog = dialog;
+        dialog.element.querySelector<HTMLButtonElement>("[data-cancel-example-download]")?.addEventListener("click", () => dialog.destroy());
+        dialog.element.querySelector<HTMLButtonElement>("[data-open-example-release]")?.addEventListener("click", () => {
+            window.open(EXAMPLE_PRESET_RELEASE_URL, "_blank", "noopener,noreferrer");
+        });
+        const status = dialog.element.querySelector<HTMLElement>("[data-example-download-status]");
+        const progress = dialog.element.querySelector<HTMLProgressElement>("[data-example-download-progress]");
+
+        try {
+            if (status) status.textContent = asset.size
+                ? this.i18n.downloadingExamplePresetTotal.replace("${total}", formatFileSize(asset.size))
+                : this.i18n.downloadingExamplePreset;
+            const reportProgress = ({received, total}: {received: number; total: number | null}) => {
+                if (controller.signal.aborted) return;
+                if (progress) {
+                    if (total) {
+                        progress.value = Math.min(100, received / total * 100);
+                        progress.setAttribute("value", String(progress.value));
+                    } else {
+                        progress.removeAttribute("value");
+                    }
+                }
+                if (status) status.textContent = total
+                    ? this.i18n.examplePresetDownloadProgress
+                        .replace("${received}", formatFileSize(received))
+                        .replace("${total}", formatFileSize(total))
+                        .replace("${percent}", String(Math.min(100, Math.round(received / total * 100))))
+                    : this.i18n.examplePresetDownloadProgressUnknown.replace("${received}", formatFileSize(received));
+            };
+            let data: Uint8Array<ArrayBuffer>;
+            try {
+                data = await downloadExamplePreset(asset, controller.signal, reportProgress);
+            } catch (error) {
+                if (!(error instanceof TypeError) || controller.signal.aborted) throw error;
+                if (status) status.textContent = this.i18n.downloadingExamplePresetViaProxy;
+                progress?.removeAttribute("value");
+                data = await downloadExamplePreset(asset, controller.signal, reportProgress, (input, init) => fetchExamplePresetViaSiyuanProxy(input, init));
+            }
+            if (controller.signal.aborted) return;
+            if (status) status.textContent = this.i18n.importingExamplePreset;
+            progress?.removeAttribute("value");
+            await this.importPresetFiles([new File([data], EXAMPLE_PRESET_ASSET_NAME, {type: "application/zip"})]);
+            completed = true;
+            dialog.destroy();
+        } catch (error) {
+            if (controller.signal.aborted || error instanceof DOMException && error.name === "AbortError") return;
+            completed = true;
+            dialog.destroy();
+            showMessage(`${this.i18n.examplePresetDownloadFailed}: ${this.examplePresetError(error)}`, 7000, "error");
+        } finally {
+            if (this.exampleDownloadAbort === controller) this.exampleDownloadAbort = undefined;
+        }
+    }
+
+    private examplePresetError(error: unknown): string {
+        const message = error instanceof Error ? error.message : String(error);
+        if (message === "example-package-too-large") return this.i18n.examplePresetTooLarge;
+        if (message === "example-download-integrity" || message === "example-download-size-mismatch") return this.i18n.examplePresetIntegrityFailed;
+        const httpStatus = /^example-(?:download|proxy)-http-(\d+)$/.exec(message)?.[1];
+        if (httpStatus) return this.i18n.examplePresetHttpFailed.replace("${status}", httpStatus);
+        if (message === "example-proxy-invalid-response") return this.i18n.examplePresetNetworkFailed;
+        return message || this.i18n.examplePresetNetworkFailed;
     }
 
     private openPresetExportDialog(): void {
