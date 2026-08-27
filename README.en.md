@@ -30,6 +30,7 @@ Easily customize every font element in SiYuan!
 
 - **Before August 26, 2026**: Completed the plugin's core functionality.
 - **August 26, 2026 (v0.1.5)**: Added on-demand download and automatic import for the example font preset, and refined the preset toolbar layout.
+- **August 28, 2026 (v0.1.6)**: Updated the logo and preview image.
 
 ## License
 
