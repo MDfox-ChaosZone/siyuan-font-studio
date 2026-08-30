@@ -98,7 +98,7 @@
 .bfm-targets {
   display: grid;
   gap: 12px;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .bfm-advanced {
@@ -158,6 +158,7 @@
     align-items: center;
     display: flex;
     justify-content: space-between;
+    margin-bottom: 12px;
   }
 
   &__label {
@@ -165,6 +166,15 @@
     display: flex;
     gap: 6px;
     min-width: 0;
+  }
+
+  &__description {
+    color: var(--b3-theme-on-surface-light);
+    font-size: 12px;
+    font-weight: 400;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .bfm-decouple {
@@ -191,13 +201,6 @@
       flex: 1;
       white-space: nowrap;
     }
-  }
-
-  p {
-    color: var(--b3-theme-on-surface-light);
-    font-size: 12px;
-    line-height: 1.5;
-    margin: 6px 0 12px;
   }
 
 }
@@ -347,13 +350,7 @@
   &__item {
     cursor: grab;
     grid-template-columns: auto minmax(0, 1fr) auto;
-    padding: 3px 5px;
-
-    > span:nth-child(2) {
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
+    padding: 5px;
 
     button {
       background: transparent;
@@ -369,6 +366,51 @@
   &__default {
     color: var(--b3-theme-on-surface-light);
     padding: 5px 9px;
+  }
+
+  &__main {
+    align-items: center;
+    display: flex;
+    gap: 8px;
+    min-width: 0;
+
+    > span {
+      flex: 1 1 auto;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+  }
+
+  &__weight {
+    box-sizing: border-box;
+    flex: 0 1 160px;
+    font-size: 11px;
+    max-width: 180px;
+    min-width: 0;
+
+    &--variable {
+      align-items: center;
+      display: grid;
+      gap: 7px;
+      grid-template-columns: minmax(70px, 1fr) 58px;
+      flex: 1 1 160px;
+      max-width: none;
+
+      input[type="range"] {
+        min-width: 0;
+        width: 100%;
+      }
+
+      input[type="number"] {
+        box-sizing: border-box;
+        font-size: 11px;
+        height: 26px;
+        padding: 3px 5px;
+        width: 58px;
+      }
+    }
   }
 }
 
@@ -480,6 +522,8 @@
   border: 0;
   border-radius: var(--b3-border-radius);
   color: var(--b3-theme-on-background);
+  contain-intrinsic-size: auto 30px;
+  content-visibility: auto;
   cursor: pointer;
   display: flex;
   font-family: var(--b3-font-family);
@@ -487,6 +531,30 @@
   padding: 6px 8px;
   text-align: left;
   width: 100%;
+
+  &__main {
+    align-items: baseline;
+    display: flex;
+    gap: 7px;
+    min-width: 0;
+  }
+
+  &__label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__weights {
+    color: var(--b3-theme-on-surface-light);
+    flex: none;
+    font-family: var(--b3-font-family);
+    font-size: 10px;
+    font-weight: 400;
+    padding: 0;
+    white-space: nowrap;
+  }
 
   &[hidden] {
     display: none;
@@ -584,19 +652,30 @@
 
 .bfm-font {
   align-items: center;
+  background: var(--b3-theme-surface);
   border: 1px solid var(--b3-border-color);
-  border-radius: var(--b3-border-radius);
+  border-radius: calc(var(--b3-border-radius) + 2px);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 4%);
   display: grid;
   column-gap: 3px;
-  grid-template-columns: auto minmax(140px, var(--bfm-library-preview-width)) 8px minmax(200px, 1fr) auto;
+  grid-template-columns: auto minmax(140px, var(--bfm-library-preview-width)) 8px minmax(260px, 1fr);
   row-gap: 8px;
-  padding: 12px 14px;
+  padding: 14px 16px;
+  transition: border-color .15s ease, box-shadow .15s ease;
+
+  &:hover {
+    border-color: color-mix(in srgb, var(--b3-theme-primary) 30%, var(--b3-border-color));
+    box-shadow: 0 3px 10px rgb(0 0 0 / 7%);
+  }
 
   &--error {
     border-color: var(--b3-theme-error);
   }
 
   &__name {
+    align-items: center;
+    display: flex;
+    gap: 10px;
     font-size: 18px;
     line-height: 1.4;
     overflow: hidden;
@@ -604,8 +683,13 @@
     white-space: nowrap;
 
     strong {
-      font-weight: 600;
+      flex: 1 1 auto;
+      font-weight: 400;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
+
   }
 
   &__handle {
@@ -638,35 +722,59 @@
     display: flex;
     flex-direction: column;
     min-width: 0;
+  }
 
-    > span {
-      color: var(--b3-theme-on-surface-light);
-      font-size: 12px;
+  &__header {
+    align-items: center;
+    display: grid;
+    gap: 12px;
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  &__selected {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+
+    strong {
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
     }
 
-    > span + span {
-      margin-top: 3px;
+    strong {
+      font-size: 14px;
+      font-weight: 500;
+    }
+
+    span {
+      color: var(--b3-theme-on-surface-light);
+      font-family: var(--b3-font-family);
+      font-size: 11px;
+      line-height: 1.45;
+      margin-top: 4px;
     }
   }
 
-  &__metadata {
-    display: flex;
+  &__variant-picker {
+    box-sizing: border-box;
+    flex: 0 1 170px;
+    font-family: var(--b3-font-family);
+    font-size: 11px;
+    max-width: 190px;
     min-width: 0;
+    width: 100%;
+
+    &:disabled {
+      color: var(--b3-theme-on-surface-light);
+      cursor: default;
+      opacity: .78;
+    }
   }
 
-  &__version {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  &__file-details {
-    flex: none;
-    white-space: nowrap;
+  &__variable-weight {
+    flex: 0 1 190px;
+    width: min(190px, 48%);
   }
 
   &__tags {
@@ -674,7 +782,7 @@
     display: flex;
     flex-wrap: wrap;
     gap: 6px;
-    margin-top: 8px;
+    margin-top: 10px;
   }
 
   &__tag {
@@ -694,8 +802,12 @@
   }
 
   &__actions {
+    align-self: center;
     display: flex;
-    gap: 8px;
+    flex: none;
+    gap: 6px;
+    grid-column: 2;
+    grid-row: 1;
   }
 }
 
@@ -799,15 +911,22 @@
     grid-template-columns: 1fr;
   }
 
-  .bfm-target p {
-    min-height: 0;
-  }
-
   .bfm-font {
     grid-template-columns: 1fr;
 
     &__column-resizer {
       display: none;
+    }
+
+    &__header {
+      align-items: stretch;
+      grid-template-columns: 1fr;
+    }
+
+    &__actions {
+      grid-column: 1;
+      grid-row: auto;
+      justify-content: flex-end;
     }
   }
 

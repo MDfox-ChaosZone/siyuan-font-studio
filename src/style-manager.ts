@@ -1,4 +1,4 @@
-import {EMOJI_UNICODE_RANGE, emojiRuntimeFamily, familyForChoices, quoteFamily, runtimeFamily} from "./font-utils";
+import {EMOJI_UNICODE_RANGE, emojiRuntimeFamily, familyForChoices, quoteFamily, runtimeFamily, weightForChoices} from "./font-utils";
 import {FontChoice, FontTarget, ImportedFont, PluginState} from "./types";
 
 const STYLE_ID = "siyuan-font-studio-overrides";
@@ -56,6 +56,11 @@ export class StyleManager {
         const restrictedEmoji = restrictedEmojiFamilies(effectiveChoices(state.targets.emoji.fonts), state.fonts, loadedIds, this.baselineFamilies.emoji);
         const emoji = restrictedEmoji.family;
         const math = familyForChoices(effectiveChoices(state.targets.math.fonts), state.fonts, loadedIds, runtimeFamily, this.baselineFamilies.math);
+        const weights = {
+            ui: weightForChoices(effectiveChoices(state.targets.ui.fonts), state.fonts),
+            content: weightForChoices(effectiveChoices(state.targets.content.fonts), state.fonts),
+            mono: weightForChoices(effectiveChoices(state.targets.mono.fonts), state.fonts),
+        };
 
         if (ui) root.setProperty("--b3-font-family", `${ui}, "Emojis Additional", "Emojis Reset", system-ui, sans-serif`, "important");
         if (content) root.setProperty("--b3-font-family-protyle", `${content}, ${this.baselineFamilies.content}`, "important");
@@ -77,7 +82,10 @@ export class StyleManager {
         const mathBlock = state.targets.math.decoupled
             ? familyForChoices(effectiveChoices(state.targets.math.secondary?.fonts || []), state.fonts, loadedIds, runtimeFamily, this.baselineFamilies.math)
             : null;
-        style.textContent = [...restrictedEmoji.faceRules, this.buildRules(state, {ui, content, mono, graph, emoji, math, mermaid: null}, {monoBlock, mathBlock})].filter(Boolean).join("\n");
+        const monoBlockWeight = state.targets.mono.decoupled
+            ? weightForChoices(state.targets.mono.secondary?.fonts || [], state.fonts)
+            : weights.mono;
+        style.textContent = [...restrictedEmoji.faceRules, this.buildRules(state, {ui, content, mono, graph, emoji, math, mermaid: null}, {monoBlock, mathBlock}, weights, monoBlockWeight)].filter(Boolean).join("\n");
     }
 
     destroy(): void {
@@ -85,15 +93,20 @@ export class StyleManager {
         document.getElementById(STYLE_ID)?.remove();
     }
 
-    private buildRules(state: PluginState, families: Record<FontTarget, string | null>, separated: {monoBlock: string | null; mathBlock: string | null}): string {
+    private buildRules(state: PluginState, families: Record<FontTarget, string | null>, separated: {monoBlock: string | null; mathBlock: string | null}, weights: {ui: number | null; content: number | null; mono: number | null}, monoBlockWeight: number | null): string {
         const rules: string[] = [];
+        if (weights.ui !== null) rules.push(`body { font-weight: ${weights.ui}; }`);
+        if (weights.content !== null) rules.push(`.b3-typography:not(.b3-typography--default), .protyle-wysiwyg, .protyle-title { font-weight: ${weights.content}; }`);
+        if (weights.mono !== null) rules.push(`.b3-typography code:not(.hljs), .protyle-wysiwyg span[data-type~="code"] { font-weight: ${weights.mono}; }`);
         if (families.emoji) {
             rules.push(`.b3-typography:not(.b3-typography--default),
 .protyle-wysiwyg,
 .protyle-title { font-family: ${families.emoji}, var(--b3-font-family-protyle) !important; }`);
         }
         if (state.targets.mono.decoupled && separated.monoBlock) {
-            rules.push(`.b3-typography .hljs, .protyle-wysiwyg .hljs, .protyle-linenumber__rows, textarea[style*="--b3-font-family-code"] { font-family: ${separated.monoBlock}, ui-monospace, Consolas, monospace !important; }`);
+            rules.push(`.b3-typography .hljs, .protyle-wysiwyg .hljs, .protyle-linenumber__rows, textarea[style*="--b3-font-family-code"] { font-family: ${separated.monoBlock}, ui-monospace, Consolas, monospace !important;${monoBlockWeight === null ? "" : ` font-weight: ${monoBlockWeight};`} }`);
+        } else if (monoBlockWeight !== null) {
+            rules.push(`.b3-typography .hljs, .protyle-wysiwyg .hljs, .protyle-linenumber__rows, textarea[style*="--b3-font-family-code"] { font-weight: ${monoBlockWeight}; }`);
         }
         if (families.math) {
             const mathFamily = `${families.math}, ${this.baselineFamilies.math}`;

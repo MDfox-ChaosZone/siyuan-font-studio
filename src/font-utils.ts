@@ -1,4 +1,4 @@
-import {FontChoice, FontCoverage, ImportedFont} from "./types";
+import {FontChoice, FontCoverage, FontVariationAxis, ImportedFont, SystemFont} from "./types";
 import {create as createFont} from "fontkit";
 
 export const SUPPORTED_EXTENSIONS = new Set(["woff2", "woff", "ttf", "otf"]);
@@ -28,14 +28,69 @@ const COMMON_EMOJI_FACES = new Set([
 
 export interface FontMetadata {
     fontName: string;
+    fontStyle: string;
+    fontWeight: number;
+    variationAxes: Record<string, FontVariationAxis>;
     fontVersion: string;
     coverage: FontCoverage;
+}
+
+export interface ImportedFontGroup {
+    key: string;
+    familyName: string;
+    fonts: ImportedFont[];
+}
+
+export interface SystemFontFamilyGroup {
+    family: string;
+    displayName: string;
+    searchText: string;
+    fonts: Array<{font: SystemFont; index: number}>;
+    preferred: {font: SystemFont; index: number};
+}
+
+export function fontWeightName(weight: number): string {
+    const names: Record<number, string> = {
+        100: "Thin",
+        200: "Extra Light",
+        300: "Light",
+        400: "Regular",
+        500: "Medium",
+        600: "Semi Bold",
+        700: "Bold",
+        800: "Extra Bold",
+        900: "Black",
+    };
+    return names[weight] || `Weight ${weight}`;
+}
+
+export function groupSystemFonts(fonts: SystemFont[]): SystemFontFamilyGroup[] {
+    const groups = new Map<string, Array<{font: SystemFont; index: number}>>();
+    fonts.forEach((font, index) => {
+        const key = font.family.normalize("NFC").toLocaleLowerCase();
+        const group = groups.get(key) || [];
+        group.push({font, index});
+        groups.set(key, group);
+    });
+    return Array.from(groups.values()).map((variants) => {
+        variants.sort((a, b) => a.font.weight - b.font.weight);
+        const preferred = variants.find(({font}) => font.weight === 400) || variants[0];
+        return {
+            family: variants[0].font.family,
+            displayName: preferred.font.displayName || variants[0].font.family,
+            searchText: Array.from(new Set([variants[0].font.family, ...variants.map(({font}) => font.displayName)]))
+                .join(" ").toLocaleLowerCase(),
+            fonts: variants,
+            preferred,
+        };
+    });
 }
 
 export function extractFontMetadata(buffer: ArrayBuffer, fallbackName: string): FontMetadata {
     try {
         const parsed = createFont(new Uint8Array(buffer)) as {
             familyName?: string | null;
+            subfamilyName?: string | null;
             fullName?: string | null;
             postscriptName?: string | null;
             version?: string | null;
@@ -44,20 +99,38 @@ export function extractFontMetadata(buffer: ArrayBuffer, fallbackName: string): 
                 records?: {
                     fontFamily?: Record<string, string | null | undefined>;
                     preferredFamily?: Record<string, string | null | undefined>;
+                    fontSubfamily?: Record<string, string | null | undefined>;
+                    preferredSubfamily?: Record<string, string | null | undefined>;
                 };
             };
+            "OS/2"?: {usWeightClass?: number};
+            variationAxes?: Record<string, {name?: string; min?: number; default?: number; max?: number}>;
             directory?: {
                 tables?: Record<string, unknown>;
             };
         };
+        const fontStyle = localizedSubfamilyName(parsed) || cleanMetadata(parsed.subfamilyName) || "Regular";
+        const variationAxes = normalizeVariationAxes(parsed.variationAxes);
         return {
             fontName: localizedFamilyName(parsed) || cleanMetadata(parsed.familyName || parsed.fullName || parsed.postscriptName) || fallbackName,
+            fontStyle,
+            fontWeight: normalizeFontWeight(parsed["OS/2"]?.usWeightClass, fontStyle),
+            variationAxes,
             fontVersion: cleanMetadata(parsed.version) || "—",
             coverage: detectFontCoverage(parsed.characterSet || [], hasColorEmojiTables(parsed.directory?.tables)),
         };
     } catch {
-        return {fontName: fallbackName, fontVersion: "—", coverage: {chinese: false, english: false, emoji: false, math: false}};
+        return {fontName: fallbackName, fontStyle: "Regular", fontWeight: 400, variationAxes: {}, fontVersion: "—", coverage: {chinese: false, english: false, emoji: false, math: false}};
     }
+}
+
+function normalizeVariationAxes(axes: Record<string, {name?: string; min?: number; default?: number; max?: number}> | undefined): Record<string, FontVariationAxis> {
+    const normalized: Record<string, FontVariationAxis> = {};
+    for (const [tag, axis] of Object.entries(axes || {})) {
+        if (![axis.min, axis.default, axis.max].every((value) => typeof value === "number" && Number.isFinite(value))) continue;
+        normalized[tag] = {name: axis.name || tag, min: axis.min!, default: axis.default!, max: axis.max!};
+    }
+    return normalized;
 }
 
 export function detectFontCoverage(characterSet: readonly number[], hasColorEmoji = false): FontCoverage {
@@ -83,13 +156,51 @@ function hasColorEmojiTables(tables: Record<string, unknown> | undefined): boole
 
 export function localizedFamilyName(parsed: {name?: {records?: {fontFamily?: Record<string, string | null | undefined>; preferredFamily?: Record<string, string | null | undefined>}}}): string {
     const records = parsed.name?.records;
-    const names = records?.preferredFamily || records?.fontFamily;
+    return localizedRecordName(records?.preferredFamily || records?.fontFamily);
+}
+
+export function localizedSubfamilyName(parsed: {name?: {records?: {fontSubfamily?: Record<string, string | null | undefined>; preferredSubfamily?: Record<string, string | null | undefined>}}}): string {
+    const records = parsed.name?.records;
+    return localizedRecordName(records?.preferredSubfamily || records?.fontSubfamily);
+}
+
+function localizedRecordName(names: Record<string, string | null | undefined> | undefined): string {
     if (!names) return "";
     for (const language of ["zh-Hans", "zh_CN", "zh-CN", "zh", "en"]) {
         const name = cleanMetadata(names[language]);
         if (name) return name;
     }
     return cleanMetadata(Object.values(names).find(Boolean));
+}
+
+function normalizeFontWeight(value: number | undefined, style: string): number {
+    if (typeof value === "number" && Number.isFinite(value) && value >= 1 && value <= 1000) return Math.round(value);
+    const normalized = style.toLocaleLowerCase().replace(/[\s_-]/g, "");
+    if (/thin|hairline/.test(normalized)) return 100;
+    if (/extralight|ultralight/.test(normalized)) return 200;
+    if (/light/.test(normalized)) return 300;
+    if (/medium/.test(normalized)) return 500;
+    if (/semibold|demibold/.test(normalized)) return 600;
+    if (/extrabold|ultrabold/.test(normalized)) return 800;
+    if (/black|heavy/.test(normalized)) return 900;
+    if (/bold/.test(normalized)) return 700;
+    return 400;
+}
+
+export function groupImportedFonts(fonts: ImportedFont[]): ImportedFontGroup[] {
+    const groups = new Map<string, ImportedFontGroup>();
+    for (const font of fonts) {
+        const familyName = (font.fontName || font.displayName).trim() || font.displayName;
+        const key = familyName.normalize("NFC").toLocaleLowerCase();
+        const group = groups.get(key);
+        if (group) group.fonts.push(font);
+        else groups.set(key, {key, familyName, fonts: [font]});
+    }
+    return Array.from(groups.values(), (group) => ({
+        ...group,
+        fonts: group.fonts.map((font, index) => ({font, index})).sort((a, b) =>
+            (a.font.fontWeight || 400) - (b.font.fontWeight || 400) || a.index - b.index).map(({font}) => font),
+    }));
 }
 
 function isHanCodePoint(codePoint: number): boolean {
@@ -151,6 +262,15 @@ export function familyForChoice(choice: FontChoice, fonts: ImportedFont[], loade
 export function familyForChoices(choices: FontChoice[], fonts: ImportedFont[], loadedIds: Set<string>, importedFamily = runtimeFamily, defaultFamily: string | null = null): string | null {
     const families = choices.map((choice) => familyForChoice(choice, fonts, loadedIds, importedFamily, defaultFamily)).filter((family): family is string => Boolean(family));
     return families.length ? families.join(", ") : null;
+}
+
+export function weightForChoices(choices: FontChoice[], fonts: ImportedFont[] = []): number | null {
+    const first = choices[0];
+    if (!first || first.kind === "default") return null;
+    if (first.kind === "system") return Math.min(1000, Math.max(1, Math.round(first.weight)));
+    const font = fonts.find((item) => item.id === first.id);
+    const weight = first.weight ?? font?.variationAxes?.wght?.default ?? font?.fontWeight;
+    return typeof weight === "number" ? Math.min(1000, Math.max(1, Math.round(weight))) : null;
 }
 
 export function createId(): string {

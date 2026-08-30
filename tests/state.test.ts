@@ -1,6 +1,6 @@
 import {describe, expect, it} from "vitest";
 import {activatePreset, clampLibraryPreviewWidth, clampSize, cloneTargets, parseState, removeFontFromState, syncActivePreset} from "../src/state";
-import {detectFontCoverage, emojiRuntimeFamily, extractFontMetadata, familyForChoice, familyForChoices, extensionOf, hasDuplicateHash, localizedFamilyName, nameWithoutExtension, quoteFamily, runtimeFamily} from "../src/font-utils";
+import {detectFontCoverage, emojiRuntimeFamily, extractFontMetadata, familyForChoice, familyForChoices, extensionOf, fontWeightName, groupImportedFonts, groupSystemFonts, hasDuplicateHash, localizedFamilyName, nameWithoutExtension, quoteFamily, runtimeFamily, weightForChoices} from "../src/font-utils";
 import {mergeMermaidConfig, mermaidOverrides} from "../src/mermaid";
 import {
     createPresetPackage,
@@ -218,6 +218,47 @@ describe("font utilities", () => {
         ], [font], new Set([font.id]), runtimeFamily, '"SiYuan Default"')).toBe('"First", "SiYuan Default", "BFM_font-1"');
     });
 
+    it("uses only the first system choice as the stack weight", () => {
+        expect(weightForChoices([{kind: "system", family: "First", displayName: "First Bold", weight: 700}])).toBe(700);
+        expect(weightForChoices([{kind: "default"}, {kind: "system", family: "Second", displayName: "Second Bold", weight: 700}])).toBeNull();
+        expect(weightForChoices([{kind: "imported", id: font.id}, {kind: "system", family: "Second", displayName: "Second Bold", weight: 700}])).toBeNull();
+    });
+
+    it("uses an imported variable font's selected or default weight", () => {
+        const variable = {...font, fontWeight: 400, variationAxes: {wght: {name: "Weight", min: 150, default: 330, max: 700}}};
+        expect(weightForChoices([{kind: "imported", id: font.id}], [variable])).toBe(330);
+        expect(weightForChoices([{kind: "imported", id: font.id, weight: 615}], [variable])).toBe(615);
+    });
+
+    it("groups imported font files by family and sorts their variants by weight", () => {
+        const bold = {...font, id: "bold", displayName: "Example Bold", fontName: "Example Family", fontStyle: "Bold", fontWeight: 700};
+        const regular = {...font, id: "regular", displayName: "Example Regular", fontName: "Example Family", fontStyle: "Regular", fontWeight: 400};
+        const other = {...font, id: "other", displayName: "Other", fontName: "Other Family", fontWeight: 400};
+        const groups = groupImportedFonts([bold, other, regular]);
+
+        expect(groups.map((group) => group.familyName)).toEqual(["Example Family", "Other Family"]);
+        expect(groups[0].fonts.map((item) => item.id)).toEqual(["regular", "bold"]);
+    });
+
+    it("preserves localized system font names and weight aliases when grouping families", () => {
+        const groups = groupSystemFonts([
+            {family: "FangSong", displayName: "仿宋 Bold", weight: 700},
+            {family: "FangSong", displayName: "仿宋", weight: 400},
+        ]);
+
+        expect(groups).toHaveLength(1);
+        expect(groups[0].displayName).toBe("仿宋");
+        expect(groups[0].searchText).toContain("仿宋 bold");
+        expect(groups[0].preferred.font.weight).toBe(400);
+    });
+
+    it("labels standard and custom numeric font weights", () => {
+        expect(fontWeightName(300)).toBe("Light");
+        expect(fontWeightName(400)).toBe("Regular");
+        expect(fontWeightName(700)).toBe("Bold");
+        expect(fontWeightName(350)).toBe("Weight 350");
+    });
+
     it("detects duplicate hashes", () => {
         expect(hasDuplicateHash([font], "abc")).toBe(true);
         expect(hasDuplicateHash([font], "different")).toBe(false);
@@ -226,6 +267,9 @@ describe("font utilities", () => {
     it("falls back cleanly when font metadata cannot be parsed", () => {
         expect(extractFontMetadata(new Uint8Array([1, 2, 3]).buffer, "Fallback")).toEqual({
             fontName: "Fallback",
+            fontStyle: "Regular",
+            fontWeight: 400,
+            variationAxes: {},
             fontVersion: "—",
             coverage: {chinese: false, english: false, emoji: false, math: false},
         });

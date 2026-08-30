@@ -59,7 +59,7 @@ describe("font target isolation", () => {
         expect(generatedStyle.textContent).not.toContain(".protyle-wysiwyg");
     });
 
-    it("uses the official editor variable without injecting broad editor selectors", () => {
+    it("uses the official editor variable and applies the selected base weight", () => {
         const properties = new Map<string, string>();
         const setProperty = vi.fn((name: string, value: string) => properties.set(name, value));
         const rootStyle = {
@@ -84,13 +84,14 @@ describe("font target isolation", () => {
         }));
 
         const state = structuredClone(DEFAULT_STATE);
-        state.targets.ui.fonts = [{kind: "system", family: "Custom UI", displayName: "Custom UI", weight: 400}];
-        state.targets.content.fonts = [{kind: "system", family: "Custom Content", displayName: "Custom Content", weight: 400}];
+        state.targets.ui.fonts = [{kind: "system", family: "Custom UI", displayName: "Custom UI Bold", weight: 700}];
+        state.targets.content.fonts = [{kind: "system", family: "Custom Content", displayName: "Custom Content Medium", weight: 500}];
         new StyleManager().apply(state, new Set());
 
         expect(setProperty).toHaveBeenCalledWith("--b3-font-family-protyle", '"Custom Content", Original UI', "important");
         expect(setProperty).toHaveBeenCalledWith("--b3-font-family-code", '"Original Mono", Original UI', "important");
-        expect(generatedStyle.textContent).not.toContain('.protyle-wysiwyg');
+        expect(generatedStyle.textContent).toContain('body { font-weight: 700; }');
+        expect(generatedStyle.textContent).toContain('.protyle-wysiwyg, .protyle-title { font-weight: 500; }');
         expect(generatedStyle.textContent).not.toContain('font-family: "Custom Content"');
         expect(generatedStyle.textContent).not.toContain('font-family: "Custom UI"');
     });

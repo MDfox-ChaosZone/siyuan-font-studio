@@ -9,7 +9,7 @@ export const MAX_PRESET_PACKAGE_BYTES = 500 * 1024 * 1024;
 type PortableFontChoice =
     | {kind: "default"}
     | {kind: "system"; family: string; displayName: string; weight: number}
-    | {kind: "imported"; sha256: string; displayName: string};
+    | {kind: "imported"; sha256: string; displayName: string; weight?: number};
 
 interface PortableTargetSettings {
     fonts: PortableFontChoice[];
@@ -130,7 +130,7 @@ function serializeTarget(settings: TargetSettings, fonts: ImportedFont[]): Porta
 function serializeChoice(choice: FontChoice, fonts: ImportedFont[]): PortableFontChoice | undefined {
     if (choice.kind !== "imported") return {...choice};
     const font = fonts.find((item) => item.id === choice.id);
-    return font ? {kind: "imported", sha256: font.sha256, displayName: font.displayName} : undefined;
+    return font ? {kind: "imported", sha256: font.sha256, displayName: font.displayName, ...(choice.weight === undefined ? {} : {weight: choice.weight})} : undefined;
 }
 
 export function readPresetContainer(data: Uint8Array<ArrayBuffer>, filename: string): ReadPresetContainer {
@@ -228,7 +228,7 @@ function deserializeChoice(value: unknown, fonts: ImportedFont[], missingFonts: 
     }
     if (choice.kind === "imported" && typeof choice.sha256 === "string") {
         const font = fonts.find((item) => item.sha256 === choice.sha256);
-        if (font) return {kind: "imported", id: font.id};
+        if (font) return {kind: "imported", id: font.id, ...(typeof choice.weight === "number" ? {weight: choice.weight} : {})};
         missingFonts.push(typeof choice.displayName === "string" && choice.displayName ? choice.displayName : choice.sha256);
     }
     return undefined;

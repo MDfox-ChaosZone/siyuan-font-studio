@@ -7,6 +7,9 @@ import {
     emojiRuntimeFamily,
     extractFontMetadata,
     extensionOf,
+    fontWeightName,
+    groupImportedFonts,
+    groupSystemFonts,
     hasDuplicateHash,
     MAX_FONT_BYTES,
     nameWithoutExtension,
@@ -75,6 +78,9 @@ export default class SiYuanFontStudio extends Plugin {
     private mermaidScriptObserver?: MutationObserver;
     private saveChain: Promise<void> = Promise.resolve();
     private activeSecondaryTab: Partial<Record<FontTarget, boolean>> = {};
+    private selectedLibraryVariants = new Map<string, string>();
+    private selectedLibraryWeights = new Map<string, number>();
+    private fontPreviewObservers = new Map<HTMLElement, IntersectionObserver>();
     private mermaidRuntime?: MermaidRuntime;
     private mermaidOriginalInitialize?: MermaidRuntime["initialize"];
     private mermaidWrappedInitialize?: MermaidRuntime["initialize"];
@@ -163,9 +169,15 @@ export default class SiYuanFontStudio extends Plugin {
             const buffer = await readFontFile(font);
             const metadata = extractFontMetadata(buffer, font.displayName || nameWithoutExtension(font.originalName));
             const changed = font.fontName !== metadata.fontName
+                || font.fontStyle !== metadata.fontStyle
+                || font.fontWeight !== metadata.fontWeight
+                || JSON.stringify(font.variationAxes) !== JSON.stringify(metadata.variationAxes)
                 || font.fontVersion !== metadata.fontVersion
                 || JSON.stringify(font.coverage) !== JSON.stringify(metadata.coverage);
             font.fontName = metadata.fontName;
+            font.fontStyle = metadata.fontStyle;
+            font.fontWeight = metadata.fontWeight;
+            font.variationAxes = metadata.variationAxes;
             font.fontVersion = metadata.fontVersion;
             font.coverage = metadata.coverage;
             await this.registerFont(font, buffer);
@@ -182,7 +194,12 @@ export default class SiYuanFontStudio extends Plugin {
         if (previous) document.fonts.delete(previous);
         const previousEmoji = this.emojiFaces.get(font.id);
         if (previousEmoji) document.fonts.delete(previousEmoji);
-        const face = new FontFace(runtimeFamily(font.id), buffer.slice(0));
+        const normalizedStyle = (font.fontStyle || "").toLocaleLowerCase();
+        const weightAxis = font.variationAxes?.wght;
+        const face = new FontFace(runtimeFamily(font.id), buffer.slice(0), {
+            style: normalizedStyle.includes("italic") ? "italic" : normalizedStyle.includes("oblique") ? "oblique" : "normal",
+            weight: weightAxis ? `${weightAxis.min} ${weightAxis.max}` : String(font.fontWeight || 400),
+        });
         const emojiFace = new FontFace(emojiRuntimeFamily(font.id), buffer.slice(0), {unicodeRange: EMOJI_UNICODE_RANGE});
         await Promise.all([face.load(), emojiFace.load()]);
         document.fonts.add(face);
@@ -306,7 +323,10 @@ export default class SiYuanFontStudio extends Plugin {
             width: "900px",
             height: "80vh",
             content: `<div class="b3-dialog__content bfm-manager"></div><div class="b3-dialog__action"><button class="b3-button b3-button--text">${this.i18n.close}</button></div>`,
-            destroyCallback: () => { this.managerDialog = undefined; },
+            destroyCallback: () => {
+                this.disconnectFontPreviewObservers();
+                this.managerDialog = undefined;
+            },
         });
         this.managerDialog.element.querySelector<HTMLButtonElement>(".b3-dialog__action button")?.addEventListener("click", () => this.managerDialog?.destroy());
         this.renderManager();
@@ -315,6 +335,7 @@ export default class SiYuanFontStudio extends Plugin {
     private renderManager(): void {
         const root = this.managerDialog?.element.querySelector<HTMLElement>(".bfm-manager");
         if (!root) return;
+        this.disconnectFontPreviewObservers();
         root.style.setProperty("--bfm-library-preview-width", `${this.state.layout.libraryPreviewWidth}px`);
         const primaryOpen = root.querySelector<HTMLDetailsElement>(".bfm-primary")?.open ?? true;
         const advancedOpen = root.querySelector<HTMLDetailsElement>(".bfm-secondary")?.open ?? false;
@@ -362,17 +383,23 @@ export default class SiYuanFontStudio extends Plugin {
   <input class="fn__none" type="file" data-role="font-input" accept=".woff2,.woff,.ttf,.otf" multiple>
   <div class="bfm-library">${this.libraryHtml()}</div>
 </section>`;
+        this.applyFontPreviews(root);
 
         root.querySelectorAll<HTMLButtonElement>("button[data-font-trigger]").forEach((button) => {
             button.addEventListener("click", (event) => {
                 event.stopPropagation();
                 const menu = root.querySelector<HTMLElement>(`[data-font-menu="${button.dataset.fontTrigger}"]`);
                 root.querySelectorAll<HTMLElement>("[data-font-menu]").forEach((item) => {
-                    if (item !== menu) item.hidden = true;
+                    if (item !== menu) this.closeFontMenu(item);
                 });
                 if (menu) {
-                    menu.hidden = !menu.hidden;
-                    if (!menu.hidden) requestAnimationFrame(() => menu.querySelector<HTMLInputElement>("input")?.focus());
+                    if (menu.hidden) {
+                        menu.hidden = false;
+                        this.populateFontMenu(menu);
+                        requestAnimationFrame(() => menu.querySelector<HTMLInputElement>("input")?.focus());
+                    } else {
+                        this.closeFontMenu(menu);
+                    }
                 }
             });
         });
@@ -393,14 +420,43 @@ export default class SiYuanFontStudio extends Plugin {
             input.addEventListener("click", (event) => event.stopPropagation());
             input.addEventListener("input", () => this.filterFontOptions(root, input.dataset.target as FontTarget, input.value));
         });
-        root.querySelectorAll<HTMLButtonElement>("button[data-font-value]").forEach((button) => {
-            button.addEventListener("click", (event) => {
+        root.querySelectorAll<HTMLElement>("[data-font-menu]").forEach((menu) => {
+            menu.addEventListener("click", (event) => {
+                const button = (event.target as Element).closest<HTMLButtonElement>("button[data-font-value]");
+                if (!button || !menu.contains(button)) return;
                 event.stopPropagation();
                 void this.toggleFont(button.dataset.target as FontTarget, button.dataset.secondary === "true", button.dataset.fontValue!);
             });
         });
         root.querySelectorAll<HTMLButtonElement>("button[data-remove-font]").forEach((button) => {
             button.addEventListener("click", () => void this.removeAssignedFont(button.dataset.target as FontTarget, button.dataset.secondary === "true", Number(button.dataset.index)));
+        });
+        root.querySelectorAll<HTMLInputElement>("input[data-variable-weight]").forEach((input) => {
+            input.addEventListener("input", () => {
+                const target = input.dataset.target as FontTarget;
+                const secondary = input.dataset.secondary === "true";
+                const index = Number(input.dataset.index);
+                this.setAssignedVariableWeight(target, secondary, index, Number(input.value));
+                const number = root.querySelector<HTMLInputElement>(`input[data-variable-weight-number][data-target="${target}"][data-secondary="${secondary}"][data-index="${index}"]`);
+                if (number) number.value = input.value;
+            });
+            input.addEventListener("change", () => void this.persist());
+        });
+        root.querySelectorAll<HTMLInputElement>("input[data-variable-weight-number]").forEach((input) => {
+            input.addEventListener("change", () => {
+                const target = input.dataset.target as FontTarget;
+                const secondary = input.dataset.secondary === "true";
+                const index = Number(input.dataset.index);
+                this.setAssignedVariableWeight(target, secondary, index, Number(input.value));
+                void this.persist();
+                this.renderManager();
+            });
+        });
+        root.querySelectorAll<HTMLSelectElement>("select[data-imported-variant]").forEach((select) => {
+            select.addEventListener("change", () => void this.setAssignedImportedVariant(select.dataset.target as FontTarget, select.dataset.secondary === "true", Number(select.dataset.index), select.value));
+        });
+        root.querySelectorAll<HTMLSelectElement>("select[data-system-weight]").forEach((select) => {
+            select.addEventListener("change", () => void this.setAssignedSystemWeight(select.dataset.target as FontTarget, select.dataset.secondary === "true", Number(select.dataset.index), Number(select.value)));
         });
         root.querySelectorAll<HTMLInputElement>("input[data-role='decouple']").forEach((input) => {
             input.addEventListener("change", () => void this.setDecoupled(input.dataset.target as FontTarget, input.checked));
@@ -415,7 +471,7 @@ export default class SiYuanFontStudio extends Plugin {
         this.bindAssignmentDragging(root);
         this.bindLibraryDragging(root);
         this.bindLibraryColumnResizing(root);
-        root.addEventListener("click", () => root.querySelectorAll<HTMLElement>("[data-font-menu]").forEach((menu) => { menu.hidden = true; }));
+        root.addEventListener("click", () => root.querySelectorAll<HTMLElement>("[data-font-menu]").forEach((menu) => this.closeFontMenu(menu)));
         root.querySelectorAll<HTMLInputElement>("input[data-role='size']").forEach((input) => {
             input.addEventListener("input", () => {
                 const output = root.querySelector<HTMLElement>(`[data-size-output="${input.dataset.target}-${input.dataset.secondary === "true"}"]`);
@@ -448,6 +504,18 @@ export default class SiYuanFontStudio extends Plugin {
         root.querySelectorAll<HTMLButtonElement>("button[data-delete]").forEach((button) => {
             button.addEventListener("click", () => this.confirmDelete(button.dataset.delete!));
         });
+        root.querySelectorAll<HTMLSelectElement>("select[data-library-variant]").forEach((select) => {
+            select.addEventListener("change", () => {
+                this.selectedLibraryVariants.set(select.dataset.libraryVariant!, select.value);
+                this.renderManager();
+            });
+        });
+        root.querySelectorAll<HTMLInputElement>("input[data-library-variable-weight]").forEach((input) => {
+            input.addEventListener("input", () => this.setLibraryPreviewWeight(root, input.dataset.libraryVariableWeight!, Number(input.value)));
+        });
+        root.querySelectorAll<HTMLInputElement>("input[data-library-variable-weight-number]").forEach((input) => {
+            input.addEventListener("change", () => this.setLibraryPreviewWeight(root, input.dataset.libraryVariableWeightNumber!, Number(input.value)));
+        });
         for (const input of root.querySelectorAll<HTMLInputElement>("input[data-role='font-search']")) {
             const value = searchValues.get(`${input.dataset.target}-${input.dataset.secondary}`);
             if (value) {
@@ -459,8 +527,11 @@ export default class SiYuanFontStudio extends Plugin {
             const menu = root.querySelector<HTMLElement>(`[data-font-menu="${openMenu}"]`);
             if (menu) {
                 menu.hidden = false;
+                this.populateFontMenu(menu);
                 root.scrollTop = managerScrollTop;
                 const options = menu.querySelector<HTMLElement>(".bfm-font-menu__options");
+                const input = menu.querySelector<HTMLInputElement>("input[data-role='font-search']");
+                if (input?.value) this.filterFontOptions(root, input.dataset.target as FontTarget, input.value);
                 if (options) options.scrollTop = openMenuScrollTop;
                 requestAnimationFrame(() => {
                     root.scrollTop = managerScrollTop;
@@ -500,8 +571,7 @@ export default class SiYuanFontStudio extends Plugin {
             ? `<span class="bfm-info-tip${hintPositionClass}" tabindex="0" aria-label="${escapeHtml(hint)}"><span aria-hidden="true">i</span><span class="bfm-info-tip__content" role="tooltip">${escapeHtml(hint)}</span></span>`
             : "";
         return `<article class="bfm-target">
-  <div class="bfm-target__title"><div class="bfm-target__label"><strong>${label}</strong>${titleHint}</div>${decouple}</div>
-  <p>${description}</p>
+  <div class="bfm-target__title"><div class="bfm-target__label"><strong>${label}</strong>${titleHint}<span class="bfm-target__description">${description}</span></div>${decouple}</div>
   ${controls}
 </article>`;
     }
@@ -921,31 +991,162 @@ export default class SiYuanFontStudio extends Plugin {
 
     private fontPickerHtml(target: FontTarget, secondary: boolean, selected: FontChoice[]): string {
         const followLabel = `${this.i18n.followSiyuan}（${this.baselineDisplayName(target)}）`;
-        const choiceKey = (choice: FontChoice) => choice.kind === "imported" ? `imported:${choice.id}` : choice.kind === "system" ? `system:${this.systemFonts.findIndex((font) => font.family === choice.family && font.weight === choice.weight)}` : "default";
-        const labelFor = (choice: FontChoice) => choice.kind === "imported" ? this.state.fonts.find((font) => font.id === choice.id)?.displayName || this.i18n.missing : choice.kind === "system" ? choice.displayName : followLabel;
-        const stack = selected.length ? selected.map((choice, index) => `<div class="bfm-stack__item" draggable="true" data-stack-item data-target="${target}" data-secondary="${secondary}" data-index="${index}"><span class="bfm-drag" title="${this.i18n.dragToSort}">⠿</span><span>${escapeHtml(labelFor(choice))}</span><button type="button" data-remove-font data-target="${target}" data-secondary="${secondary}" data-index="${index}" aria-label="${this.i18n.remove}">×</button></div>`).join("") : `<div class="bfm-stack__default">${escapeHtml(followLabel)}</div>`;
-        const option = (value: string, label: string) => {
-            const selectedIndex = selected.findIndex((choice) => choiceKey(choice) === value);
-            const isSelected = selectedIndex >= 0;
-            return `<button type="button" class="bfm-font-option ${isSelected ? "bfm-font-option--selected" : ""}" data-font-value="${escapeHtml(value)}" data-target="${target}" data-secondary="${secondary}" data-search-text="${escapeHtml(label.toLocaleLowerCase())}" aria-pressed="${isSelected}"><span>${escapeHtml(label)}</span><span class="bfm-font-option__selection"><span class="bfm-font-option__order">${isSelected ? selectedIndex + 1 : ""}</span><span class="bfm-font-option__check" aria-hidden="true">${isSelected ? "✓" : ""}</span></span></button>`;
-        };
-        const imported = this.state.fonts.map((font) => option(`imported:${font.id}`, font.displayName)).join("");
-        const system = this.systemFonts.map((font, index) => option(`system:${index}`, font.displayName)).join("");
-        const siyuanDefault = option("default", followLabel);
-        const group = (label: string, content: string) => content ? `<section class="bfm-font-group"><small>${label}</small>${content}</section>` : "";
+        const labelFor = (choice: FontChoice) => choice.kind === "imported" ? this.importedGroupFor(choice.id)?.familyName || this.state.fonts.find((font) => font.id === choice.id)?.displayName || this.i18n.missing : choice.kind === "system" ? this.systemFontGroups().find((group) => group.family === choice.family)?.displayName || choice.displayName : followLabel;
+        const stack = selected.length ? selected.map((choice, index) => `<div class="bfm-stack__item" draggable="false" data-stack-item data-target="${target}" data-secondary="${secondary}" data-index="${index}"><span class="bfm-drag" draggable="true" title="${this.i18n.dragToSort}">⠿</span><div class="bfm-stack__main"><span>${escapeHtml(labelFor(choice))}</span>${this.assignedWeightControlHtml(choice, target, secondary, index)}</div><button type="button" data-remove-font data-target="${target}" data-secondary="${secondary}" data-index="${index}" aria-label="${this.i18n.remove}">×</button></div>`).join("") : `<div class="bfm-stack__default">${escapeHtml(followLabel)}</div>`;
         const scope = `${target}-${secondary}`;
         return `<div class="bfm-stack" data-stack="${scope}">${stack}</div><div class="bfm-font-picker">
   <button type="button" class="b3-button b3-button--outline bfm-font-picker__trigger" data-font-trigger="${scope}"><span>＋ ${this.i18n.selectFonts}</span><span class="bfm-font-picker__chevron" aria-hidden="true"></span></button>
-  <div class="bfm-font-menu" data-font-menu="${scope}" hidden>
+  <div class="bfm-font-menu" data-font-menu="${scope}" data-target="${target}" data-secondary="${secondary}" hidden>
     <input class="b3-text-field fn__block" type="search" data-role="font-search" data-target="${target}" data-secondary="${secondary}" placeholder="${this.i18n.searchFonts}">
     <p class="bfm-font-menu__hint">${this.i18n.fontSelectionHint}</p>
-    <div class="bfm-font-menu__options">${group(this.i18n.defaultFonts, siyuanDefault)}${group(this.i18n.importedFonts, imported)}${group(this.i18n.systemFonts, system)}</div>
+    <div class="bfm-font-menu__options"></div>
   </div>
 </div>`;
     }
 
+    private importedGroupFor(fontId: string) {
+        return groupImportedFonts(this.state.fonts).find((group) => group.fonts.some((font) => font.id === fontId));
+    }
+
+    private preferredImportedFont(fonts: ImportedFont[]): ImportedFont {
+        return fonts.find((font) => (font.fontWeight || 400) === 400) || fonts[0];
+    }
+
+    private systemFontGroups() {
+        return groupSystemFonts(this.systemFonts);
+    }
+
+    private fontChoiceKey(choice: FontChoice): string {
+        if (choice.kind === "default") return "default";
+        if (choice.kind === "imported") {
+            const group = this.importedGroupFor(choice.id);
+            return `imported:${group ? this.preferredImportedFont(group.fonts).id : choice.id}`;
+        }
+        const group = this.systemFontGroups().find((item) => item.family === choice.family);
+        return `system:${group?.preferred.index ?? this.systemFonts.findIndex((font) => font.family === choice.family && font.weight === choice.weight)}`;
+    }
+
+    private assignedWeightControlHtml(choice: FontChoice, target: FontTarget, secondary: boolean, index: number): string {
+        if (choice.kind === "default") return "";
+        const supportsWeight = target === "ui" || target === "content" || target === "mono";
+        if (choice.kind === "imported") {
+            const font = this.state.fonts.find((item) => item.id === choice.id);
+            if (!font) return "";
+            const axis = font.variationAxes?.wght;
+            if (axis && supportsWeight) {
+                const weight = Math.min(axis.max, Math.max(axis.min, choice.weight ?? axis.default));
+                return `<div class="bfm-stack__weight bfm-stack__weight--variable"><input type="range" min="${axis.min}" max="${axis.max}" step="1" value="${weight}" data-variable-weight data-target="${target}" data-secondary="${secondary}" data-index="${index}" aria-label="${escapeHtml(axis.name)}"><input class="b3-text-field" type="number" min="${axis.min}" max="${axis.max}" step="1" value="${weight}" data-variable-weight-number data-target="${target}" data-secondary="${secondary}" data-index="${index}" aria-label="${escapeHtml(axis.name)}"></div>`;
+            }
+            if (axis) return `<select class="b3-select bfm-stack__weight" disabled aria-label="${escapeHtml(axis.name)}"><option>${this.i18n.variableWeight} · ${axis.min}–${axis.max}</option></select>`;
+            const group = this.importedGroupFor(choice.id);
+            if (group && group.fonts.length > 1) return `<select class="b3-select bfm-stack__weight" data-imported-variant data-target="${target}" data-secondary="${secondary}" data-index="${index}" aria-label="${escapeHtml(group.familyName)}">${group.fonts.map((variant) => `<option value="${escapeHtml(variant.id)}" ${variant.id === choice.id ? "selected" : ""}>${escapeHtml(variant.fontStyle || "Regular")} · ${variant.fontWeight || 400}</option>`).join("")}</select>`;
+            if (group) return `<select class="b3-select bfm-stack__weight" disabled aria-label="${escapeHtml(group.familyName)}"><option>${escapeHtml(font.fontStyle || fontWeightName(font.fontWeight || 400))} · ${font.fontWeight || 400}</option></select>`;
+            return "";
+        }
+        const group = this.systemFontGroups().find((item) => item.family === choice.family);
+        if (!group) return "";
+        const disabled = !supportsWeight || group.fonts.length < 2;
+        return `<select class="b3-select bfm-stack__weight" ${disabled ? "disabled" : `data-system-weight data-target="${target}" data-secondary="${secondary}" data-index="${index}"`} aria-label="${escapeHtml(choice.family)}">${group.fonts.map(({font}) => `<option value="${font.weight}" ${font.weight === choice.weight ? "selected" : ""}>${fontWeightName(font.weight)} · ${font.weight}</option>`).join("")}</select>`;
+    }
+
+    private fontOptionHtml(target: FontTarget, secondary: boolean, selected: FontChoice[], value: string, label: string, preview: {family?: string; weight?: number; importedId?: string; searchText?: string; weightCount?: number; variableWeight?: boolean} = {}): string {
+        const selectedIndex = selected.findIndex((choice) => this.fontChoiceKey(choice) === value);
+        const isSelected = selectedIndex >= 0;
+        const previewData = preview.importedId ? ` data-preview-font-id="${escapeHtml(preview.importedId)}"`
+            : preview.family ? ` data-preview-family="${escapeHtml(preview.family)}" data-preview-weight="${preview.weight || 400}"` : "";
+        const weightNote = preview.variableWeight ? this.i18n.variableWeight
+            : (preview.weightCount || 0) > 1 ? this.i18n.fontWeightsCount.replace("${count}", String(preview.weightCount)) : "";
+        return `<button type="button" class="bfm-font-option ${isSelected ? "bfm-font-option--selected" : ""}" data-font-value="${escapeHtml(value)}" data-target="${target}" data-secondary="${secondary}" data-search-text="${escapeHtml(preview.searchText || label.toLocaleLowerCase())}" aria-pressed="${isSelected}"><span class="bfm-font-option__main"><span class="bfm-font-option__label"${previewData}>${escapeHtml(label)}</span>${weightNote ? `<small class="bfm-font-option__weights">${escapeHtml(weightNote)}</small>` : ""}</span><span class="bfm-font-option__selection"><span class="bfm-font-option__order">${isSelected ? selectedIndex + 1 : ""}</span><span class="bfm-font-option__check" aria-hidden="true">${isSelected ? "✓" : ""}</span></span></button>`;
+    }
+
+    private systemFontOptionsHtml(target: FontTarget, secondary: boolean, selected: FontChoice[], start: number, end: number): string {
+        return this.systemFontGroups().slice(start, end).map((group) => this.fontOptionHtml(target, secondary, selected, `system:${group.preferred.index}`, group.displayName, {family: group.family, weight: group.preferred.font.weight, searchText: group.searchText, weightCount: group.fonts.length})).join("");
+    }
+
+    private fontOptionsHtml(target: FontTarget, secondary: boolean, selected: FontChoice[], initialSystemCount: number): string {
+        const followLabel = `${this.i18n.followSiyuan}（${this.baselineDisplayName(target)}）`;
+        const imported = groupImportedFonts(this.state.fonts).map((group) => {
+            const font = this.preferredImportedFont(group.fonts);
+            return this.fontOptionHtml(target, secondary, selected, `imported:${font.id}`, group.familyName, {importedId: font.id, weight: font.variationAxes?.wght?.default ?? font.fontWeight, weightCount: group.fonts.length, variableWeight: Boolean(font.variationAxes?.wght)});
+        }).join("");
+        const system = this.systemFontOptionsHtml(target, secondary, selected, 0, initialSystemCount);
+        const siyuanDefault = this.fontOptionHtml(target, secondary, selected, "default", followLabel);
+        const group = (label: string, content: string) => content ? `<section class="bfm-font-group"><small>${label}</small>${content}</section>` : "";
+        const systemGroup = this.systemFontGroups().length ? `<section class="bfm-font-group" data-system-font-group><small>${this.i18n.systemFonts}</small>${system}</section>` : "";
+        return `${group(this.i18n.defaultFonts, siyuanDefault)}${group(this.i18n.importedFonts, imported)}${systemGroup}`;
+    }
+
+    private populateFontMenu(menu: HTMLElement): void {
+        if (menu.dataset.populated === "true") return;
+        const target = menu.dataset.target as FontTarget;
+        const secondary = menu.dataset.secondary === "true";
+        const options = menu.querySelector<HTMLElement>(".bfm-font-menu__options");
+        if (!options) return;
+        const selected = this.settingsFor(target, secondary).fonts;
+        const chunkSize = 64;
+        options.innerHTML = this.fontOptionsHtml(target, secondary, selected, chunkSize);
+        menu.dataset.populated = "true";
+        this.observeFontPreviews(menu, options);
+        const input = menu.querySelector<HTMLInputElement>("input[data-role='font-search']");
+        if (input?.value) this.filterFontOptions(menu.closest<HTMLElement>(".bfm-manager") || menu, target, input.value);
+        let offset = chunkSize;
+        const systemFontCount = this.systemFontGroups().length;
+        const appendChunk = () => {
+            if (menu.dataset.populated !== "true" || !menu.isConnected || offset >= systemFontCount) return;
+            const systemGroup = options.querySelector<HTMLElement>("[data-system-font-group]");
+            if (!systemGroup) return;
+            const end = Math.min(systemFontCount, offset + chunkSize);
+            systemGroup.insertAdjacentHTML("beforeend", this.systemFontOptionsHtml(target, secondary, selected, offset, end));
+            offset = end;
+            this.observeFontPreviews(menu, options);
+            if (input?.value) this.filterFontOptions(menu.closest<HTMLElement>(".bfm-manager") || menu, target, input.value);
+            if (offset < systemFontCount) requestAnimationFrame(appendChunk);
+        };
+        if (offset < systemFontCount) requestAnimationFrame(appendChunk);
+    }
+
+    private closeFontMenu(menu: HTMLElement): void {
+        menu.hidden = true;
+        this.fontPreviewObservers.get(menu)?.disconnect();
+        this.fontPreviewObservers.delete(menu);
+        const options = menu.querySelector<HTMLElement>(".bfm-font-menu__options");
+        if (options) options.replaceChildren();
+        delete menu.dataset.populated;
+    }
+
+    private observeFontPreviews(menu: HTMLElement, options: HTMLElement): void {
+        const previews = options.querySelectorAll<HTMLElement>("[data-preview-font-id]:not([data-preview-observed]), [data-preview-family]:not([data-preview-observed])");
+        if (!("IntersectionObserver" in window)) {
+            this.applyFontPreviews(options);
+            return;
+        }
+        let observer = this.fontPreviewObservers.get(menu);
+        if (!observer) observer = new IntersectionObserver((entries) => {
+            for (const entry of entries) {
+                const element = entry.target as HTMLElement;
+                if (!entry.isIntersecting) {
+                    element.style.removeProperty("font-family");
+                    element.style.removeProperty("font-weight");
+                    continue;
+                }
+                this.applyFontPreview(element);
+            }
+        }, {root: options, rootMargin: "60px 0px"});
+        previews.forEach((element) => {
+            element.dataset.previewObserved = "true";
+            observer.observe(element);
+        });
+        this.fontPreviewObservers.set(menu, observer);
+    }
+
+    private disconnectFontPreviewObservers(): void {
+        this.fontPreviewObservers.forEach((observer) => observer.disconnect());
+        this.fontPreviewObservers.clear();
+    }
+
     private filterFontOptions(root: HTMLElement, target: FontTarget, query: string): void {
-        const input = root.querySelector<HTMLInputElement>(`input[data-role="font-search"][data-target="${target}"]:focus`);
+        const input = root.querySelector<HTMLInputElement>(`input[data-role="font-search"][data-target="${target}"]:focus`)
+            || root.querySelector<HTMLInputElement>(`input[data-role="font-search"][data-target="${target}"]`);
         const secondary = input?.dataset.secondary === "true";
         const menu = root.querySelector<HTMLElement>(`[data-font-menu="${target}-${secondary}"]`);
         if (!menu) return;
@@ -964,28 +1165,72 @@ export default class SiYuanFontStudio extends Plugin {
         return candidates.find((item) => item && !/^Emojis (Additional|Reset)$/i.test(item)) || candidates[0] || "默认字体";
     }
 
+    private setLibraryPreviewWeight(root: HTMLElement, fontId: string, rawWeight: number): void {
+        const font = this.state.fonts.find((item) => item.id === fontId);
+        const axis = font?.variationAxes?.wght;
+        if (!axis) return;
+        const weight = Math.round(Math.min(axis.max, Math.max(axis.min, Number.isFinite(rawWeight) ? rawWeight : axis.default)));
+        this.selectedLibraryWeights.set(fontId, weight);
+        root.querySelectorAll<HTMLInputElement>(`[data-library-variable-weight="${fontId}"], [data-library-variable-weight-number="${fontId}"]`).forEach((input) => {
+            input.value = String(weight);
+        });
+        root.querySelectorAll<HTMLElement>(`[data-preview-font-id="${fontId}"]`).forEach((preview) => {
+            preview.dataset.previewWeight = String(weight);
+            preview.style.fontWeight = String(weight);
+        });
+    }
+
     private libraryHtml(): string {
         if (!this.state.fonts.length) return `<div class="bfm-empty">${this.i18n.noFonts}</div>`;
-        return this.state.fonts.map((font) => {
-            const status = this.statuses.get(font.id) || {loaded: false};
-            const fontVersion = font.fontVersion || "—";
-            const fontFormat = font.extension.toLocaleUpperCase();
-            const fontSize = formatFileSize(font.size);
-            const fontMetadata = `${fontVersion} · ${fontFormat} · ${fontSize}`;
+        return groupImportedFonts(this.state.fonts).map((group) => {
+            const preferredFont = group.fonts.find((font) => (font.fontWeight || 400) === 400) || group.fonts[0];
+            const selectedId = this.selectedLibraryVariants.get(group.key);
+            const selectedFont = group.fonts.find((font) => font.id === selectedId) || preferredFont;
+            const status = this.statuses.get(selectedFont.id) || {loaded: false};
             const coverageTags = [
-                font.coverage?.chinese ? this.i18n.coverageChinese : "",
-                font.coverage?.english ? this.i18n.coverageEnglish : "",
-                font.coverage?.emoji ? this.i18n.coverageEmoji : "",
-                font.coverage?.math ? this.i18n.coverageMath : "",
+                selectedFont.coverage?.chinese ? this.i18n.coverageChinese : "",
+                selectedFont.coverage?.english ? this.i18n.coverageEnglish : "",
+                selectedFont.coverage?.emoji ? this.i18n.coverageEmoji : "",
+                selectedFont.coverage?.math ? this.i18n.coverageMath : "",
             ].filter(Boolean).map((label) => `<span class="bfm-font__tag">${escapeHtml(label)}</span>`).join("");
-            return `<article class="bfm-font ${status.loaded ? "" : "bfm-font--error"}" draggable="true" data-library-font="${font.id}">
-  <span class="bfm-drag bfm-font__handle" title="${this.i18n.dragToSort}">⠿</span>
-  <div class="bfm-font__name" style="font-family: '${runtimeFamily(font.id)}', var(--b3-font-family)"><strong>${escapeHtml(font.displayName)}</strong></div>
+            const metadata = `${selectedFont.fontVersion || "—"} · ${selectedFont.extension.toLocaleUpperCase()} · ${formatFileSize(selectedFont.size)}`;
+            const variableAxis = selectedFont.variationAxes?.wght;
+            const previewWeight = variableAxis
+                ? Math.min(variableAxis.max, Math.max(variableAxis.min, this.selectedLibraryWeights.get(selectedFont.id) ?? variableAxis.default))
+                : selectedFont.fontWeight ?? 400;
+            const selector = variableAxis
+                ? `<div class="bfm-stack__weight bfm-stack__weight--variable bfm-font__variable-weight"><input type="range" min="${variableAxis.min}" max="${variableAxis.max}" step="1" value="${previewWeight}" data-library-variable-weight="${escapeHtml(selectedFont.id)}" aria-label="${escapeHtml(variableAxis.name)}"><input class="b3-text-field" type="number" min="${variableAxis.min}" max="${variableAxis.max}" step="1" value="${previewWeight}" data-library-variable-weight-number="${escapeHtml(selectedFont.id)}" aria-label="${escapeHtml(variableAxis.name)}"></div>`
+                : `<select class="b3-select bfm-font__variant-picker" data-library-variant="${escapeHtml(group.key)}" aria-label="${escapeHtml(this.i18n.fontWeightsCount.replace("${count}", String(group.fonts.length)))}" ${group.fonts.length === 1 ? "disabled" : ""}>${group.fonts.map((font) => {
+                    const optionLabel = `${font.fontStyle || fontWeightName(font.fontWeight || 400)} · ${font.fontWeight || 400}`;
+                    return `<option value="${escapeHtml(font.id)}" ${font.id === selectedFont.id ? "selected" : ""}>${escapeHtml(optionLabel)}</option>`;
+                }).join("")}</select>`;
+            return `<article class="bfm-font ${status.loaded ? "" : "bfm-font--error"}" draggable="false" data-library-group="${selectedFont.id}">
+  <span class="bfm-drag bfm-font__handle" draggable="true" title="${this.i18n.dragToSort}">⠿</span>
+  <div class="bfm-font__name" data-preview-font-id="${escapeHtml(selectedFont.id)}" data-preview-weight="${previewWeight}"><strong>${escapeHtml(group.familyName)}</strong>${selector}</div>
   <div class="bfm-font__column-resizer" data-library-column-resizer draggable="false" role="separator" aria-orientation="vertical" aria-label="${escapeHtml(this.i18n.resizeFontColumns)}" title="${escapeHtml(this.i18n.resizeFontColumns)}"></div>
-  <div class="bfm-font__info"><span>${escapeHtml(font.fontName || font.displayName)}</span><span class="bfm-font__metadata"><span class="bfm-font__version" title="${escapeHtml(fontMetadata)}">${escapeHtml(fontVersion)}</span><span class="bfm-font__file-details"> · ${escapeHtml(fontFormat)} · ${fontSize}</span></span>${coverageTags ? `<div class="bfm-font__tags">${coverageTags}</div>` : ""}</div>
-  <div class="bfm-font__actions"><button class="b3-button b3-button--outline" data-rename="${font.id}">${this.i18n.rename}</button><button class="b3-button b3-button--cancel" data-delete="${font.id}">${this.i18n.delete}</button></div>
+  <div class="bfm-font__info">
+    <div class="bfm-font__header">
+      <div class="bfm-font__selected"><strong data-preview-font-id="${escapeHtml(selectedFont.id)}" data-preview-weight="${previewWeight}">${escapeHtml(selectedFont.displayName)}</strong><span title="${escapeHtml(metadata)}">${escapeHtml(metadata)}</span></div>
+      <div class="bfm-font__actions"><button class="b3-button b3-button--outline" data-rename="${selectedFont.id}">${this.i18n.rename}</button><button class="b3-button b3-button--cancel" data-delete="${selectedFont.id}">${this.i18n.delete}</button></div>
+    </div>
+    ${coverageTags ? `<div class="bfm-font__tags">${coverageTags}</div>` : ""}
+  </div>
 </article>`;
         }).join("");
+    }
+
+    private applyFontPreviews(root: HTMLElement): void {
+        root.querySelectorAll<HTMLElement>("[data-preview-font-id], [data-preview-family]").forEach((element) => this.applyFontPreview(element));
+    }
+
+    private applyFontPreview(element: HTMLElement): void {
+        if (element.dataset.previewFontId) {
+            element.style.fontFamily = `"${runtimeFamily(element.dataset.previewFontId)}", var(--b3-font-family)`;
+            if (element.dataset.previewWeight) element.style.fontWeight = element.dataset.previewWeight;
+        } else if (element.dataset.previewFamily) {
+            element.style.fontFamily = element.dataset.previewFamily!;
+            element.style.fontWeight = element.dataset.previewWeight || "400";
+        }
     }
 
     private settingsFor(target: FontTarget, secondary: boolean): {fonts: FontChoice[]; size: number | null} {
@@ -998,20 +1243,57 @@ export default class SiYuanFontStudio extends Plugin {
     private async toggleFont(target: FontTarget, secondary: boolean, value: string): Promise<void> {
         let choice: FontChoice | undefined;
         if (value === "default") choice = {kind: "default"};
-        if (value.startsWith("imported:")) choice = {kind: "imported", id: value.slice(9)};
+        if (value.startsWith("imported:")) {
+            const id = value.slice(9);
+            const font = this.state.fonts.find((item) => item.id === id);
+            if (font) choice = {kind: "imported", id, weight: font.variationAxes?.wght?.default ?? font.fontWeight};
+        }
         if (value.startsWith("system:")) {
             const font = this.systemFonts[Number(value.slice(7))];
             if (font) choice = {kind: "system", family: font.family, displayName: font.displayName, weight: font.weight};
         }
         if (!choice) return;
         const settings = this.settingsFor(target, secondary);
-        const key = choice.kind === "imported" ? `i:${choice.id}` : choice.kind === "system" ? `s:${choice.family}:${choice.weight}` : "d";
-        const selectedIndex = settings.fonts.findIndex((item) => (item.kind === "imported" ? `i:${item.id}` : item.kind === "system" ? `s:${item.family}:${item.weight}` : "d") === key);
+        const key = this.fontChoiceKey(choice);
+        const selectedIndex = settings.fonts.findIndex((item) => this.fontChoiceKey(item) === key);
         if (selectedIndex >= 0) settings.fonts.splice(selectedIndex, 1);
         else settings.fonts.push(choice);
         this.applySettings();
         this.renderManager();
         await this.persist();
+    }
+
+    private setAssignedVariableWeight(target: FontTarget, secondary: boolean, index: number, rawWeight: number): void {
+        const choice = this.settingsFor(target, secondary).fonts[index];
+        if (choice?.kind !== "imported") return;
+        const font = this.state.fonts.find((item) => item.id === choice.id);
+        const axis = font?.variationAxes?.wght;
+        if (!axis || !Number.isFinite(rawWeight)) return;
+        choice.weight = Math.round(Math.min(axis.max, Math.max(axis.min, rawWeight)));
+        this.applySettings();
+    }
+
+    private async setAssignedImportedVariant(target: FontTarget, secondary: boolean, index: number, fontId: string): Promise<void> {
+        const choice = this.settingsFor(target, secondary).fonts[index];
+        const font = this.state.fonts.find((item) => item.id === fontId);
+        if (choice?.kind !== "imported" || !font) return;
+        choice.id = font.id;
+        choice.weight = font.variationAxes?.wght?.default ?? font.fontWeight;
+        this.applySettings();
+        await this.persist();
+        this.renderManager();
+    }
+
+    private async setAssignedSystemWeight(target: FontTarget, secondary: boolean, index: number, weight: number): Promise<void> {
+        const choice = this.settingsFor(target, secondary).fonts[index];
+        if (choice?.kind !== "system") return;
+        const font = this.systemFonts.find((item) => item.family === choice.family && item.weight === weight);
+        if (!font) return;
+        choice.displayName = font.displayName;
+        choice.weight = font.weight;
+        this.applySettings();
+        await this.persist();
+        this.renderManager();
     }
 
     private async removeAssignedFont(target: FontTarget, secondary: boolean, index: number): Promise<void> {
@@ -1053,12 +1335,19 @@ export default class SiYuanFontStudio extends Plugin {
     private bindAssignmentDragging(root: HTMLElement): void {
         let source: {target: FontTarget; secondary: boolean; index: number} | undefined;
         root.querySelectorAll<HTMLElement>("[data-stack-item]").forEach((item) => {
-            item.addEventListener("dragstart", (event) => {
+            item.draggable = false;
+            const handle = item.querySelector<HTMLElement>(".bfm-drag");
+            if (!handle) return;
+            handle.draggable = true;
+            handle.addEventListener("dragstart", (event) => {
                 source = {target: item.dataset.target as FontTarget, secondary: item.dataset.secondary === "true", index: Number(item.dataset.index)};
                 item.classList.add("bfm-dragging");
                 event.dataTransfer?.setData("text/plain", "font-stack");
             });
-            item.addEventListener("dragend", () => item.classList.remove("bfm-dragging"));
+            handle.addEventListener("dragend", () => {
+                item.classList.remove("bfm-dragging");
+                source = undefined;
+            });
             item.addEventListener("dragover", (event) => event.preventDefault());
             item.addEventListener("drop", (event) => {
                 event.preventDefault();
@@ -1076,26 +1365,31 @@ export default class SiYuanFontStudio extends Plugin {
 
     private bindLibraryDragging(root: HTMLElement): void {
         let sourceId = "";
-        root.querySelectorAll<HTMLElement>("[data-library-font]").forEach((item) => {
-            item.addEventListener("dragstart", (event) => {
-                if ((event.target as Element | null)?.closest("[data-library-column-resizer]")) {
-                    event.preventDefault();
-                    return;
-                }
-                sourceId = item.dataset.libraryFont || "";
+        root.querySelectorAll<HTMLElement>("[data-library-group]").forEach((item) => {
+            item.draggable = false;
+            const handle = item.querySelector<HTMLElement>(".bfm-font__handle");
+            if (!handle) return;
+            handle.draggable = true;
+            handle.addEventListener("dragstart", (event) => {
+                sourceId = item.dataset.libraryGroup || "";
                 item.classList.add("bfm-dragging");
                 event.dataTransfer?.setData("text/plain", sourceId);
             });
-            item.addEventListener("dragend", () => item.classList.remove("bfm-dragging"));
+            handle.addEventListener("dragend", () => {
+                item.classList.remove("bfm-dragging");
+                sourceId = "";
+            });
             item.addEventListener("dragover", (event) => event.preventDefault());
             item.addEventListener("drop", (event) => {
                 event.preventDefault();
-                const destinationId = item.dataset.libraryFont || "";
-                const from = this.state.fonts.findIndex((font) => font.id === sourceId);
-                const to = this.state.fonts.findIndex((font) => font.id === destinationId);
+                const destinationId = item.dataset.libraryGroup || "";
+                const groups = groupImportedFonts(this.state.fonts);
+                const from = groups.findIndex((group) => group.fonts.some((font) => font.id === sourceId));
+                const to = groups.findIndex((group) => group.fonts.some((font) => font.id === destinationId));
                 if (from < 0 || to < 0 || from === to) return;
-                const [moved] = this.state.fonts.splice(from, 1);
-                this.state.fonts.splice(to, 0, moved);
+                const [moved] = groups.splice(from, 1);
+                groups.splice(to, 0, moved);
+                this.state.fonts = groups.flatMap((group) => group.fonts);
                 void this.persist();
                 this.renderManager();
             });

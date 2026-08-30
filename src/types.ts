@@ -10,8 +10,18 @@ export interface ImportedFont {
     sha256: string;
     importedAt: string;
     fontName?: string;
+    fontStyle?: string;
+    fontWeight?: number;
+    variationAxes?: Record<string, FontVariationAxis>;
     fontVersion?: string;
     coverage?: FontCoverage;
+}
+
+export interface FontVariationAxis {
+    name: string;
+    min: number;
+    default: number;
+    max: number;
 }
 
 export interface FontCoverage {
@@ -29,7 +39,7 @@ export interface SystemFont {
 
 export type FontChoice =
     | {kind: "default"}
-    | {kind: "imported"; id: string}
+    | {kind: "imported"; id: string; weight?: number}
     | {kind: "system"; family: string; displayName: string; weight: number};
 
 export interface TargetSettings {
@@ -64,8 +74,8 @@ export interface FontRuntimeStatus {
     error?: string;
 }
 
-export const SIMPLE_TARGETS: FontTarget[] = ["ui", "content", "mono"];
-export const ADVANCED_TARGETS: FontTarget[] = ["math", "graph", "mermaid", "emoji"];
+export const SIMPLE_TARGETS: FontTarget[] = ["ui", "content", "mono", "math"];
+export const ADVANCED_TARGETS: FontTarget[] = ["graph", "mermaid", "emoji"];
 export const TARGETS: FontTarget[] = [...SIMPLE_TARGETS, ...ADVANCED_TARGETS];
 
 export const DEFAULT_STATE: PluginState = {

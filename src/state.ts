@@ -83,7 +83,8 @@ function isFontChoice(value: unknown): value is FontChoice {
     if (!value || typeof value !== "object") return false;
     const choice = value as FontChoice;
     if (choice.kind === "default") return true;
-    if (choice.kind === "imported") return typeof choice.id === "string";
+    if (choice.kind === "imported") return typeof choice.id === "string"
+        && (choice.weight === undefined || typeof choice.weight === "number" && Number.isFinite(choice.weight));
     return choice.kind === "system"
         && typeof choice.family === "string"
         && typeof choice.displayName === "string"

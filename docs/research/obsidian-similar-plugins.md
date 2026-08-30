@@ -28,7 +28,7 @@ Obsidian 官方说明，社区插件浏览器读取 [`community-plugins.json`](h
 
 ## BetterFront 的功能基线
 
-本仓库 README 将可配置对象划分为界面、正文、等宽文字、数学公式、关系图、Mermaid 和 Emoji；等宽文字可拆分行内代码与代码块，数学可拆分行内公式与公式块。除关系图、Emoji 以及 Mermaid 的部分元素限制外，还能调整字号。参见 [`README.md`](../../README.md)。
+本仓库 README 将可配置对象划分为界面、正文、等宽文字、公式字体、关系图、Mermaid 和 Emoji；等宽文字可拆分行内代码与代码块，公式字体可拆分行内公式与公式块。除关系图、Emoji 以及 Mermaid 的部分元素限制外，还能调整字号。参见 [`README.md`](../../README.md)。
 
 源码进一步确认了以下实现能力：
 
@@ -106,7 +106,7 @@ Obsidian 官方说明，社区插件浏览器读取 [`community-plugins.json`](h
 ## 产品层面的判断
 
 1. **最需要持续跟踪的是 Local Fonts。** 它在字体元数据、可变字体、多字重、彩色 Emoji、平台兼容诊断和资源加载效率上完成度高，代表“专业本地字体管理器”的直接竞争方向。
-2. **Local Font Loader 验证了中文用户的重要需求。** Latin/CJK 分流和数学字体独立设置与 BetterFront 的候补字体、数学中文回退场景高度相关。
+2. **Local Font Loader 验证了中文用户的重要需求。** Latin/CJK 分流和公式字体独立设置与 BetterFront 的候补字体、公式中文回退场景高度相关。
 3. **Fontsource 验证了低门槛字体获取与多字体回退栈。** BetterFront 的示例方案按需下载已经接近这一方向，但 Fontsource 的可搜索目录规模与导入体验更成熟。
 4. **BetterFront 的差异化应明确表述为“全作用域字体编排”，而不只是“加载自定义字体”。** 七类目标、行内/块级拆分、字号、关系图/Mermaid 和可携带字体的方案包，是当前 Obsidian 同类 README 中未出现的组合。
 5. **不要将通用样式插件误判成直接竞品。** Style Settings/Style Manager 能通过 CSS 变量或 preset 间接控制字体，但它们并不承担字体文件解析、覆盖范围检测、加载和回退管理；更接近 BetterFront 在 Obsidian 生态中的互补底座。
@@ -114,4 +114,3 @@ Obsidian 官方说明，社区插件浏览器读取 [`community-plugins.json`](h
 ## 数据快照说明
 
 版本号来自各仓库调研日 HEAD 的 `manifest.json`，发布日期来自对应 GitHub Releases Atom/Release 页面；downloads 与 updated 来自 Obsidian 官方 `community-plugin-stats.json` 的调研日快照。下载量会持续变化，只用于判断采用规模，不作为功能质量或安全性的证明。
-
