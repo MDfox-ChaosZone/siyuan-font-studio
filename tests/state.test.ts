@@ -242,13 +242,14 @@ describe("font utilities", () => {
 
     it("preserves localized system font names and weight aliases when grouping families", () => {
         const groups = groupSystemFonts([
-            {family: "FangSong", displayName: "仿宋 Bold", weight: 700},
-            {family: "FangSong", displayName: "仿宋", weight: 400},
+            {family: "FangSong", displayName: "仿宋 Bold", weight: 700, aliases: ["FangSong Bold", "STFangsong-Bold"]},
+            {family: "FangSong", displayName: "仿宋", weight: 400, aliases: ["FangSong Regular", "STFangsong"]},
         ]);
 
         expect(groups).toHaveLength(1);
         expect(groups[0].displayName).toBe("仿宋");
         expect(groups[0].searchText).toContain("仿宋 bold");
+        expect(groups[0].searchText).toContain("stfangsong-bold");
         expect(groups[0].preferred.font.weight).toBe(400);
     });
 

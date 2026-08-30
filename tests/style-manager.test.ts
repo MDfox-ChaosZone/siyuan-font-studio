@@ -89,6 +89,7 @@ describe("font target isolation", () => {
         new StyleManager().apply(state, new Set());
 
         expect(setProperty).toHaveBeenCalledWith("--b3-font-family-protyle", '"Custom Content", Original UI', "important");
+        expect(setProperty).toHaveBeenCalledWith("--b3-font-family-editor", '"Custom Content", Original UI', "important");
         expect(setProperty).toHaveBeenCalledWith("--b3-font-family-code", '"Original Mono", Original UI', "important");
         expect(generatedStyle.textContent).toContain('body { font-weight: 700; }');
         expect(generatedStyle.textContent).toContain('.protyle-wysiwyg, .protyle-title { font-weight: 500; }');
@@ -98,13 +99,13 @@ describe("font target isolation", () => {
 
     it("writes each configured category only to its own SiYuan variable", () => {
         const cases = [
-            ["content", "--b3-font-family-protyle"],
-            ["mono", "--b3-font-family-code"],
-            ["graph", "--b3-font-family-graph"],
-            ["emoji", "--b3-font-family-emoji"],
+            ["content", ["--b3-font-family-protyle", "--b3-font-family-editor"]],
+            ["mono", ["--b3-font-family-code", "--b3-font-family-editor-code", "--b3-font-weight-editor-code"]],
+            ["graph", ["--b3-font-family-graph"]],
+            ["emoji", ["--b3-font-family-emoji"]],
         ] as const;
 
-        for (const [target, expectedProperty] of cases) {
+        for (const [target, expectedProperties] of cases) {
             const properties = new Map<string, string>();
             const setProperty = vi.fn((name: string, value: string) => properties.set(name, value));
             const rootStyle = {
@@ -134,8 +135,52 @@ describe("font target isolation", () => {
 
             new StyleManager().apply(state, new Set());
 
-            expect(Array.from(new Set(setProperty.mock.calls.map(([name]) => name)))).toEqual([expectedProperty]);
+            expect(Array.from(new Set(setProperty.mock.calls.map(([name]) => name)))).toEqual(expectedProperties);
         }
+    });
+
+    it("uses and overrides SiYuan 3.8.2 editor and monospace variables", () => {
+        const properties = new Map<string, string>();
+        const setProperty = vi.fn((name: string, value: string) => properties.set(name, value));
+        const rootStyle = {
+            getPropertyValue: (name: string) => properties.get(name) || "",
+            getPropertyPriority: () => "",
+            setProperty,
+            removeProperty: (name: string) => properties.delete(name),
+        };
+        const generatedStyle = {id: "", textContent: "", remove: vi.fn()};
+        vi.stubGlobal("document", {
+            documentElement: {style: rootStyle},
+            head: {appendChild: vi.fn()},
+            getElementById: vi.fn().mockReturnValue(null),
+            createElement: vi.fn().mockReturnValue(generatedStyle),
+        });
+        vi.stubGlobal("getComputedStyle", () => ({
+            getPropertyValue: (name: string) => ({
+                "--b3-font-family": "Original UI",
+                "--b3-font-family-protyle": "Original Theme Content",
+                "--b3-font-family-editor": '"Native Content A", "Native Content B"',
+                "--b3-font-family-code": "Original Theme Mono",
+                "--b3-font-family-editor-code": '"Native Mono"',
+            }[name] || ""),
+        }));
+
+        const state = structuredClone(DEFAULT_STATE);
+        state.targets.content.fonts = [{kind: "system", family: "Plugin Content", displayName: "Plugin Content", weight: 500}];
+        state.targets.mono.fonts = [{kind: "system", family: "Plugin Mono", displayName: "Plugin Mono", weight: 600}];
+        state.targets.mono.decoupled = true;
+        state.targets.mono.secondary = {fonts: [{kind: "system", family: "Plugin Block Mono", displayName: "Plugin Block Mono", weight: 700}], size: 15};
+
+        const manager = new StyleManager();
+        expect(manager.getBaselineFamily("content")).toBe('"Native Content A", "Native Content B"');
+        expect(manager.getBaselineFamily("mono")).toBe('"Native Mono"');
+        manager.apply(state, new Set());
+
+        expect(setProperty).toHaveBeenCalledWith("--b3-font-family-editor", '"Plugin Content", "Native Content A", "Native Content B"', "important");
+        expect(setProperty).toHaveBeenCalledWith("--b3-font-family-editor-code", '"Plugin Mono", ui-monospace, Consolas, monospace', "important");
+        expect(setProperty).toHaveBeenCalledWith("--b3-font-weight-editor-code", "600", "important");
+        expect(generatedStyle.textContent).toContain('textarea[style*="--b3-font-family-editor-code"]');
+        expect(generatedStyle.textContent).toContain('font-family: "Plugin Block Mono", ui-monospace');
     });
 
     it("isolates advanced categories and preserves KaTeX structural fonts", () => {
@@ -238,8 +283,11 @@ describe("font target isolation", () => {
         state.targets.math.secondary = {fonts: [{kind: "system", family: "Block Math", displayName: "Block Math", weight: 400}], size: 18};
         new StyleManager().apply(state, new Set());
         expect(rootStyle.setProperty).toHaveBeenCalledWith("--b3-font-family-code", '"Inline Mono", ui-monospace, Consolas, monospace', "important");
+        expect(rootStyle.setProperty).toHaveBeenCalledWith("--b3-font-family-editor-code", '"Inline Mono", ui-monospace, Consolas, monospace', "important");
+        expect(rootStyle.setProperty).toHaveBeenCalledWith("--b3-font-weight-editor-code", "400", "important");
         expect(generatedStyle.textContent).not.toContain('font-family: "Inline Mono"');
         expect(generatedStyle.textContent).toContain('font-family: "Block Mono", ui-monospace');
+        expect(generatedStyle.textContent).toContain('textarea[style*="--b3-font-family-editor-code"]');
         expect(generatedStyle.textContent).not.toContain('.b3-chip');
         expect(generatedStyle.textContent).toContain('font-size: 15px');
         expect(generatedStyle.textContent).toContain('.katex:not(.katex-display .katex) .mord:not(.sqrt):not(.delimsizing)');

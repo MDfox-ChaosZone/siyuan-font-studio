@@ -78,7 +78,10 @@ export function groupSystemFonts(fonts: SystemFont[]): SystemFontFamilyGroup[] {
         return {
             family: variants[0].font.family,
             displayName: preferred.font.displayName || variants[0].font.family,
-            searchText: Array.from(new Set([variants[0].font.family, ...variants.map(({font}) => font.displayName)]))
+            searchText: Array.from(new Set([
+                variants[0].font.family,
+                ...variants.flatMap(({font}) => [font.displayName, ...(font.aliases || [])]),
+            ]))
                 .join(" ").toLocaleLowerCase(),
             fonts: variants,
             preferred,

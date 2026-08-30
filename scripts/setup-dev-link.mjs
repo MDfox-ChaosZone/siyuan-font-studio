@@ -46,7 +46,10 @@ if (existsSync(pluginDir)) {
     process.exit(1);
 }
 
-symlinkSync(projectRoot, pluginDir, process.platform === "win32" ? "junction" : "dir");
+// SiYuan 3.8.2 only scans regular directories and real directory symlinks.
+// A Windows junction is exposed as a reparse point rather than a symlink to
+// Go's os.ReadDir, so the kernel skips it when discovering installed plugins.
+symlinkSync(projectRoot, pluginDir, "dir");
 
 console.log([
     `开发链接创建成功：${pluginDir} -> ${projectRoot}`,

@@ -5,6 +5,20 @@ const STYLE_ID = "siyuan-font-studio-overrides";
 const SIYUAN_UI_FALLBACK = '"Emojis Additional", "Emojis Reset", BlinkMacSystemFont, Helvetica, "Luxi Sans", "DejaVu Sans", arial, sans-serif, emojis';
 const SIYUAN_MONO_FALLBACK = '"Emojis Additional", "Emojis Reset", "JetBrainsMono-Regular", mononoki, Consolas, "Liberation Mono", var(--b3-font-family)';
 const SIYUAN_EMOJI_FALLBACK = '"Emojis Additional", emojis';
+const ROOT_PROPERTIES = [
+    "--b3-font-family",
+    "--b3-font-family-protyle",
+    "--b3-font-family-editor",
+    "--b3-font-family-code",
+    "--b3-font-family-editor-code",
+    "--b3-font-weight-editor-code",
+    "--b3-font-family-graph",
+    "--b3-font-family-emoji",
+    "--b3-font-family-math",
+    "--b3-font-size",
+    "--b3-font-size-editor",
+];
+const MONO_BLOCK_SELECTORS = '.b3-typography .hljs, .protyle-wysiwyg .hljs, .protyle-linenumber__rows, textarea[style*="--b3-font-family-code"], textarea[style*="--b3-font-family-editor-code"]';
 
 export class StyleManager {
     private originalProperties = new Map<string, {value: string; priority: string}>();
@@ -13,7 +27,7 @@ export class StyleManager {
     constructor() {
         this.baselineFamilies = this.readBaselineFamilies();
         const rootStyle = document.documentElement.style;
-        for (const name of ["--b3-font-family", "--b3-font-family-protyle", "--b3-font-family-code", "--b3-font-family-graph", "--b3-font-family-emoji", "--b3-font-family-math", "--b3-font-size", "--b3-font-size-editor"]) {
+        for (const name of ROOT_PROPERTIES) {
             this.originalProperties.set(name, {
                 value: rootStyle.getPropertyValue(name),
                 priority: rootStyle.getPropertyPriority(name),
@@ -24,11 +38,19 @@ export class StyleManager {
     private readBaselineFamilies(): Record<FontTarget, string> {
         const computed = getComputedStyle(document.documentElement);
         const baselineUi = computed.getPropertyValue("--b3-font-family").trim() || SIYUAN_UI_FALLBACK;
-        const resolveUiReference = (value: string, fallback: string) => (value.trim() || fallback).replace(/var\(--b3-font-family\)/g, baselineUi);
+        const resolveReferences = (value: string, fallback: string, references: Record<string, string> = {}) => {
+            let resolved = value.trim() || fallback;
+            for (const [name, replacement] of Object.entries({"--b3-font-family": baselineUi, ...references})) {
+                resolved = resolved.split(`var(${name})`).join(replacement);
+            }
+            return resolved;
+        };
+        const baselineProtyle = resolveReferences(computed.getPropertyValue("--b3-font-family-protyle"), baselineUi);
+        const baselineCode = resolveReferences(computed.getPropertyValue("--b3-font-family-code"), SIYUAN_MONO_FALLBACK);
         return {
             ui: baselineUi,
-            content: resolveUiReference(computed.getPropertyValue("--b3-font-family-protyle"), baselineUi),
-            mono: resolveUiReference(computed.getPropertyValue("--b3-font-family-code"), SIYUAN_MONO_FALLBACK),
+            content: resolveReferences(computed.getPropertyValue("--b3-font-family-editor"), baselineProtyle, {"--b3-font-family-protyle": baselineProtyle}),
+            mono: resolveReferences(computed.getPropertyValue("--b3-font-family-editor-code"), baselineCode, {"--b3-font-family-code": baselineCode}),
             graph: computed.getPropertyValue("--b3-font-family-graph").trim() || "arial",
             emoji: computed.getPropertyValue("--b3-font-family-emoji").trim() || SIYUAN_EMOJI_FALLBACK,
             math: computed.getPropertyValue("--b3-font-family-math").trim() || "KaTeX_Math",
@@ -63,10 +85,19 @@ export class StyleManager {
         };
 
         if (ui) root.setProperty("--b3-font-family", `${ui}, "Emojis Additional", "Emojis Reset", system-ui, sans-serif`, "important");
-        if (content) root.setProperty("--b3-font-family-protyle", `${content}, ${this.baselineFamilies.content}`, "important");
+        if (content) {
+            const contentStack = `${content}, ${this.baselineFamilies.content}`;
+            root.setProperty("--b3-font-family-protyle", contentStack, "important");
+            root.setProperty("--b3-font-family-editor", contentStack, "important");
+        }
         else if (ui) root.setProperty("--b3-font-family-protyle", this.baselineFamilies.content, "important");
-        if (mono) root.setProperty("--b3-font-family-code", `${mono}, ui-monospace, Consolas, monospace`, "important");
+        if (mono) {
+            const monoStack = `${mono}, ui-monospace, Consolas, monospace`;
+            root.setProperty("--b3-font-family-code", monoStack, "important");
+            root.setProperty("--b3-font-family-editor-code", monoStack, "important");
+        }
         else if (ui) root.setProperty("--b3-font-family-code", this.baselineFamilies.mono, "important");
+        if (weights.mono !== null) root.setProperty("--b3-font-weight-editor-code", String(weights.mono), "important");
         if (graph) root.setProperty("--b3-font-family-graph", `${graph}, ${this.baselineFamilies.graph}`, "important");
         if (emoji) root.setProperty("--b3-font-family-emoji", `${emoji}, ${this.baselineFamilies.emoji}`, "important");
         if (state.targets.ui.size !== null) root.setProperty("--b3-font-size", `${state.targets.ui.size}px`, "important");
@@ -104,9 +135,9 @@ export class StyleManager {
 .protyle-title { font-family: ${families.emoji}, var(--b3-font-family-protyle) !important; }`);
         }
         if (state.targets.mono.decoupled && separated.monoBlock) {
-            rules.push(`.b3-typography .hljs, .protyle-wysiwyg .hljs, .protyle-linenumber__rows, textarea[style*="--b3-font-family-code"] { font-family: ${separated.monoBlock}, ui-monospace, Consolas, monospace !important;${monoBlockWeight === null ? "" : ` font-weight: ${monoBlockWeight};`} }`);
+            rules.push(`${MONO_BLOCK_SELECTORS} { font-family: ${separated.monoBlock}, ui-monospace, Consolas, monospace !important;${monoBlockWeight === null ? "" : ` font-weight: ${monoBlockWeight};`} }`);
         } else if (monoBlockWeight !== null) {
-            rules.push(`.b3-typography .hljs, .protyle-wysiwyg .hljs, .protyle-linenumber__rows, textarea[style*="--b3-font-family-code"] { font-weight: ${monoBlockWeight}; }`);
+            rules.push(`${MONO_BLOCK_SELECTORS} { font-weight: ${monoBlockWeight}; }`);
         }
         if (families.math) {
             const mathFamily = `${families.math}, ${this.baselineFamilies.math}`;
@@ -125,7 +156,7 @@ export class StyleManager {
         }
         const monoBlockSize = state.targets.mono.decoupled ? state.targets.mono.secondary?.size : state.targets.mono.size;
         if (monoBlockSize !== null && monoBlockSize !== undefined) {
-            rules.push(`.b3-typography .hljs, .protyle-wysiwyg .hljs, .protyle-linenumber__rows, textarea[style*="--b3-font-family-code"] { font-size: ${monoBlockSize}px !important; }`);
+            rules.push(`${MONO_BLOCK_SELECTORS} { font-size: ${monoBlockSize}px !important; }`);
         }
         if (state.targets.math.size !== null) {
             rules.push(`.b3-typography .katex, .protyle-wysiwyg .katex { font-size: ${state.targets.math.size}px !important; }`);

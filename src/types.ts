@@ -35,6 +35,8 @@ export interface SystemFont {
     family: string;
     displayName: string;
     weight: number;
+    aliases?: string[];
+    spacing?: "proportional" | "dual" | "monospace" | "character-cell";
 }
 
 export type FontChoice =

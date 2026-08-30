@@ -86,8 +86,10 @@ export default class SiYuanFontStudio extends Plugin {
     private mermaidWrappedInitialize?: MermaidRuntime["initialize"];
     private mermaidRefreshTimer?: number;
     private lastMermaidSignature = "";
+    private disposed = false;
 
     async onload(): Promise<void> {
+        this.disposed = false;
         this.addIcons(`<symbol id="iconSiYuanFontStudio" viewBox="0 0 32 32">
   <path fill-rule="evenodd" d="M8 4h4l7 24h-4.2l-1.6-5.5H6.8L5.2 28H1L8 4zm0 14.5h4l-2-7.3-2 7.3z"></path>
   <rect x="19" y="9" width="12" height="2" rx="1"></rect>
@@ -97,8 +99,10 @@ export default class SiYuanFontStudio extends Plugin {
 </symbol>`);
         this.styleManager = new StyleManager();
         this.state = parseState(await this.loadData(STATE_FILE));
+        if (this.disposed) return;
         this.observeMermaidRuntime();
         const metadataChanged = (await Promise.all(this.state.fonts.map((font) => this.loadStoredFont(font)))).some(Boolean);
+        if (this.disposed) return;
         if (metadataChanged) await this.persist();
         this.applySettings();
         void this.loadSystemFonts();
@@ -112,6 +116,7 @@ export default class SiYuanFontStudio extends Plugin {
         this.setting = new ManagerSetting(() => this.openManager());
 
         this.themeObserver = new MutationObserver(() => {
+            if (this.disposed) return;
             this.styleManager?.refreshBaselines();
             this.applySettings();
             if (this.managerDialog) this.renderManager();
@@ -123,6 +128,7 @@ export default class SiYuanFontStudio extends Plugin {
     }
 
     onLayoutReady(): void {
+        if (this.disposed) return;
         this.styleManager?.refreshBaselines();
         this.applySettings();
         this.graphObserver = new MutationObserver((records) => {
@@ -143,6 +149,7 @@ export default class SiYuanFontStudio extends Plugin {
     }
 
     onunload(): void {
+        this.disposed = true;
         this.themeObserver?.disconnect();
         this.graphObserver?.disconnect();
         this.mermaidScriptObserver?.disconnect();
@@ -160,8 +167,12 @@ export default class SiYuanFontStudio extends Plugin {
         this.emojiFaces.clear();
     }
 
-    uninstall(): void {
-        void deletePluginStorage().catch((error) => console.warn(`[${this.name}] failed to remove plugin data`, error));
+    async uninstall(): Promise<void> {
+        try {
+            await deletePluginStorage();
+        } catch (error) {
+            console.warn(`[${this.name}] failed to remove plugin data`, error);
+        }
     }
 
     private async loadStoredFont(font: ImportedFont): Promise<boolean> {
@@ -202,6 +213,7 @@ export default class SiYuanFontStudio extends Plugin {
         });
         const emojiFace = new FontFace(emojiRuntimeFamily(font.id), buffer.slice(0), {unicodeRange: EMOJI_UNICODE_RANGE});
         await Promise.all([face.load(), emojiFace.load()]);
+        if (this.disposed) return;
         document.fonts.add(face);
         document.fonts.add(emojiFace);
         this.faces.set(font.id, face);
@@ -209,6 +221,7 @@ export default class SiYuanFontStudio extends Plugin {
     }
 
     private applySettings(): void {
+        if (this.disposed) return;
         const loadedIds = new Set(Array.from(this.statuses.entries()).filter(([, status]) => status.loaded).map(([id]) => id));
         this.styleManager?.apply(this.state, loadedIds);
         this.updateGraphModels();
@@ -220,6 +233,7 @@ export default class SiYuanFontStudio extends Plugin {
     }
 
     private updateGraphModels(): void {
+        if (this.disposed) return;
         const family = getComputedStyle(document.body).getPropertyValue("--b3-font-family-graph").trim();
         if (!family) return;
         type GraphModel = {
@@ -235,6 +249,7 @@ export default class SiYuanFontStudio extends Plugin {
     }
 
     private observeMermaidRuntime(): void {
+        if (this.disposed) return;
         this.patchMermaidRuntime();
         const attachLoadListener = (script: HTMLScriptElement) => {
             script.addEventListener("load", () => this.patchMermaidRuntime(), {once: true});
@@ -251,6 +266,7 @@ export default class SiYuanFontStudio extends Plugin {
     }
 
     private patchMermaidRuntime(): boolean {
+        if (this.disposed) return false;
         const runtime = (window as typeof window & {mermaid?: MermaidRuntime}).mermaid;
         if (!runtime) return false;
         if (this.mermaidRuntime === runtime && runtime.initialize === this.mermaidWrappedInitialize) return true;
@@ -280,17 +296,20 @@ export default class SiYuanFontStudio extends Plugin {
         if (this.mermaidRefreshTimer !== undefined) window.clearTimeout(this.mermaidRefreshTimer);
         this.mermaidRefreshTimer = window.setTimeout(() => {
             this.mermaidRefreshTimer = undefined;
+            if (this.disposed) return;
             void this.refreshMermaidDiagrams();
         }, 240);
     }
 
     private async refreshMermaidDiagrams(): Promise<void> {
+        if (this.disposed) return;
         const diagrams = Array.from(document.querySelectorAll<HTMLElement>('[data-subtype="mermaid"]'));
         if (!diagrams.length) {
             this.patchMermaidRuntime();
             return;
         }
         await document.fonts.ready;
+        if (this.disposed) return;
         this.patchMermaidRuntime();
         diagrams.forEach((diagram) => diagram.removeAttribute("data-render"));
         const renderer = (SiyuanAPI as unknown as {ProtyleMethod?: ProtyleRenderAPI}).ProtyleMethod;
@@ -301,6 +320,7 @@ export default class SiYuanFontStudio extends Plugin {
         try {
             const response = await fetch("/api/system/getSysFonts", {method: "POST", body: "{}"});
             const payload = await response.json() as {code: number; data?: SystemFont[]};
+            if (this.disposed) return;
             if (payload.code === 0 && Array.isArray(payload.data)) {
                 const unique = new Map<string, SystemFont>();
                 for (const font of payload.data) unique.set(`${font.family}\u0000${font.weight}`, font);

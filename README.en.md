@@ -30,7 +30,7 @@ Easily customize every font element in SiYuan!
 
 - **v0.1.4 and earlier**: Completed the plugin's core functionality.
 - **v0.1.5**: Added on-demand download and automatic import for the example font preset, and refined the preset toolbar layout.
-- **v0.1.6**: Added font weight display and selection.
+- **v0.1.6**: Added font weight display and selection, with compatibility for SiYuan 3.8.2.
 
 ## License
 

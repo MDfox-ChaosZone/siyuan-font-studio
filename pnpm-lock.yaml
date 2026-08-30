@@ -37,8 +37,8 @@ importers:
         specifier: ^16.0.5
         version: 16.0.8(sass@1.101.0)(webpack@5.108.4)
       siyuan:
-        specifier: ^1.2.4
-        version: 1.2.4
+        specifier: ^1.2.6
+        version: 1.2.6
       tslib:
         specifier: ^2.8.1
         version: 2.8.1
@@ -1217,8 +1217,8 @@ packages:
   siginfo@2.0.0:
     resolution: {integrity: sha512-ybx0WO1/8bSBLEWXZvEd7gMW3Sn3JFlW3TvX1nREbDLRNQNaeNN8WK0meBwPdAaOI7TtRRRJn/Es1zhrrCHu7g==}
 
-  siyuan@1.2.4:
-    resolution: {integrity: sha512-L1QZcFp2zZxX7Qsjvmj/pqim1vBw9iEDeilEht51zxLf21csdYsuUV5U5NjUYfI/+1PUGeS/uJZGYwOwkfBHXw==}
+  siyuan@1.2.6:
+    resolution: {integrity: sha512-rgLgWcMvUwC/1pWjIoVNfWdeOivrz6QDd65JEaBzA5j/wTnZAOEQQGB9+APRshcAjeyNV+LUknWAc7FJPBJMrA==}
 
   source-map-js@1.2.1:
     resolution: {integrity: sha512-UXWMKhLOwVKb728IUtQPXxfYU+usdybtUrK/8uGE8CQMvrhOpwvzDBwj0QhSL7MQc7vIsISBG8VQ8+IDQxpfQA==}
@@ -1440,8 +1440,8 @@ packages:
       webpack: ^4.0.0 || ^5.0.0
       webpack-sources: '*'
 
-  zod@4.4.3:
-    resolution: {integrity: sha512-ytENFjIJFl2UwYglde2jchW2Hwm4GJFLDiSXWdTrJQBIN9Fcyp7n4DhxJEiWNAJMV1/BqWfW/kkg71UDcHJyTQ==}
+  zod@4.5.2:
+    resolution: {integrity: sha512-XkYXCol10+ba/6F/cueWV+TezUeOqXW0hdeJt5CdXjTYeAgAQg5N03RQdJ80mhfFE72+pblvYMW4wy2Qp4Qbrg==}
 
 snapshots:
 
@@ -2375,12 +2375,12 @@ snapshots:
 
   siginfo@2.0.0: {}
 
-  siyuan@1.2.4:
+  siyuan@1.2.6:
     dependencies:
       '@dop251/types-goja_nodejs-buffer': 0.0.0-20260212111938-1f56ff5bcf14
       '@dop251/types-goja_nodejs-global': 0.0.0-20260212111938-1f56ff5bcf14
       '@dop251/types-goja_nodejs-url': 0.0.0-20260212111938-1f56ff5bcf14
-      zod: 4.4.3
+      zod: 4.5.2
 
   source-map-js@1.2.1: {}
 
@@ -2578,4 +2578,4 @@ snapshots:
       webpack-sources: 3.5.1
       yazl: 2.5.1
 
-  zod@4.4.3: {}
+  zod@4.5.2: {}
