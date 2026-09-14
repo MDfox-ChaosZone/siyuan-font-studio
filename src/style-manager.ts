@@ -1,4 +1,4 @@
-import {EMOJI_UNICODE_RANGE, emojiRuntimeFamily, familyForChoices, quoteFamily, runtimeFamily, weightForChoices} from "./font-utils";
+import {EMOJI_UNICODE_RANGE, emojiRuntimeFamily, familyForChoices, quoteFamily, runtimeFamily, variableWeightForChoices, weightForChoices} from "./font-utils";
 import {FontChoice, FontTarget, ImportedFont, PluginState} from "./types";
 
 const STYLE_ID = "siyuan-font-studio-overrides";
@@ -13,6 +13,7 @@ const ROOT_PROPERTIES = [
     "--b3-font-family-editor-code",
     "--b3-font-weight-editor-code",
     "--b3-font-family-graph",
+    "--bfm-font-weight-graph",
     "--b3-font-family-emoji",
     "--b3-font-family-math",
     "--b3-font-size",
@@ -77,12 +78,17 @@ export class StyleManager {
         const graph = familyForChoices(effectiveChoices(state.targets.graph.fonts), state.fonts, loadedIds, runtimeFamily, this.baselineFamilies.graph);
         const restrictedEmoji = restrictedEmojiFamilies(effectiveChoices(state.targets.emoji.fonts), state.fonts, loadedIds, this.baselineFamilies.emoji);
         const emoji = restrictedEmoji.family;
-        const math = familyForChoices(effectiveChoices(state.targets.math.fonts), state.fonts, loadedIds, runtimeFamily, this.baselineFamilies.math);
+        const mathChoices = effectiveMathChoices(state.targets.math.fonts);
+        const math = familyForChoices(mathChoices, state.fonts, loadedIds, runtimeFamily, this.baselineFamilies.math);
         const weights = {
             ui: weightForChoices(effectiveChoices(state.targets.ui.fonts), state.fonts),
             content: weightForChoices(effectiveChoices(state.targets.content.fonts), state.fonts),
             mono: weightForChoices(effectiveChoices(state.targets.mono.fonts), state.fonts),
+            graph: weightForChoices(effectiveChoices(state.targets.graph.fonts), state.fonts),
+            math: weightForChoices(mathChoices, state.fonts),
+            mermaid: weightForChoices(effectiveChoices(state.targets.mermaid.fonts), state.fonts),
         };
+        const mathVariableWeight = variableWeightForChoices(mathChoices, state.fonts);
 
         if (ui) root.setProperty("--b3-font-family", `${ui}, "Emojis Additional", "Emojis Reset", system-ui, sans-serif`, "important");
         if (content) {
@@ -99,6 +105,7 @@ export class StyleManager {
         else if (ui) root.setProperty("--b3-font-family-code", this.baselineFamilies.mono, "important");
         if (weights.mono !== null) root.setProperty("--b3-font-weight-editor-code", String(weights.mono), "important");
         if (graph) root.setProperty("--b3-font-family-graph", `${graph}, ${this.baselineFamilies.graph}`, "important");
+        if (weights.graph !== null) root.setProperty("--bfm-font-weight-graph", String(weights.graph), "important");
         if (emoji) root.setProperty("--b3-font-family-emoji", `${emoji}, ${this.baselineFamilies.emoji}`, "important");
         if (state.targets.ui.size !== null) root.setProperty("--b3-font-size", `${state.targets.ui.size}px`, "important");
         if (state.targets.content.size !== null) root.setProperty("--b3-font-size-editor", `${state.targets.content.size}px`, "important");
@@ -110,13 +117,20 @@ export class StyleManager {
             document.head.appendChild(style);
         }
         const monoBlock = state.targets.mono.decoupled ? familyForChoices(state.targets.mono.secondary?.fonts || [], state.fonts, loadedIds, runtimeFamily, this.baselineFamilies.mono) || this.baselineFamilies.mono : mono;
+        const mathBlockChoices = effectiveMathChoices(state.targets.math.secondary?.fonts || []);
         const mathBlock = state.targets.math.decoupled
-            ? familyForChoices(effectiveChoices(state.targets.math.secondary?.fonts || []), state.fonts, loadedIds, runtimeFamily, this.baselineFamilies.math)
+            ? familyForChoices(mathBlockChoices, state.fonts, loadedIds, runtimeFamily, this.baselineFamilies.math)
             : null;
         const monoBlockWeight = state.targets.mono.decoupled
             ? weightForChoices(state.targets.mono.secondary?.fonts || [], state.fonts)
             : weights.mono;
-        style.textContent = [...restrictedEmoji.faceRules, this.buildRules(state, {ui, content, mono, graph, emoji, math, mermaid: null}, {monoBlock, mathBlock}, weights, monoBlockWeight)].filter(Boolean).join("\n");
+        const mathBlockWeight = state.targets.math.decoupled
+            ? weightForChoices(mathBlockChoices, state.fonts)
+            : weights.math;
+        const mathBlockVariableWeight = state.targets.math.decoupled
+            ? variableWeightForChoices(mathBlockChoices, state.fonts)
+            : mathVariableWeight;
+        style.textContent = [...restrictedEmoji.faceRules, this.buildRules(state, {ui, content, mono, graph, emoji, math, mermaid: null}, {monoBlock, mathBlock}, weights, monoBlockWeight, mathBlockWeight, mathVariableWeight, mathBlockVariableWeight)].filter(Boolean).join("\n");
     }
 
     destroy(): void {
@@ -124,30 +138,35 @@ export class StyleManager {
         document.getElementById(STYLE_ID)?.remove();
     }
 
-    private buildRules(state: PluginState, families: Record<FontTarget, string | null>, separated: {monoBlock: string | null; mathBlock: string | null}, weights: {ui: number | null; content: number | null; mono: number | null}, monoBlockWeight: number | null): string {
+    private buildRules(state: PluginState, families: Record<FontTarget, string | null>, separated: {monoBlock: string | null; mathBlock: string | null}, weights: {ui: number | null; content: number | null; mono: number | null; graph: number | null; math: number | null; mermaid: number | null}, monoBlockWeight: number | null, mathBlockWeight: number | null, mathVariableWeight: number | null, mathBlockVariableWeight: number | null): string {
         const rules: string[] = [];
         if (weights.ui !== null) rules.push(`body { font-weight: ${weights.ui}; }`);
         if (weights.content !== null) rules.push(`.b3-typography:not(.b3-typography--default), .protyle-wysiwyg, .protyle-title { font-weight: ${weights.content}; }`);
-        if (weights.mono !== null) rules.push(`.b3-typography code:not(.hljs), .protyle-wysiwyg span[data-type~="code"] { font-weight: ${weights.mono}; }`);
+        if (weights.mono !== null) rules.push(`.b3-typography code:not(.hljs), .protyle-wysiwyg span[data-type~="code"] { font-weight: ${weights.mono} !important; }`);
         if (families.emoji) {
             rules.push(`.b3-typography:not(.b3-typography--default),
 .protyle-wysiwyg,
 .protyle-title { font-family: ${families.emoji}, var(--b3-font-family-protyle) !important; }`);
         }
         if (state.targets.mono.decoupled && separated.monoBlock) {
-            rules.push(`${MONO_BLOCK_SELECTORS} { font-family: ${separated.monoBlock}, ui-monospace, Consolas, monospace !important;${monoBlockWeight === null ? "" : ` font-weight: ${monoBlockWeight};`} }`);
+            rules.push(`${MONO_BLOCK_SELECTORS} { font-family: ${separated.monoBlock}, ui-monospace, Consolas, monospace !important;${monoBlockWeight === null ? "" : ` font-weight: ${monoBlockWeight} !important;`} }`);
         } else if (monoBlockWeight !== null) {
-            rules.push(`${MONO_BLOCK_SELECTORS} { font-weight: ${monoBlockWeight}; }`);
+            rules.push(`${MONO_BLOCK_SELECTORS} { font-weight: ${monoBlockWeight} !important; }`);
         }
         if (families.math) {
-            const mathFamily = `${families.math}, ${this.baselineFamilies.math}`;
+            const fallbackOnly = hasLeadingSiyuanDefault(state.targets.math.fonts);
+            const mathFamily = fallbackOnly ? `${families.math}, var(--b3-font-family-protyle)` : `${families.math}, ${this.baselineFamilies.math}`;
             const mathRoot = state.targets.math.decoupled ? ".katex:not(.katex-display .katex)" : ".katex";
-            rules.push(`${safeMathSelectors(mathRoot)} { font-family: ${mathFamily} !important; }`);
+            const selectors = fallbackOnly ? fallbackMathSelectors(mathRoot) : safeMathSelectors(mathRoot);
+            rules.push(`${selectors} { font-family: ${mathFamily} !important;${weights.math === null ? "" : ` font-weight: ${weights.math} !important;`}${mathVariableWeight === null ? "" : ` font-variation-settings: "wght" ${mathVariableWeight} !important;`} }`);
         }
         if (separated.mathBlock) {
-            const mathBlockFamily = `${separated.mathBlock}, ${this.baselineFamilies.math}`;
-            rules.push(`${safeMathSelectors(".katex-display .katex")} { font-family: ${mathBlockFamily} !important; }`);
+            const fallbackOnly = hasLeadingSiyuanDefault(state.targets.math.secondary?.fonts || []);
+            const mathBlockFamily = fallbackOnly ? `${separated.mathBlock}, var(--b3-font-family-protyle)` : `${separated.mathBlock}, ${this.baselineFamilies.math}`;
+            const selectors = fallbackOnly ? fallbackMathSelectors(".katex-display .katex") : safeMathSelectors(".katex-display .katex");
+            rules.push(`${selectors} { font-family: ${mathBlockFamily} !important;${mathBlockWeight === null ? "" : ` font-weight: ${mathBlockWeight} !important;`}${mathBlockVariableWeight === null ? "" : ` font-variation-settings: "wght" ${mathBlockVariableWeight} !important;`} }`);
         }
+        if (weights.mermaid !== null) rules.push(`[data-subtype="mermaid"] svg { font-weight: ${weights.mermaid} !important; }`);
         if (state.targets.ui.size !== null) {
             rules.push(`body > .fn__flex-1, .b3-menu, .b3-dialog, .b3-text-field, .b3-select, .b3-button, .layout-tab-bar { font-size: ${state.targets.ui.size}px !important; }`);
         }
@@ -177,6 +196,20 @@ export class StyleManager {
 
 function isOnlySiyuanDefault(choices: FontChoice[]): boolean {
     return choices.length === 1 && choices[0].kind === "default";
+}
+
+function hasLeadingSiyuanDefault(choices: FontChoice[]): boolean {
+    return choices.length > 1 && choices[0].kind === "default";
+}
+
+function effectiveMathChoices(choices: FontChoice[]): FontChoice[] {
+    return choices[0]?.kind === "default" ? choices.slice(1) : choices;
+}
+
+function fallbackMathSelectors(mathRoot: string): string {
+    return [".b3-typography", ".protyle-wysiwyg"]
+        .map((container) => `${container} ${mathRoot} .cjk_fallback`)
+        .join(",\n");
 }
 
 function safeMathSelectors(mathRoot: string): string {

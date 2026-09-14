@@ -27,6 +27,8 @@ import {
 } from "./example-preset";
 import {activatePreset, clampLibraryPreviewWidth, cloneTargets, parseState, removeFontFromState, syncActivePreset} from "./state";
 import {mergeMermaidConfig, mermaidOverrides} from "./mermaid";
+import {applyGraphCanvasFontWeight} from "./graph-font";
+import {errorMessage, isSiyuanErrorCode} from "./error-message";
 import {
     BundledFontDescriptor,
     createPresetPackage,
@@ -40,6 +42,7 @@ import {
 import {deleteFontFile, deletePluginStorage, ensureFontDirectory, FONT_STORAGE_ROOT, readFontFile, storedFontFileName, writeFontFile} from "./storage";
 import {StyleManager} from "./style-manager";
 import {ADVANCED_TARGETS, FontChoice, FontPreset, FontRuntimeStatus, FontTarget, ImportedFont, PluginState, SIMPLE_TARGETS, SystemFont} from "./types";
+import {supportsAssignedWeight} from "./weight-controls";
 
 const STATE_FILE = "font-manager.json";
 
@@ -133,7 +136,7 @@ export default class SiYuanFontStudio extends Plugin {
         this.applySettings();
         this.graphObserver = new MutationObserver((records) => {
             const graphAdded = records.some((record) => Array.from(record.addedNodes).some((node) => node instanceof Element
-                && (node.matches(".graph__svg") || Boolean(node.querySelector(".graph__svg")))));
+                && (node.matches(".graph__svg, .graph__labels") || Boolean(node.querySelector(".graph__svg, .graph__labels")))));
             if (graphAdded) {
                 window.setTimeout(() => this.updateGraphModels(), 300);
                 window.setTimeout(() => this.updateGraphModels(), 1200);
@@ -161,6 +164,8 @@ export default class SiYuanFontStudio extends Plugin {
         this.exampleDownloadDialog?.destroy();
         this.managerDialog?.destroy();
         this.styleManager?.destroy();
+        document.querySelectorAll<HTMLCanvasElement>("canvas.graph__labels")
+            .forEach((canvas) => applyGraphCanvasFontWeight(canvas, null));
         for (const face of this.faces.values()) document.fonts.delete(face);
         for (const face of this.emojiFaces.values()) document.fonts.delete(face);
         this.faces.clear();
@@ -169,7 +174,7 @@ export default class SiYuanFontStudio extends Plugin {
 
     async uninstall(): Promise<void> {
         try {
-            await deletePluginStorage();
+            await deletePluginStorage(this.app.appId);
         } catch (error) {
             console.warn(`[${this.name}] failed to remove plugin data`, error);
         }
@@ -236,6 +241,11 @@ export default class SiYuanFontStudio extends Plugin {
         if (this.disposed) return;
         const family = getComputedStyle(document.body).getPropertyValue("--b3-font-family-graph").trim();
         if (!family) return;
+        const rawWeight = getComputedStyle(document.body).getPropertyValue("--bfm-font-weight-graph").trim();
+        const parsedWeight = Number(rawWeight);
+        const weight = rawWeight && Number.isFinite(parsedWeight) ? parsedWeight : null;
+        document.querySelectorAll<HTMLCanvasElement>("canvas.graph__labels")
+            .forEach((canvas) => applyGraphCanvasFontWeight(canvas, weight));
         type GraphModel = {
             onGraph?: (highlight: boolean, resetLayout?: boolean) => void;
         };
@@ -736,7 +746,7 @@ export default class SiYuanFontStudio extends Plugin {
     }
 
     private examplePresetError(error: unknown): string {
-        const message = error instanceof Error ? error.message : String(error);
+        const message = errorMessage(error);
         if (message === "example-package-too-large") return this.i18n.examplePresetTooLarge;
         if (message === "example-download-integrity" || message === "example-download-size-mismatch") return this.i18n.examplePresetIntegrityFailed;
         const httpStatus = /^example-(?:download|proxy)-http-(\d+)$/.exec(message)?.[1];
@@ -909,14 +919,14 @@ export default class SiYuanFontStudio extends Plugin {
         const file = new File([data], descriptor.originalName);
         const testFace = new FontFace(`BFM_VALIDATE_${font.id}`, data.buffer.slice(0));
         await testFace.load();
-        await writeFontFile(font, file);
+        await writeFontFile(font, file, this.app.appId);
         try {
             await this.registerFont(font, data.buffer);
             this.statuses.set(font.id, {loaded: true});
             this.state.fonts.push(font);
             return true;
         } catch (error) {
-            await deleteFontFile(font).catch(() => undefined);
+            await deleteFontFile(font, this.app.appId).catch(() => undefined);
             throw error;
         }
     }
@@ -1048,7 +1058,7 @@ export default class SiYuanFontStudio extends Plugin {
 
     private assignedWeightControlHtml(choice: FontChoice, target: FontTarget, secondary: boolean, index: number): string {
         if (choice.kind === "default") return "";
-        const supportsWeight = target === "ui" || target === "content" || target === "mono";
+        const supportsWeight = supportsAssignedWeight(target);
         if (choice.kind === "imported") {
             const font = this.state.fonts.find((item) => item.id === choice.id);
             if (!font) return "";
@@ -1457,7 +1467,7 @@ export default class SiYuanFontStudio extends Plugin {
 
     private async openFontFolder(): Promise<void> {
         try {
-            await ensureFontDirectory();
+            await ensureFontDirectory(this.app.appId);
             const workspace = window.siyuan.config?.system?.workspaceDir;
             if (!workspace) throw new Error("Workspace path unavailable");
             const filePath = `${workspace.replace(/[\\/]$/, "")}${FONT_STORAGE_ROOT}`;
@@ -1500,7 +1510,7 @@ export default class SiYuanFontStudio extends Plugin {
                 };
                 const testFace = new FontFace(`BFM_VALIDATE_${font.id}`, buffer.slice(0));
                 await testFace.load();
-                await writeFontFile(font, file);
+                await writeFontFile(font, file, this.app.appId);
                 try {
                     await this.registerFont(font, buffer);
                     this.statuses.set(font.id, {loaded: true});
@@ -1516,7 +1526,7 @@ export default class SiYuanFontStudio extends Plugin {
                     this.faces.delete(font.id);
                     this.emojiFaces.delete(font.id);
                     this.statuses.delete(font.id);
-                    await deleteFontFile(font).catch(() => undefined);
+                    await deleteFontFile(font, this.app.appId).catch(() => undefined);
                     throw error;
                 }
             } catch (error) {
@@ -1578,7 +1588,7 @@ export default class SiYuanFontStudio extends Plugin {
         this.state = removeFontFromState(this.state, font.id);
         try {
             await this.persist();
-            await deleteFontFile(font).catch((error) => console.warn(`[${this.name}] orphaned font file`, error));
+            await deleteFontFile(font, this.app.appId).catch((error) => console.warn(`[${this.name}] orphaned font file`, error));
             const face = this.faces.get(font.id);
             if (face) document.fonts.delete(face);
             const emojiFace = this.emojiFaces.get(font.id);
@@ -1601,7 +1611,8 @@ export default class SiYuanFontStudio extends Plugin {
             await this.saveData(STATE_FILE, this.state);
         });
         this.saveChain = operation.catch((error) => {
-            showMessage(`${this.i18n.saveFailed}: ${error instanceof Error ? error.message : error}`, 5000, "error");
+            if (this.disposed || isSiyuanErrorCode(error, 410)) return;
+            showMessage(`${this.i18n.saveFailed}: ${errorMessage(error)}`, 5000, "error");
         });
         return operation;
     }

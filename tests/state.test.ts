@@ -2,6 +2,7 @@ import {describe, expect, it} from "vitest";
 import {activatePreset, clampLibraryPreviewWidth, clampSize, cloneTargets, parseState, removeFontFromState, syncActivePreset} from "../src/state";
 import {detectFontCoverage, emojiRuntimeFamily, extractFontMetadata, familyForChoice, familyForChoices, extensionOf, fontWeightName, groupImportedFonts, groupSystemFonts, hasDuplicateHash, localizedFamilyName, nameWithoutExtension, quoteFamily, runtimeFamily, weightForChoices} from "../src/font-utils";
 import {mergeMermaidConfig, mermaidOverrides} from "../src/mermaid";
+import {applyGraphCanvasFontWeight} from "../src/graph-font";
 import {
     createPresetPackage,
     importedFontIdsInTargets,
@@ -216,6 +217,38 @@ describe("font utilities", () => {
             {kind: "default"},
             {kind: "imported", id: font.id},
         ], [font], new Set([font.id]), runtimeFamily, '"SiYuan Default"')).toBe('"First", "SiYuan Default", "BFM_font-1"');
+    });
+
+    it("passes a variable font weight through Mermaid configuration", () => {
+        const variable = {...font, variationAxes: {wght: {name: "Weight", min: 100, default: 400, max: 900}}};
+        const state = parseState({version: 3, fonts: [variable], targets: {mermaid: {
+            fonts: [{kind: "imported", id: font.id, weight: 675}],
+            size: null,
+        }}});
+
+        const overrides = mermaidOverrides(state, new Set([font.id]));
+        expect(overrides).toMatchObject({fontWeight: 675});
+        expect(mergeMermaidConfig({}, overrides).themeCSS).toContain("font-weight: 675 !important");
+    });
+
+    it("injects the selected graph weight into SiYuan's canvas font shorthand", () => {
+        let nativeFont = "10px sans-serif";
+        const nativePrototype = {};
+        Object.defineProperty(nativePrototype, "font", {
+            configurable: true,
+            get: () => nativeFont,
+            set: (value: string) => { nativeFont = value; },
+        });
+        const context = Object.create(nativePrototype) as CanvasRenderingContext2D;
+        const canvas = {getContext: () => context} as unknown as HTMLCanvasElement;
+
+        applyGraphCanvasFontWeight(canvas, 630);
+        context.font = '32px "BFM_variable", arial';
+
+        expect(nativeFont).toBe('630 32px "BFM_variable", arial');
+        applyGraphCanvasFontWeight(canvas, null);
+        context.font = '24px "BFM_variable", arial';
+        expect(nativeFont).toBe('24px "BFM_variable", arial');
     });
 
     it("uses only the first system choice as the stack weight", () => {

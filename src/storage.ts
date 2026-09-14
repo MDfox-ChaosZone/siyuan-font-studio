@@ -30,18 +30,20 @@ async function parseKernelResponse(response: Response): Promise<void> {
     if (!response.ok || payload.code !== 0) throw new Error(payload.msg || `Kernel API error ${payload.code}`);
 }
 
-export async function writeFontFile(font: StoredFont, file: File): Promise<void> {
+export async function writeFontFile(font: StoredFont, file: File, appId: string): Promise<void> {
     const body = new FormData();
     body.append("path", fontPath(font));
     body.append("file", file, font.storageName);
     body.append("isDir", "false");
+    body.append("app", appId);
     await parseKernelResponse(await fetch("/api/file/putFile", {method: "POST", body}));
 }
 
-export async function ensureFontDirectory(): Promise<void> {
+export async function ensureFontDirectory(appId: string): Promise<void> {
     const body = new FormData();
     body.append("path", FONT_STORAGE_ROOT);
     body.append("isDir", "true");
+    body.append("app", appId);
     await parseKernelResponse(await fetch("/api/file/putFile", {method: "POST", body}));
 }
 
@@ -60,18 +62,18 @@ export async function readFontFile(font: StoredFont): Promise<ArrayBuffer> {
     return response.arrayBuffer();
 }
 
-export async function deleteFontFile(font: StoredFont): Promise<void> {
+export async function deleteFontFile(font: StoredFont, appId: string): Promise<void> {
     await parseKernelResponse(await fetch("/api/file/removeFile", {
         method: "POST",
         headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({path: fontPath(font)}),
+        body: JSON.stringify({path: fontPath(font), app: appId}),
     }));
 }
 
-export async function deletePluginStorage(): Promise<void> {
+export async function deletePluginStorage(appId: string): Promise<void> {
     await parseKernelResponse(await fetch("/api/file/removeFile", {
         method: "POST",
         headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({path: PLUGIN_STORAGE_ROOT}),
+        body: JSON.stringify({path: PLUGIN_STORAGE_ROOT, app: appId}),
     }));
 }

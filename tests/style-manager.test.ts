@@ -1,6 +1,6 @@
 import {afterEach, describe, expect, it, vi} from "vitest";
 import {StyleManager} from "../src/style-manager";
-import {DEFAULT_STATE} from "../src/types";
+import {DEFAULT_STATE, ImportedFont} from "../src/types";
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -101,7 +101,7 @@ describe("font target isolation", () => {
         const cases = [
             ["content", ["--b3-font-family-protyle", "--b3-font-family-editor"]],
             ["mono", ["--b3-font-family-code", "--b3-font-family-editor-code", "--b3-font-weight-editor-code"]],
-            ["graph", ["--b3-font-family-graph"]],
+            ["graph", ["--b3-font-family-graph", "--bfm-font-weight-graph"]],
             ["emoji", ["--b3-font-family-emoji"]],
         ] as const;
 
@@ -296,5 +296,95 @@ describe("font target isolation", () => {
         expect(generatedStyle.textContent).toContain('font-family: "Block Math", Original Math !important');
         expect(generatedStyle.textContent).not.toContain('.katex-html *');
         expect(generatedStyle.textContent).not.toContain('.op-symbol {');
+    });
+
+    it("applies selected variable weights to monospace, math, graph and Mermaid renderers", () => {
+        const properties = new Map<string, string>();
+        const rootStyle = {
+            getPropertyValue: (name: string) => properties.get(name) || "",
+            getPropertyPriority: () => "",
+            setProperty: vi.fn((name: string, value: string) => properties.set(name, value)),
+            removeProperty: vi.fn((name: string) => properties.delete(name)),
+        };
+        const generatedStyle = {id: "", textContent: "", remove: vi.fn()};
+        vi.stubGlobal("document", {
+            documentElement: {style: rootStyle},
+            head: {appendChild: vi.fn()},
+            getElementById: vi.fn().mockReturnValue(null),
+            createElement: vi.fn().mockReturnValue(generatedStyle),
+        });
+        vi.stubGlobal("getComputedStyle", () => ({getPropertyValue: () => ""}));
+
+        const variableFont: ImportedFont = {
+            id: "variable",
+            displayName: "Variable",
+            originalName: "Variable.woff2",
+            storageName: "Variable__font.woff2",
+            extension: "woff2",
+            size: 123,
+            sha256: "variable-hash",
+            importedAt: "2026-01-01T00:00:00.000Z",
+            fontWeight: 400,
+            variationAxes: {wght: {name: "Weight", min: 100, default: 400, max: 900}},
+        };
+        const state = structuredClone(DEFAULT_STATE);
+        state.fonts = [variableFont];
+        state.targets.mono.fonts = [{kind: "imported", id: variableFont.id, weight: 610}];
+        state.targets.math.fonts = [{kind: "imported", id: variableFont.id, weight: 620}];
+        state.targets.graph.fonts = [{kind: "imported", id: variableFont.id, weight: 630}];
+        state.targets.mermaid.fonts = [{kind: "imported", id: variableFont.id, weight: 640}];
+
+        new StyleManager().apply(state, new Set([variableFont.id]));
+
+        expect(rootStyle.setProperty).toHaveBeenCalledWith("--b3-font-weight-editor-code", "610", "important");
+        expect(rootStyle.setProperty).toHaveBeenCalledWith("--bfm-font-weight-graph", "630", "important");
+        expect(generatedStyle.textContent).toContain('span[data-type~="code"] { font-weight: 610 !important; }');
+        expect(generatedStyle.textContent).toContain('[data-subtype="mermaid"] svg { font-weight: 640 !important; }');
+        expect(generatedStyle.textContent).toContain('font-weight: 620 !important;');
+    });
+
+    it("applies a variable axis when a variable math font follows the SiYuan default", () => {
+        const properties = new Map<string, string>();
+        const rootStyle = {
+            getPropertyValue: (name: string) => properties.get(name) || "",
+            getPropertyPriority: () => "",
+            setProperty: vi.fn((name: string, value: string) => properties.set(name, value)),
+            removeProperty: vi.fn((name: string) => properties.delete(name)),
+        };
+        const generatedStyle = {id: "", textContent: "", remove: vi.fn()};
+        vi.stubGlobal("document", {
+            documentElement: {style: rootStyle},
+            head: {appendChild: vi.fn()},
+            getElementById: vi.fn().mockReturnValue(null),
+            createElement: vi.fn().mockReturnValue(generatedStyle),
+        });
+        vi.stubGlobal("getComputedStyle", () => ({getPropertyValue: (name: string) => name === "--b3-font-family-math" ? "KaTeX_Math" : ""}));
+
+        const variableFont: ImportedFont = {
+            id: "math-fallback",
+            displayName: "Math Fallback",
+            originalName: "MathFallback.woff2",
+            storageName: "MathFallback__font.woff2",
+            extension: "woff2",
+            size: 123,
+            sha256: "math-fallback-hash",
+            importedAt: "2026-01-01T00:00:00.000Z",
+            fontWeight: 400,
+            variationAxes: {wght: {name: "Weight", min: 150, default: 330, max: 700}},
+        };
+        const state = structuredClone(DEFAULT_STATE);
+        state.fonts = [variableFont];
+        state.targets.math.fonts = [
+            {kind: "default"},
+            {kind: "imported", id: variableFont.id, weight: 615},
+        ];
+
+        new StyleManager().apply(state, new Set([variableFont.id]));
+
+        expect(generatedStyle.textContent).toContain('.protyle-wysiwyg .katex .cjk_fallback');
+        expect(generatedStyle.textContent).not.toContain('.protyle-wysiwyg .katex .mbin');
+        expect(generatedStyle.textContent).not.toContain('.protyle-wysiwyg .katex .mrel');
+        expect(generatedStyle.textContent).toContain('font-family: "BFM_math-fallback", var(--b3-font-family-protyle) !important;');
+        expect(generatedStyle.textContent).toContain('font-variation-settings: "wght" 615 !important;');
     });
 });

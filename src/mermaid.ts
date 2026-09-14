@@ -1,9 +1,10 @@
-import {familyForChoices, runtimeFamily} from "./font-utils";
+import {familyForChoices, runtimeFamily, weightForChoices} from "./font-utils";
 import {PluginState} from "./types";
 
 export interface MermaidOverrides {
     fontFamily?: string;
     fontSize?: number;
+    fontWeight?: number;
 }
 
 export function mermaidOverrides(state: PluginState, loadedIds: Set<string>): MermaidOverrides {
@@ -15,9 +16,11 @@ export function mermaidOverrides(state: PluginState, loadedIds: Set<string>): Me
     const fontFamily = selectedFamily && /(^|,\s*)sans-serif(?:\s*,|$)/i.test(selectedFamily)
         ? selectedFamily
         : selectedFamily ? `${selectedFamily}, sans-serif` : undefined;
+    const fontWeight = weightForChoices(settings.fonts, state.fonts);
     return {
         ...(fontFamily ? {fontFamily} : {}),
         ...(settings.size !== null ? {fontSize: settings.size} : {}),
+        ...(fontWeight !== null ? {fontWeight} : {}),
     };
 }
 
@@ -28,5 +31,9 @@ export function mergeMermaidConfig(base: Record<string, unknown> | undefined, ov
         merged.altFontFamily = overrides.fontFamily;
     }
     if (overrides.fontSize !== undefined) merged.fontSize = overrides.fontSize;
+    if (overrides.fontWeight !== undefined) {
+        const weightRule = `* { font-weight: ${overrides.fontWeight} !important; }`;
+        merged.themeCSS = [typeof merged.themeCSS === "string" ? merged.themeCSS : "", weightRule].filter(Boolean).join("\n");
+    }
     return merged;
 }

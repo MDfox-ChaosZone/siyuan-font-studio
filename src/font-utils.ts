@@ -276,6 +276,17 @@ export function weightForChoices(choices: FontChoice[], fonts: ImportedFont[] = 
     return typeof weight === "number" ? Math.min(1000, Math.max(1, Math.round(weight))) : null;
 }
 
+export function variableWeightForChoices(choices: FontChoice[], fonts: ImportedFont[] = []): number | null {
+    for (const choice of choices) {
+        if (choice.kind !== "imported") continue;
+        const axis = fonts.find((font) => font.id === choice.id)?.variationAxes?.wght;
+        if (!axis) continue;
+        const weight = choice.weight ?? axis.default;
+        return Math.round(Math.min(axis.max, Math.max(axis.min, weight)));
+    }
+    return null;
+}
+
 export function createId(): string {
     return typeof crypto.randomUUID === "function"
         ? crypto.randomUUID()
