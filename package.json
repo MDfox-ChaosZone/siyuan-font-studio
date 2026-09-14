@@ -1,6 +1,6 @@
 {
   "name": "siyuan-font-studio",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "Import and configure fonts for SiYuan's interface, editor, code, formulas and diagrams",
   "main": "index.js",
   "scripts": {

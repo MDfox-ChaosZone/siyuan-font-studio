@@ -31,6 +31,7 @@ Easily customize every font element in SiYuan!
 - **v0.1.4 and earlier**: Completed the plugin's core functionality.
 - **v0.1.5**: Added on-demand download and automatic import for the example font preset, and refined the preset toolbar layout.
 - **v0.1.6**: Added font weight display and selection, with compatibility for SiYuan 3.8.2.
+- **v0.1.7**: Expanded variable-font support with weight controls for monospace, formula, graph, and Mermaid fonts; fixed variable weights not applying to formula fallback fonts and prevented those fallbacks from overriding KaTeX digits and operators; fixed the “Failed to save settings: [object Object]” error when downloading the example preset in SiYuan 3.8.3.
 
 ## License
 
