@@ -2,36 +2,40 @@
 
 [简体中文](https://github.com/MDfox-ChaosZone/siyuan-font-studio/blob/main/README.md)
 
-Easily customize every font element in SiYuan!
+Font playground:
+
+- Easily customize a wide range of font elements in SiYuan!
+- Freely combine fonts and switch between your font presets!
 
 ## Features
 
-| Element | Font family | Font size | Scope |
+Customize the font family and size of the following elements:
+
+| Font element | Font family | Font size | Scope |
 | --- | :---: | :---: | --- |
-| Interface | ✅ | ✅ | Menus, dialogs, input fields, buttons, tab bars, sidebars, and other application UI |
-| Document content | ✅ | ✅ | Document titles, body text, headings, lists, blockquotes, tables, and other editor content |
-| Monospace text | ✅ | ✅ | Inline code and code blocks; each can be configured separately |
-| Formula fonts | ✅ | ✅ | Inline formulas and formula blocks; each can be configured separately |
+| Interface | ✅ | ✅ | Menus, settings, the document tree, tab bars, sidebars, and other SiYuan UI elements |
+| Documents | ✅ | ✅ | Body text, headings, lists, blockquotes, tables, and other document content |
+| Code | ✅ | ✅ | Inline code and code blocks; each can be configured separately |
+| Formulas | ✅ | ✅ | Inline formulas and formula blocks; each can be configured separately |
 | Graphs | ✅ | ❌ | Document graphs and the global graph |
-| Mermaid | ✅ | Partial | Main diagram text; some elements use independent fixed sizes that cannot be overridden consistently |
-| Emoji | ✅ | ❌ | Emoji displayed in document content, document titles, and similar locations |
+| Mermaid | ✅ | Partial | Some Mermaid elements use independent fixed font sizes that cannot be overridden consistently |
+| Emoji | ✅ | ❌ | Emoji displayed in the document tree, document content, and similar locations |
 
 - Save font combinations as presets and switch between them easily. Import and export presets for sharing and use across devices.
-- Select multiple fonts to provide fallback characters.
+- Select multiple fonts to provide fallbacks for missing characters.
 
 ## Additional notes
 
 - Graph fonts: SiYuan 3.8 and later use a new graph renderer. The plugin currently supports changing the font family only and does not provide a graph font-size setting.
-- SiYuan's bundled KaTeX is specially adapted for dedicated formula fonts. Keeping `KaTeX_Math` as the first choice and adding other fonts as fallbacks for Chinese characters is recommended.
-- WOFF2 is recommended because it is smaller. TTF/OTF fonts can be converted online with [CloudConvert](https://cloudconvert.com/ttf-to-woff2) or with my [FontConvert](https://github.com/MDfox-ChaosZone/Font-Converter) project.
-- Download and automatically import the [example font preset](https://github.com/MDfox-ChaosZone/siyuan-font-studio/releases/tag/%E7%A4%BA%E4%BE%8B%E5%AD%97%E4%BD%93%E6%96%B9%E6%A1%88) on demand from the preset toolbar. Example fonts are not bundled with the plugin or downloaded again during plugin updates. You are welcome to share your own presets through [GitHub Issues](https://github.com/MDfox-ChaosZone/siyuan-font-studio/issues); presets will be manually added to that Release.
+- WOFF2 is recommended because of its smaller file size. TTF/OTF fonts can be converted online with [CloudConvert](https://cloudconvert.com/ttf-to-woff2) or with my [FontConvert](https://github.com/MDfox-ChaosZone/Font-Converter) project.
+- You are welcome to share your own font presets through [GitHub Issues](https://github.com/MDfox-ChaosZone/siyuan-font-studio/issues). They will be manually added to the [example font presets release](https://github.com/MDfox-ChaosZone/siyuan-font-studio/releases/tag/%E7%A4%BA%E4%BE%8B%E5%AD%97%E4%BD%93%E6%96%B9%E6%A1%88).
 
 ## Changelog
 
-- **v0.1.4 and earlier**: Completed the plugin's core functionality.
-- **v0.1.5**: Added on-demand download and automatic import for the example font preset, and refined the preset toolbar layout.
+- **v0.1.7**: Improved variable-font support; fixed font weights not applying to formula fallback fonts and prevented those fallbacks from overriding KaTeX digits and operators; fixed the “Failed to save settings: [object Object]” error when downloading the example preset in SiYuan 3.8.3.
 - **v0.1.6**: Added font weight display and selection, with compatibility for SiYuan 3.8.2.
-- **v0.1.7**: Expanded variable-font support with weight controls for monospace, formula, graph, and Mermaid fonts; fixed variable weights not applying to formula fallback fonts and prevented those fallbacks from overriding KaTeX digits and operators; fixed the “Failed to save settings: [object Object]” error when downloading the example preset in SiYuan 3.8.3.
+- **v0.1.5**: Added on-demand download and automatic import for the example font preset, and refined the preset toolbar layout.
+- **v0.1.4 and earlier**: Completed the plugin's core functionality.
 
 ## License
 
@@ -39,13 +43,15 @@ Easily customize every font element in SiYuan!
 
 ## Support and sponsorship
 
-If this project is useful to you, you are welcome to leave a tip. Any sponsorship is greatly appreciated.
+If this plugin is useful to you, please give it a **Star on GitHub**. It means a lot to me—pretty please!
+
+Any sponsorship is also greatly appreciated!
 
 ### WeChat Pay and Alipay
 
 | WeChat Pay | Alipay |
 | :---: | :---: |
-| ![WeChat Pay QR code](assets/donate/Wechat-pay.webp) | ![Alipay QR code](assets/donate/Alipay.jpg) |
+| <img src="assets/donate/Wechat-pay.webp" alt="WeChat Pay QR code" width="220"> | <img src="assets/donate/Alipay.jpg" alt="Alipay QR code" width="220"> |
 
 ### USDT
 
@@ -54,4 +60,4 @@ If this project is useful to you, you are welcome to leave a tip. Any sponsorshi
 
 | Plasma | Aptos |
 | :---: | :---: |
-| ![USDT deposit QR code on Plasma](assets/donate/USDT-Plasma.jpg) | ![USDT deposit QR code on Aptos](assets/donate/USDT-APTOS.jpg) |
+| <img src="assets/donate/USDT-Plasma.jpg" alt="USDT deposit QR code on Plasma" width="220"> | <img src="assets/donate/USDT-APTOS.jpg" alt="USDT deposit QR code on Aptos" width="220"> |
