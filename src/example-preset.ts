@@ -2,10 +2,74 @@ import {sha256} from "./font-utils";
 
 export const EXAMPLE_PRESET_ASSET_NAME = "siyuan-font-studio-preset.zip";
 export const EXAMPLE_PRESET_RELEASE_URL = "https://github.com/MDfox-ChaosZone/siyuan-font-studio/releases/tag/%E7%A4%BA%E4%BE%8B%E5%AD%97%E4%BD%93%E6%96%B9%E6%A1%88";
+export const COMMUNITY_PRESET_ASSET_NAME = "sungas444-community-font-preset.siyuan-font-studio-preset.zip";
+export const COMMUNITY_PRESET_RELEASE_URL = "https://github.com/MDfox-ChaosZone/siyuan-font-studio/releases/tag/%E7%A4%BE%E5%8C%BA%E5%AD%97%E4%BD%93%E6%96%B9%E6%A1%88";
 export const MAX_EXAMPLE_PRESET_BYTES = 100 * 1024 * 1024;
 
-const RELEASE_API_URL = "https://api.github.com/repos/MDfox-ChaosZone/siyuan-font-studio/releases/tags/%E7%A4%BA%E4%BE%8B%E5%AD%97%E4%BD%93%E6%96%B9%E6%A1%88";
-const DIRECT_DOWNLOAD_URL = `${EXAMPLE_PRESET_RELEASE_URL.replace("/tag/", "/download/")}/${EXAMPLE_PRESET_ASSET_NAME}`;
+export type PresetCatalogId = string;
+export type PresetCatalogTarget = "ui" | "content" | "mono" | "inlineCode" | "codeBlock" | "math" | "inlineFormula" | "formulaBlock" | "graph" | "emoji" | "mermaid";
+
+export interface PresetCatalogRow {
+    target: PresetCatalogTarget;
+    fonts: string[];
+    size: number | null;
+    weights: Array<{value: number | null; variable?: boolean}>;
+}
+
+export interface PresetCatalogItem {
+    id: PresetCatalogId;
+    name?: string;
+    description?: string;
+    previewUrl?: string;
+    packageUrl?: string;
+    packageSize?: number;
+    packageSha256?: string;
+    includesFonts?: boolean;
+    issueUrl?: string;
+    author: string;
+    authorUrl: string;
+    assetName: string;
+    releaseUrl: string;
+    releaseApiUrl: string;
+    rows: PresetCatalogRow[];
+}
+
+export const PRESET_CATALOG: PresetCatalogItem[] = [
+    {
+        id: "example",
+        author: "MDfox",
+        authorUrl: "https://github.com/MDfox-ChaosZone",
+        assetName: EXAMPLE_PRESET_ASSET_NAME,
+        releaseUrl: EXAMPLE_PRESET_RELEASE_URL,
+        releaseApiUrl: "https://api.github.com/repos/MDfox-ChaosZone/siyuan-font-studio/releases/tags/%E7%A4%BA%E4%BE%8B%E5%AD%97%E4%BD%93%E6%96%B9%E6%A1%88",
+        rows: [
+            {target: "ui", fonts: ["LXGWWenKaiScreen"], size: null, weights: [{value: 400}]},
+            {target: "content", fonts: ["AlibabaPuHuiTi-3-55-Regular"], size: null, weights: [{value: 400}]},
+            {target: "mono", fonts: ["MapleMonoNormal-Regular"], size: null, weights: [{value: 400}]},
+            {target: "math", fonts: ["SiYuan", "MiSansVF"], size: null, weights: [{value: null}, {value: 400, variable: true}]},
+            {target: "graph", fonts: ["MiSansVF"], size: null, weights: [{value: 400, variable: true}]},
+            {target: "emoji", fonts: ["twemoji-colr"], size: null, weights: [{value: 400}]},
+            {target: "mermaid", fonts: ["MiSansVF"], size: null, weights: [{value: 400, variable: true}]},
+        ],
+    },
+    {
+        id: "community",
+        author: "sungas444",
+        authorUrl: "https://github.com/sungas444",
+        assetName: COMMUNITY_PRESET_ASSET_NAME,
+        releaseUrl: COMMUNITY_PRESET_RELEASE_URL,
+        releaseApiUrl: "https://api.github.com/repos/MDfox-ChaosZone/siyuan-font-studio/releases/tags/%E7%A4%BE%E5%8C%BA%E5%AD%97%E4%BD%93%E6%96%B9%E6%A1%88",
+        rows: [
+            {target: "ui", fonts: ["HarmonyOS_SansSC_Regular"], size: 14, weights: [{value: 400}]},
+            {target: "content", fonts: ["MapleFakeMono-NF-CN-Medium"], size: null, weights: [{value: 500}]},
+            {target: "mono", fonts: ["MapleMono-NF-CN-Medium"], size: null, weights: [{value: 500}]},
+            {target: "math", fonts: ["SiYuan", "SourceHanSerifCN-Medium"], size: null, weights: [{value: null}, {value: 500}]},
+            {target: "graph", fonts: ["HarmonyOS_SansSC_Regular"], size: null, weights: [{value: 400}]},
+            {target: "emoji", fonts: ["twemoji-colr0-17.0.3"], size: null, weights: [{value: 400}]},
+            {target: "mermaid", fonts: ["SourceHanSerifCN-Medium"], size: null, weights: [{value: 500}]},
+        ],
+    },
+];
 
 export interface ExamplePresetAsset {
     downloadUrl: string;
@@ -21,27 +85,36 @@ export interface DownloadProgress {
 type Fetcher = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 
 export async function resolveExamplePresetAsset(fetcher: Fetcher = fetch): Promise<ExamplePresetAsset> {
+    return resolvePresetAsset(PRESET_CATALOG[0], fetcher);
+}
+
+export async function resolvePresetAsset(item: PresetCatalogItem, fetcher: Fetcher = fetch): Promise<ExamplePresetAsset> {
+    if (item.packageUrl) return {
+        downloadUrl: item.packageUrl,
+        size: item.packageSize ?? null,
+        sha256: item.packageSha256 ?? null,
+    };
     try {
-        const response = await fetcher(RELEASE_API_URL, {
+        const response = await fetcher(item.releaseApiUrl, {
             headers: {
                 Accept: "application/vnd.github+json",
                 "X-GitHub-Api-Version": "2022-11-28",
             },
         });
-        if (!response.ok) return fallbackAsset();
+        if (!response.ok) return fallbackAsset(item);
         const release = await response.json() as {assets?: unknown};
-        if (!Array.isArray(release.assets)) return fallbackAsset();
-        const asset = release.assets.find((value) => isReleaseAsset(value) && value.name === EXAMPLE_PRESET_ASSET_NAME);
-        if (!asset || !isReleaseAsset(asset)) return fallbackAsset();
+        if (!Array.isArray(release.assets)) return fallbackAsset(item);
+        const asset = release.assets.find((value) => isReleaseAsset(value) && value.name === item.assetName);
+        if (!asset || !isReleaseAsset(asset)) return fallbackAsset(item);
         if (asset.size > MAX_EXAMPLE_PRESET_BYTES) throw new Error("example-package-too-large");
         return {
-            downloadUrl: safeGitHubDownloadUrl(asset.browser_download_url) || DIRECT_DOWNLOAD_URL,
+            downloadUrl: safeGitHubDownloadUrl(asset.browser_download_url) || directDownloadUrl(item),
             size: asset.size,
             sha256: parseDigest(asset.digest),
         };
     } catch (error) {
         if (error instanceof Error && error.message === "example-package-too-large") throw error;
-        return fallbackAsset();
+        return fallbackAsset(item);
     }
 }
 
@@ -139,8 +212,12 @@ export async function fetchExamplePresetViaSiyuanProxy(
     });
 }
 
-function fallbackAsset(): ExamplePresetAsset {
-    return {downloadUrl: DIRECT_DOWNLOAD_URL, size: null, sha256: null};
+function fallbackAsset(item: PresetCatalogItem): ExamplePresetAsset {
+    return {downloadUrl: directDownloadUrl(item), size: null, sha256: null};
+}
+
+function directDownloadUrl(item: PresetCatalogItem): string {
+    return `${item.releaseUrl.replace("/tag/", "/download/")}/${item.assetName}`;
 }
 
 function isReleaseAsset(value: unknown): value is {name: string; size: number; browser_download_url: string; digest?: unknown} {

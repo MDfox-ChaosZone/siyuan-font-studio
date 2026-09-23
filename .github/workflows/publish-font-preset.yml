@@ -1,0 +1,31 @@
+name: Publish approved font preset
+on:
+  issues:
+    types: [labeled]
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: 投稿 Issue 编号，用于重新运行失败的发布
+        required: true
+        type: number
+permissions:
+  contents: write
+  issues: write
+concurrency:
+  group: community-font-preset-publish
+  cancel-in-progress: false
+jobs:
+  publish:
+    if: github.event_name == 'workflow_dispatch' || github.event.label.name == 'publish-approved'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: corepack pnpm install --frozen-lockfile
+      - name: Revalidate and publish approved submission
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number || inputs.issue_number }}
+        run: node scripts/community-catalog.mjs publish "$ISSUE_NUMBER"

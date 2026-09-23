@@ -28,7 +28,7 @@ Customize the font family and size of the following elements:
 
 - Graph fonts: SiYuan 3.8 and later use a new graph renderer. The plugin currently supports changing the font family only and does not provide a graph font-size setting.
 - WOFF2 is recommended because of its smaller file size. TTF/OTF fonts can be converted online with [CloudConvert](https://cloudconvert.com/ttf-to-woff2) or with my [FontConvert](https://github.com/MDfox-ChaosZone/Font-Converter) project.
-- You are welcome to share your own font presets through [GitHub Issues](https://github.com/MDfox-ChaosZone/siyuan-font-studio/issues). They will be manually added to the [example font presets release](https://github.com/MDfox-ChaosZone/siyuan-font-studio/releases/tag/%E7%A4%BA%E4%BE%8B%E5%AD%97%E4%BD%93%E6%96%B9%E6%A1%88).
+- Share your presets from “Download font presets → Share my preset” in the plugin. See the [community submission and publishing guide](docs/community-presets.md) for review and release details.
 
 ## Changelog
 

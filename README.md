@@ -28,7 +28,7 @@
 
 - 关系图字体：思源 3.8 及以上版本采用新版关系图渲染器，目前仅支持修改字体，不提供字号设置。
 - 推荐使用体积更小的 WOFF2 字体格式。TTF/OTF 格式字体可以通过 [CloudConvert](https://cloudconvert.com/ttf-to-woff2) 在线转换，或使用我的项目 [FontConvert](https://github.com/MDfox-ChaosZone/Font-Converter) 转换。
-- 欢迎通过 [GitHub Issues](https://github.com/MDfox-ChaosZone/siyuan-font-studio/issues) 分享自己的字体方案，方案将手动同步至[示例字体方案发布页](https://github.com/MDfox-ChaosZone/siyuan-font-studio/releases/tag/%E7%A4%BA%E4%BE%8B%E5%AD%97%E4%BD%93%E6%96%B9%E6%A1%88)。
+- 欢迎通过插件“下载字体方案 → 分享我的方案”投稿；自动格式检查、人工审核和发布流程见[社区方案说明](docs/community-presets.md)。
 
 ## 更新记录
 

@@ -5,6 +5,7 @@ index.css
 /i18n/
 package.zip
 coverage/
+.tmp/
 *.tsbuildinfo
 .dev-watch*.log
 icon-options/

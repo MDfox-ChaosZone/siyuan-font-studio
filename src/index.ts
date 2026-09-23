@@ -19,12 +19,14 @@ import {
 } from "./font-utils";
 import {
     downloadExamplePreset,
-    EXAMPLE_PRESET_ASSET_NAME,
-    EXAMPLE_PRESET_RELEASE_URL,
     ExamplePresetAsset,
     fetchExamplePresetViaSiyuanProxy,
-    resolveExamplePresetAsset,
+    PRESET_CATALOG,
+    PresetCatalogItem,
+    PresetCatalogTarget,
+    resolvePresetAsset,
 } from "./example-preset";
+import {fetchCommunityCatalog, parseCommunityCatalog} from "./preset-catalog";
 import {activatePreset, clampLibraryPreviewWidth, cloneTargets, parseState, removeFontFromState, syncActivePreset} from "./state";
 import {mergeMermaidConfig, mermaidOverrides} from "./mermaid";
 import {applyGraphCanvasFontWeight} from "./graph-font";
@@ -45,6 +47,8 @@ import {ADVANCED_TARGETS, FontChoice, FontPreset, FontRuntimeStatus, FontTarget,
 import {supportsAssignedWeight} from "./weight-controls";
 
 const STATE_FILE = "font-manager.json";
+const CATALOG_CACHE_FILE = "community-catalog.json";
+const SHARE_PRESET_URL = "https://github.com/MDfox-ChaosZone/siyuan-font-studio/issues/new?template=share-font-preset.yml";
 
 interface MermaidRuntime {
     initialize(options?: Record<string, unknown>): unknown;
@@ -74,6 +78,8 @@ export default class SiYuanFontStudio extends Plugin {
     private managerDialog?: Dialog;
     private renameDialog?: Dialog;
     private presetTransferDialog?: Dialog;
+    private presetCatalogDialog?: Dialog;
+    private communityCatalogCache: PresetCatalogItem[] = [];
     private exampleDownloadDialog?: Dialog;
     private exampleDownloadAbort?: AbortController;
     private themeObserver?: MutationObserver;
@@ -102,6 +108,11 @@ export default class SiYuanFontStudio extends Plugin {
 </symbol>`);
         this.styleManager = new StyleManager();
         this.state = parseState(await this.loadData(STATE_FILE));
+        try {
+            this.communityCatalogCache = parseCommunityCatalog(await this.loadData(CATALOG_CACHE_FILE)).presets;
+        } catch {
+            this.communityCatalogCache = [];
+        }
         if (this.disposed) return;
         this.observeMermaidRuntime();
         const metadataChanged = (await Promise.all(this.state.fonts.map((font) => this.loadStoredFont(font)))).some(Boolean);
@@ -160,6 +171,7 @@ export default class SiYuanFontStudio extends Plugin {
         this.restoreMermaidRuntime();
         this.renameDialog?.destroy();
         this.presetTransferDialog?.destroy();
+        this.presetCatalogDialog?.destroy();
         this.exampleDownloadAbort?.abort();
         this.exampleDownloadDialog?.destroy();
         this.managerDialog?.destroy();
@@ -387,7 +399,7 @@ export default class SiYuanFontStudio extends Plugin {
       <button type="button" class="b3-button b3-button--outline" data-action="rename-preset">${this.i18n.rename}</button>
       <button type="button" class="b3-button b3-button--cancel" data-action="delete-preset" ${this.state.presets.length <= 1 ? "disabled" : ""}>${this.i18n.delete}</button>
     </div>
-    <button type="button" class="b3-button b3-button--text sfs-preset-bar__example" data-action="download-example-preset" title="${escapeHtml(this.i18n.downloadExamplePresetDescription)}">${this.i18n.downloadExamplePreset}</button>
+    <button type="button" class="b3-button b3-button--text sfs-preset-bar__example" data-action="download-example-preset" title="${escapeHtml(this.i18n.downloadPresetCatalogDescription)}">${this.i18n.downloadPresetCatalog}</button>
     <input class="fn__none" type="file" data-role="preset-input" accept=".json,.zip,application/json,application/zip" multiple>
   </div>
   <details class="bfm-advanced bfm-primary" ${primaryOpen ? "open" : ""}>
@@ -438,7 +450,7 @@ export default class SiYuanFontStudio extends Plugin {
         });
         root.querySelector<HTMLButtonElement>("button[data-action='new-preset']")?.addEventListener("click", () => this.openPresetNameDialog());
         root.querySelector<HTMLButtonElement>("button[data-action='import-preset']")?.addEventListener("click", () => root.querySelector<HTMLInputElement>("input[data-role='preset-input']")?.click());
-        root.querySelector<HTMLButtonElement>("button[data-action='download-example-preset']")?.addEventListener("click", () => void this.confirmExamplePresetDownload());
+        root.querySelector<HTMLButtonElement>("button[data-action='download-example-preset']")?.addEventListener("click", () => this.openPresetCatalog());
         root.querySelector<HTMLButtonElement>("button[data-action='export-preset']")?.addEventListener("click", () => this.openPresetExportDialog());
         root.querySelector<HTMLButtonElement>("button[data-action='rename-preset']")?.addEventListener("click", () => this.openPresetNameDialog(this.state.activePresetId));
         root.querySelector<HTMLButtonElement>("button[data-action='delete-preset']")?.addEventListener("click", () => this.confirmDeletePreset(this.state.activePresetId));
@@ -654,33 +666,143 @@ export default class SiYuanFontStudio extends Plugin {
         this.renderManager();
     }
 
-    private async confirmExamplePresetDownload(): Promise<void> {
-        if (this.exampleDownloadAbort) return;
+    private openPresetCatalog(): void {
+        this.presetCatalogDialog?.destroy();
+        const cards = [...PRESET_CATALOG, ...this.communityCatalogCache].map((item) => this.presetCatalogCard(item)).join("");
+        const dialog = new Dialog({
+            title: this.i18n.downloadPresetCatalog,
+            width: "820px",
+            content: `<div class="sfs-preset-catalog">
+  <div class="b3-dialog__content">
+    <p class="sfs-preset-catalog__intro">${this.i18n.presetCatalogIntro}</p>
+    <p class="sfs-preset-catalog__status" data-preset-catalog-status>${this.i18n.presetCatalogLoading}</p>
+    <div class="sfs-preset-catalog__list" data-preset-catalog-list>${cards}</div>
+  </div>
+  <div class="b3-dialog__action"><button class="b3-button b3-button--outline" type="button" data-share-preset>${this.i18n.sharePreset}</button><div class="fn__space"></div><button class="b3-button b3-button--cancel" type="button" data-close-preset-catalog>${this.i18n.close}</button></div>
+</div>`,
+            destroyCallback: () => {
+                if (this.presetCatalogDialog === dialog) this.presetCatalogDialog = undefined;
+            },
+        });
+        this.presetCatalogDialog = dialog;
+        dialog.element.querySelector<HTMLButtonElement>("[data-close-preset-catalog]")?.addEventListener("click", () => dialog.destroy());
+        dialog.element.querySelector<HTMLButtonElement>("[data-share-preset]")?.addEventListener("click", () => window.open(SHARE_PRESET_URL, "_blank", "noopener,noreferrer"));
+        this.bindPresetCatalogActions(dialog, [...PRESET_CATALOG, ...this.communityCatalogCache]);
+        void this.refreshPresetCatalog(dialog);
+    }
+
+    private async refreshPresetCatalog(dialog: Dialog): Promise<void> {
+        const status = dialog.element.querySelector<HTMLElement>("[data-preset-catalog-status]");
         try {
-            const asset = await resolveExamplePresetAsset();
-            const message = asset.size
-                ? this.i18n.downloadExamplePresetConfirmWithSize.replace("${size}", formatFileSize(asset.size))
-                : this.i18n.downloadExamplePresetConfirm;
-            confirm(this.i18n.downloadExamplePreset, message, () => {
-                void this.downloadAndImportExamplePreset(asset);
-            });
-        } catch (error) {
-            showMessage(`${this.i18n.examplePresetDownloadFailed}: ${this.examplePresetError(error)}`, 7000, "error");
+            let catalog;
+            try {
+                catalog = await fetchCommunityCatalog();
+            } catch (error) {
+                if (!(error instanceof TypeError)) throw error;
+                catalog = await fetchCommunityCatalog((input, init) => fetchExamplePresetViaSiyuanProxy(input, init));
+            }
+            if (this.presetCatalogDialog !== dialog) return;
+            this.communityCatalogCache = catalog.presets.filter((item) => !PRESET_CATALOG.some((builtin) => builtin.id === item.id));
+            void this.saveData(CATALOG_CACHE_FILE, catalog).catch(() => undefined);
+            const items = [...PRESET_CATALOG, ...this.communityCatalogCache];
+            const list = dialog.element.querySelector<HTMLElement>("[data-preset-catalog-list]");
+            if (list) list.innerHTML = items.map((item) => this.presetCatalogCard(item)).join("");
+            if (status) status.textContent = this.i18n.presetCatalogUpdated.replace("${count}", String(items.length));
+            this.bindPresetCatalogActions(dialog, items);
+        } catch {
+            if (this.presetCatalogDialog === dialog && status) status.textContent = this.i18n.presetCatalogOffline;
         }
     }
 
-    private async downloadAndImportExamplePreset(asset: ExamplePresetAsset): Promise<void> {
+    private bindPresetCatalogActions(dialog: Dialog, items: PresetCatalogItem[]): void {
+        dialog.element.querySelectorAll<HTMLButtonElement>("[data-preset-catalog-release]").forEach((button) => {
+            button.addEventListener("click", () => {
+                const item = items.find((candidate) => candidate.id === button.dataset.presetCatalogRelease);
+                if (item) window.open(item.issueUrl || item.releaseUrl, "_blank", "noopener,noreferrer");
+            });
+        });
+        dialog.element.querySelectorAll<HTMLButtonElement>("[data-preset-catalog-download]").forEach((button) => {
+            button.addEventListener("click", () => {
+                const item = items.find((candidate) => candidate.id === button.dataset.presetCatalogDownload);
+                if (item) void this.confirmPresetCatalogDownload(item);
+            });
+        });
+    }
+
+    private presetCatalogCard(item: PresetCatalogItem): string {
+        const name = this.presetCatalogName(item);
+        const type = item.id === "example" ? this.i18n.examplePresetType : this.i18n.communityPresetType;
+        const description = item.description ? `<p class="sfs-preset-catalog__description">${escapeHtml(item.description)}</p>` : "";
+        const preview = item.previewUrl ? `<img class="sfs-preset-catalog__preview" src="${escapeHtml(item.previewUrl)}" alt="${escapeHtml(name)}" loading="lazy">` : "";
+        const packageNote = item.packageUrl ? `<p class="sfs-preset-catalog__package">${item.includesFonts ? this.i18n.presetIncludesFonts : this.i18n.presetNeedsFonts} · ${formatFileSize(item.packageSize || 0)}</p>` : "";
+        const rows = item.rows.map((row) => {
+            const supportsSize = row.target !== "graph" && row.target !== "emoji";
+            const fonts = row.fonts.map((font) => escapeHtml(font === "SiYuan" ? this.i18n.followSiyuan : font)).join("<br>");
+            const size = supportsSize ? (row.size === null ? this.i18n.followSiyuan : `${row.size} px`) : this.i18n.presetMarkdownNotApplicable;
+            const weights = row.weights.map(({value, variable}) => value === null
+                ? escapeHtml(this.i18n.presetMarkdownNotApplicable)
+                : `${value}${variable ? ` (${escapeHtml(this.i18n.variableWeight)})` : ""}`).join("<br>");
+            return `<tr><th scope="row">${escapeHtml(this.presetCatalogTargetLabel(row.target))}</th><td>${fonts}</td><td>${escapeHtml(size)}</td><td>${weights}</td></tr>`;
+        }).join("");
+        return `<article class="sfs-preset-catalog__card">
+  <header><div><span class="b3-chip">${escapeHtml(type)}</span><h3>${escapeHtml(name)}</h3></div><p>${escapeHtml(this.i18n.presetAuthor)}：<a href="${escapeHtml(item.authorUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(item.author)}</a></p></header>
+  ${description}${preview}${packageNote}
+  <div class="sfs-preset-catalog__table-wrap"><table><thead><tr><th>${this.i18n.presetMarkdownFontElement}</th><th>${this.i18n.presetMarkdownFonts}</th><th>${this.i18n.fontSize}</th><th>${this.i18n.presetMarkdownFontWeight}</th></tr></thead><tbody>${rows}</tbody></table></div>
+  <footer><button class="b3-button b3-button--outline" type="button" data-preset-catalog-release="${item.id}">${this.i18n.openExamplePresetRelease}</button><button class="b3-button b3-button--text" type="button" data-preset-catalog-download="${item.id}">${this.i18n.downloadAndImportPreset}</button></footer>
+</article>`;
+    }
+
+    private presetCatalogName(item: PresetCatalogItem): string {
+        return item.name || (item.id === "example" ? this.i18n.examplePresetName : this.i18n.communityPresetName);
+    }
+
+    private presetCatalogTargetLabel(target: PresetCatalogTarget): string {
+        const labels: Record<PresetCatalogTarget, string> = {
+            ui: this.i18n.uiFont,
+            content: this.i18n.contentFont,
+            mono: this.i18n.monoFont,
+            inlineCode: this.i18n.inlineCode,
+            codeBlock: this.i18n.codeBlock,
+            math: this.i18n.mathFont,
+            inlineFormula: this.i18n.inlineFormula,
+            formulaBlock: this.i18n.formulaBlock,
+            graph: this.i18n.graphFont,
+            emoji: this.i18n.emojiFont,
+            mermaid: this.i18n.mermaidFont,
+        };
+        return labels[target];
+    }
+
+    private async confirmPresetCatalogDownload(item: PresetCatalogItem): Promise<void> {
+        if (this.exampleDownloadAbort) return;
+        try {
+            const asset = await resolvePresetAsset(item);
+            const name = this.presetCatalogName(item);
+            const message = asset.size
+                ? this.i18n.downloadPresetConfirmWithSize.replace("${name}", name).replace("${size}", formatFileSize(asset.size))
+                : this.i18n.downloadPresetConfirm.replace("${name}", name);
+            confirm(name, message, () => {
+                this.presetCatalogDialog?.destroy();
+                void this.downloadAndImportPreset(item, asset);
+            });
+        } catch (error) {
+            showMessage(`${this.i18n.presetDownloadFailed}: ${this.examplePresetError(error)}`, 7000, "error");
+        }
+    }
+
+    private async downloadAndImportPreset(item: PresetCatalogItem, asset: ExamplePresetAsset): Promise<void> {
         if (this.exampleDownloadAbort) return;
         const controller = new AbortController();
         this.exampleDownloadAbort = controller;
         let completed = false;
+        const name = this.presetCatalogName(item);
         this.exampleDownloadDialog?.destroy();
         const dialog = new Dialog({
-            title: this.i18n.downloadExamplePreset,
+            title: name,
             width: "520px",
             content: `<div class="sfs-example-download">
   <div class="b3-dialog__content">
-    <p data-example-download-status>${this.i18n.downloadingExamplePreset}</p>
+    <p data-example-download-status>${this.i18n.downloadingPreset.replace("${name}", name)}</p>
     <progress max="100" data-example-download-progress></progress>
   </div>
   <div class="b3-dialog__action"><button class="b3-button b3-button--outline" type="button" data-open-example-release>${this.i18n.openExamplePresetRelease}</button><div class="fn__space"></div><button class="b3-button b3-button--cancel" type="button" data-cancel-example-download>${this.i18n.cancel}</button></div>
@@ -694,15 +816,15 @@ export default class SiYuanFontStudio extends Plugin {
         this.exampleDownloadDialog = dialog;
         dialog.element.querySelector<HTMLButtonElement>("[data-cancel-example-download]")?.addEventListener("click", () => dialog.destroy());
         dialog.element.querySelector<HTMLButtonElement>("[data-open-example-release]")?.addEventListener("click", () => {
-            window.open(EXAMPLE_PRESET_RELEASE_URL, "_blank", "noopener,noreferrer");
+            window.open(item.releaseUrl, "_blank", "noopener,noreferrer");
         });
         const status = dialog.element.querySelector<HTMLElement>("[data-example-download-status]");
         const progress = dialog.element.querySelector<HTMLProgressElement>("[data-example-download-progress]");
 
         try {
             if (status) status.textContent = asset.size
-                ? this.i18n.downloadingExamplePresetTotal.replace("${total}", formatFileSize(asset.size))
-                : this.i18n.downloadingExamplePreset;
+                ? this.i18n.downloadingPresetTotal.replace("${name}", name).replace("${total}", formatFileSize(asset.size))
+                : this.i18n.downloadingPreset.replace("${name}", name);
             const reportProgress = ({received, total}: {received: number; total: number | null}) => {
                 if (controller.signal.aborted) return;
                 if (progress) {
@@ -730,16 +852,16 @@ export default class SiYuanFontStudio extends Plugin {
                 data = await downloadExamplePreset(asset, controller.signal, reportProgress, (input, init) => fetchExamplePresetViaSiyuanProxy(input, init));
             }
             if (controller.signal.aborted) return;
-            if (status) status.textContent = this.i18n.importingExamplePreset;
+            if (status) status.textContent = this.i18n.importingDownloadedPreset.replace("${name}", name);
             progress?.removeAttribute("value");
-            await this.importPresetFiles([new File([data], EXAMPLE_PRESET_ASSET_NAME, {type: "application/zip"})]);
+            await this.importPresetFiles([new File([data], item.assetName, {type: "application/zip"})]);
             completed = true;
             dialog.destroy();
         } catch (error) {
             if (controller.signal.aborted || error instanceof DOMException && error.name === "AbortError") return;
             completed = true;
             dialog.destroy();
-            showMessage(`${this.i18n.examplePresetDownloadFailed}: ${this.examplePresetError(error)}`, 7000, "error");
+            showMessage(`${this.i18n.presetDownloadFailed}: ${this.examplePresetError(error)}`, 7000, "error");
         } finally {
             if (this.exampleDownloadAbort === controller) this.exampleDownloadAbort = undefined;
         }
@@ -764,9 +886,10 @@ export default class SiYuanFontStudio extends Plugin {
             width: "520px",
             content: `<form class="sfs-preset-export">
   <div class="b3-dialog__content">
-    <label class="sfs-preset-export__option"><input type="radio" name="export-mode" value="config" checked><span><strong>${this.i18n.exportConfigOnly}</strong><small>${this.i18n.exportConfigOnlyDescription}</small></span></label>
-    <label class="sfs-preset-export__option"><input type="radio" name="export-mode" value="package"><span><strong>${this.i18n.exportWithFonts}</strong><small>${this.i18n.exportWithFontsDescription}</small></span></label>
-    <label class="sfs-preset-export__unused"><input type="checkbox" data-role="include-unused-fonts" disabled><span>${this.i18n.includeUnusedFonts}</span></label>
+    <label class="sfs-preset-export__option"><input type="radio" name="export-mode" value="package" checked><span><strong>${this.i18n.exportWithFonts}</strong><small>${this.i18n.exportWithFontsDescription}</small></span></label>
+    <label class="sfs-preset-export__option"><input type="radio" name="export-mode" value="config"><span><strong>${this.i18n.exportConfigOnly}</strong><small>${this.i18n.exportConfigOnlyDescription}</small></span></label>
+    <label class="sfs-preset-export__unused"><input type="checkbox" data-role="include-unused-fonts"><span>${this.i18n.includeUnusedFonts}</span></label>
+    <p class="sfs-preset-export__notice">${this.i18n.exportMarkdownNotice}</p>
     <p class="sfs-preset-export__notice">${this.i18n.exportFontExclusionNotice}</p>
   </div>
   <div class="b3-dialog__action"><button class="b3-button b3-button--cancel" type="button">${this.i18n.cancel}</button><div class="fn__space"></div><button class="b3-button b3-button--text" type="submit">${this.i18n.exportPreset}</button></div>
@@ -815,7 +938,28 @@ export default class SiYuanFontStudio extends Plugin {
                 const totalSize = includedFonts.reduce((sum, font) => sum + font.size, 0);
                 if (totalSize > MAX_PRESET_PACKAGE_BYTES) throw new Error(this.i18n.presetPackageTooLarge);
                 const files = await Promise.all(includedFonts.map(async (font) => ({font, data: await readFontFile(font)})));
-                const archive = await createPresetPackage(preset, this.state.fonts, files, displayName);
+                const archive = await createPresetPackage(preset, this.state.fonts, files, displayName, {
+                    detailsLine: this.i18n.presetMarkdownDetailsLine,
+                    sharingNote: this.i18n.presetMarkdownSharingNote,
+                    fontElement: this.i18n.presetMarkdownFontElement,
+                    fonts: this.i18n.presetMarkdownFonts,
+                    fontSize: this.i18n.fontSize,
+                    fontWeight: this.i18n.presetMarkdownFontWeight,
+                    followSiyuan: this.i18n.followSiyuan,
+                    notApplicable: this.i18n.presetMarkdownNotApplicable,
+                    variableWeight: this.i18n.variableWeight,
+                    ui: this.i18n.uiFont,
+                    content: this.i18n.contentFont,
+                    mono: this.i18n.monoFont,
+                    inlineCode: this.i18n.inlineCode,
+                    codeBlock: this.i18n.codeBlock,
+                    math: this.i18n.mathFont,
+                    inlineFormula: this.i18n.inlineFormula,
+                    formulaBlock: this.i18n.formulaBlock,
+                    graph: this.i18n.graphFont,
+                    mermaid: this.i18n.mermaidFont,
+                    emoji: this.i18n.emojiFont,
+                });
                 downloadFile(new Blob([archive], {type: "application/zip"}), `${safeFileName(displayName)}.${PRESET_FILE_FORMAT}.zip`);
             }
             this.presetTransferDialog?.destroy();

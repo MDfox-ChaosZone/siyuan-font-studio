@@ -1,0 +1,22 @@
+name: Validate font preset submission
+on:
+  issues:
+    types: [opened, edited]
+permissions:
+  contents: read
+  issues: write
+jobs:
+  validate:
+    if: startsWith(github.event.issue.title, '[字体方案]')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: corepack pnpm install --frozen-lockfile
+      - name: Validate submission and comment on Issue
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: node scripts/community-catalog.mjs validate "$ISSUE_NUMBER"
