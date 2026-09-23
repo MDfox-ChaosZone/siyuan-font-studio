@@ -14,6 +14,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
+      - run: corepack enable
       - run: corepack pnpm install --frozen-lockfile
       - name: Validate submission and comment on Issue
         env:
