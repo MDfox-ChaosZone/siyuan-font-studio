@@ -1,4 +1,5 @@
 import {describe, expect, it} from "vitest";
+import {strFromU8, unzipSync} from "fflate";
 import {activatePreset, clampLibraryPreviewWidth, clampSize, cloneTargets, parseState, removeFontFromState, syncActivePreset} from "../src/state";
 import {detectFontCoverage, emojiRuntimeFamily, extractFontMetadata, familyForChoice, familyForChoices, extensionOf, fontWeightName, groupImportedFonts, groupSystemFonts, hasDuplicateHash, localizedFamilyName, nameWithoutExtension, quoteFamily, runtimeFamily, weightForChoices} from "../src/font-utils";
 import {mergeMermaidConfig, mermaidOverrides} from "../src/mermaid";
@@ -7,6 +8,7 @@ import {
     createPresetPackage,
     importedFontIdsInTargets,
     parsePresetConfig,
+    PRESET_DETAILS_FILE_NAME,
     PRESET_FILE_FORMAT,
     PRESET_FILE_VERSION,
     readPresetContainer,
@@ -178,6 +180,37 @@ describe("preset transfer", () => {
         expect(container.bundledFonts).toHaveLength(1);
         expect(Array.from(container.bundledFonts[0].data)).toEqual([1, 2, 3]);
         expect(importedFontIdsInTargets(preset.targets)).toEqual(new Set([font.id]));
+    });
+
+    it("preserves variable font weights and includes a shareable Markdown table", async () => {
+        const variable = {...font, variationAxes: {wght: {name: "Weight", min: 100, default: 400, max: 900}}};
+        const state = parseState({version: 3, fonts: [variable], targets: {
+            content: {fonts: [{kind: "imported", id: variable.id, weight: 675}], size: 17},
+        }});
+        const preset = state.presets[0];
+        preset.name = "Variable Reading";
+        preset.targets = cloneTargets(state.targets);
+
+        const serialized = JSON.parse(serializePreset(preset, state.fonts)) as {
+            targets: {content: {fonts: Array<{weight?: number}>}};
+        };
+        expect(serialized.targets.content.fonts[0].weight).toBe(675);
+        expect(parsePresetConfig(serialized, [{...variable, id: "local-variable"}]).targets.content.fonts[0])
+            .toEqual({kind: "imported", id: "local-variable", weight: 675});
+
+        const archive = await createPresetPackage(
+            preset,
+            state.fonts,
+            [{font: {...variable, size: 3}, data: new Uint8Array([1, 2, 3]).buffer}],
+        );
+        const entries = unzipSync(archive);
+        expect(entries[PRESET_DETAILS_FILE_NAME]).toBeDefined();
+        const details = strFromU8(entries[PRESET_DETAILS_FILE_NAME]);
+        expect(details).toContain("# Variable Reading");
+        expect(details).toContain("(Optional) Font preset name: Variable Reading    Author: xxx");
+        expect(details).toContain(
+            "| Documents | Example | 17 px | 675 (variable) |",
+        );
     });
 
     it("reports bundled fonts that are absent from the local library", () => {
