@@ -1,6 +1,6 @@
 # 社区字体方案投稿与发布
 
-社区目录独立于插件版本。插件每次打开“下载字体方案”时读取 `community-catalog` 分支中的 `catalog.json`；读取失败时显示本次会话缓存和内置方案。方案文件存放在本仓库的 GitHub Release。
+社区目录独立于插件版本。插件每次打开“下载字体方案”时读取 `main` 分支中的 `catalog.json`；读取失败时显示本次会话缓存和内置方案。方案文件存放在本仓库的 GitHub Release。
 
 ## 投稿者
 
@@ -15,7 +15,7 @@
 1. 将 `.github/ISSUE_TEMPLATE/share-font-preset.yml` 和两条工作流合入默认分支，并在仓库中启用 GitHub Actions。
 2. 在仓库中创建 `publish-approved` 标签。只有具有仓库管理权限的维护者应使用它。
 3. 确认 Actions 工作流可使用 `GITHUB_TOKEN` 的 `contents: write` 和 `issues: write` 权限。工作流已显式声明权限；仓库或组织的更严格策略可能仍需调整。
-4. 第一次发布时，工作流会从默认分支创建 `community-catalog` 分支并写入 `catalog.json`。此分支中的目录由工作流维护。
+4. `catalog.json` 位于默认分支 `main`。审核后的发布工作流会直接更新该文件，无需单独的目录分支。若以后启用阻止 Actions 写入的分支保护规则，需要相应调整发布权限或改用 PR 审核目录更新。
 
 ## 审核与发布
 
@@ -27,4 +27,4 @@
 
 ## 管理已发布内容
 
-若方案需要撤下，应先从 `community-catalog` 分支的 `catalog.json` 删除对应条目，再删除相关 Release。已经下载或导入的副本无法远程删除。若需要发布新版方案，请让投稿者创建新 Issue；旧方案可按上述方式下架。
+若方案需要撤下，应先从 `main` 分支的 `catalog.json` 删除对应条目，再删除相关 Release。已经下载或导入的副本无法远程删除。若需要发布新版方案，请让投稿者创建新 Issue；旧方案可按上述方式下架。

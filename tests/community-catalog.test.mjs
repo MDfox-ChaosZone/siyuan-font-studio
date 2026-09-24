@@ -34,13 +34,10 @@ describe("community submission", () => {
             calls.push({url, method: init.method || "GET", body: init.body});
             if (url.endsWith("/issues/42") && !init.method) return json({number: 42, title: "自拟的方案名称", body, html_url: "https://github.com/MDfox-ChaosZone/siyuan-font-studio/issues/42", user: {login: "alice", html_url: "https://github.com/alice"}, labels: [{name: "publish-approved"}]});
             if (url.endsWith("/user-attachments/assets/package-id")) return new Response(bytes);
-            if (url.includes("/contents/catalog.json?")) return json({message: "Not Found"}, 404);
+            if (url.includes("/contents/catalog.json?ref=main")) return json({sha: "catalog-sha", content: Buffer.from(JSON.stringify({version: 1, updatedAt: "2026-09-23T00:00:00Z", presets: []})).toString("base64")});
             if (url.endsWith("/releases/tags/community-preset-issue-42")) return json({message: "Not Found"}, 404);
             if (url.endsWith("/releases") && init.method === "POST") return json({id: 8, upload_url: "https://uploads.github.com/repos/MDfox-ChaosZone/siyuan-font-studio/releases/8/assets{?name,label}", assets: []}, 201);
             if (url.startsWith("https://uploads.github.com/")) return json({browser_download_url: "https://github.com/MDfox-ChaosZone/siyuan-font-studio/releases/download/community-preset-issue-42/issue-42.siyuan-font-studio-preset.json", size: bytes.length, digest: `sha256:${sha(bytes)}`}, 201);
-            if (url.endsWith("/repos/MDfox-ChaosZone/siyuan-font-studio")) return json({default_branch: "main"});
-            if (url.endsWith("/git/ref/heads/main")) return json({object: {sha: "base-sha"}});
-            if (url.endsWith("/git/refs")) return json({ref: "refs/heads/community-catalog"}, 201);
             if (url.endsWith("/contents/catalog.json") && init.method === "PUT") return json({content: {sha: "new-sha"}}, 201);
             if (url.endsWith("/issues/42/comments")) return json({id: 1}, 201);
             if (url.endsWith("/issues/42") && init.method === "PATCH") return json({state: "closed"});
@@ -50,6 +47,7 @@ describe("community submission", () => {
         try {
             await publishIssue(42, "test-token");
             const saved = calls.find((call) => call.url.endsWith("/contents/catalog.json") && call.method === "PUT");
+            expect(JSON.parse(saved.body)).toMatchObject({branch: "main", sha: "catalog-sha"});
             const published = JSON.parse(Buffer.from(JSON.parse(saved.body).content, "base64").toString());
             expect(published.presets[0]).toMatchObject({id: "issue-42", name: "自拟的方案名称", packageSha256: sha(bytes), description: "适合阅读。"});
             expect(calls.some((call) => call.url.endsWith("/issues/42") && call.method === "PATCH")).toBe(true);

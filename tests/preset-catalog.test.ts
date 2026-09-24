@@ -15,6 +15,7 @@ const catalog = {version: 1, updatedAt: "2026-09-23T00:00:00Z", presets: [item]}
 describe("community catalog", () => {
     it("validates and converts published entries", () => {
         expect(parseCommunityCatalog(catalog).presets[0]).toMatchObject({id: "issue-42", name: "测试方案", assetName: "issue-42.siyuan-font-studio-preset.zip"});
+        expect(parseCommunityCatalog({...catalog, presets: [{...item, description: ""}]}).presets[0].description).toBe("");
     });
 
     it("rejects unexpected download origins and duplicate IDs", () => {
@@ -27,6 +28,6 @@ describe("community catalog", () => {
         await fetchCommunityCatalog(fetcher);
         await fetchCommunityCatalog(fetcher);
         expect(fetcher).toHaveBeenCalledTimes(2);
-        expect(fetcher.mock.calls[0][0]).toContain("community-catalog/catalog.json?t=");
+        expect(fetcher.mock.calls[0][0]).toContain("main/catalog.json?t=");
     });
 });

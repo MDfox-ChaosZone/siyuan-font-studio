@@ -1,6 +1,6 @@
 import {PresetCatalogItem, PresetCatalogRow} from "./example-preset";
 
-export const COMMUNITY_CATALOG_URL = "https://raw.githubusercontent.com/MDfox-ChaosZone/siyuan-font-studio/refs/heads/community-catalog/catalog.json";
+export const COMMUNITY_CATALOG_URL = "https://raw.githubusercontent.com/MDfox-ChaosZone/siyuan-font-studio/refs/heads/main/catalog.json";
 export const MAX_CATALOG_BYTES = 1024 * 1024;
 
 export interface CommunityCatalog {
@@ -50,7 +50,7 @@ export function parseCommunityCatalog(value: unknown): CommunityCatalog {
     const ids = new Set<string>();
     const presets = value.presets.map((raw): PresetCatalogItem => {
         if (!record(raw) || !safeText(raw.id, 80) || !/^[a-z0-9][a-z0-9-]*$/.test(raw.id) || ids.has(raw.id)
-            || !safeText(raw.name, 100) || !safeText(raw.description, 1000)
+            || !safeText(raw.name, 100) || typeof raw.description !== "string" || raw.description.length > 1000
             || !safeText(raw.author, 100) || !safeUrl(raw.authorUrl, "github.com")
             || !safeUrl(raw.issueUrl, "github.com", "/MDfox-ChaosZone/siyuan-font-studio/issues/")
             || !safeUrl(raw.packageUrl, "github.com", "/MDfox-ChaosZone/siyuan-font-studio/releases/download/")
