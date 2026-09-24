@@ -7,7 +7,7 @@ permissions:
   issues: write
 jobs:
   validate:
-    if: startsWith(github.event.issue.title, '[字体方案]')
+    if: contains(github.event.issue.body, '### 方案文件')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
