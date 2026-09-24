@@ -5,7 +5,7 @@ import {pathToFileURL} from "node:url";
 import {unzipSync, strFromU8} from "fflate";
 
 export const REPO = "MDfox-ChaosZone/siyuan-font-studio";
-export const CATALOG_BRANCH = "community-catalog";
+export const CATALOG_BRANCH = "main";
 export const MAX_PACKAGE_BYTES = 100 * 1024 * 1024;
 const MAX_UNPACKED_BYTES = 500 * 1024 * 1024;
 const TARGETS = ["ui", "content", "mono", "math", "graph", "emoji", "mermaid"];
@@ -183,16 +183,6 @@ async function catalogFile(token) {
     }
 }
 
-async function ensureCatalogBranch(token) {
-    const repo = await requestJson(`https://api.github.com/repos/${REPO}`, token);
-    const base = await requestJson(`https://api.github.com/repos/${REPO}/git/ref/heads/${repo.default_branch}`, token);
-    try {
-        await requestJson(`https://api.github.com/repos/${REPO}/git/refs`, token, {method: "POST", body: JSON.stringify({ref: `refs/heads/${CATALOG_BRANCH}`, sha: base.object.sha})});
-    } catch (error) {
-        if (!String(error).includes("GitHub API 422")) throw error;
-    }
-}
-
 async function saveCatalog(catalog, sha, token) {
     await requestJson(`https://api.github.com/repos/${REPO}/contents/catalog.json`, token, {
         method: "PUT",
@@ -246,7 +236,6 @@ export async function publishIssue(number, token) {
         includesFonts: info.includesFonts, rows: info.rows,
     });
     catalog.updatedAt = new Date().toISOString();
-    await ensureCatalogBranch(token);
     await saveCatalog(catalog, catalogSha, token);
     await comment(number, token, `🎉 已发布到字体方案目录：${url}\n\n目录更新可能需要几分钟才能在客户端显示。`);
     await requestJson(`https://api.github.com/repos/${REPO}/issues/${number}`, token, {method: "PATCH", body: JSON.stringify({state: "closed"})});
