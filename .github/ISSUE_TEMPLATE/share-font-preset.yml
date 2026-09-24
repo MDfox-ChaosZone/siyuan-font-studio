@@ -1,45 +1,27 @@
-name: 分享字体方案
-description: 提交一个可在思源字体工坊内下载的字体方案
-title: "[字体方案] "
+name: 分享字体方案分享
+description: 标题填写方案名称，想不到可以随便取一个。
 body:
-  - type: markdown
-    attributes:
-      value: |
-        请先在插件中导出方案。完整包包含字体，仅在所有字体都允许再分发时提交；否则请导出仅配置的 JSON。
-        GitHub Issue 单个附件有大小限制，大文件可以先上传到你自己的 GitHub Release，再把链接填在下方。请不要上传与方案无关的文件。
-  - type: input
-    id: name
-    attributes:
-      label: 方案名称
-      description: 必须与导出的 preset.json 中的方案名称一致。
-      placeholder: 例如：简洁阅读
-    validations:
-      required: true
   - type: textarea
     id: description
     attributes:
       label: 简介
       description: 介绍适用场景与视觉效果，最多 1000 字。
-    validations:
-      required: true
   - type: textarea
     id: preview
     attributes:
       label: 效果截图
       description: 将截图拖入此输入框，建议展示文档和界面效果。
-    validations:
-      required: true
-  - type: textarea
+  - type: checkboxes
     id: license
     attributes:
-      label: 字体来源与授权
-      description: 逐一列出字体、来源链接及许可证。完整包请明确写“允许随方案分发”并提供依据。
-    validations:
-      required: true
+      label: 字体授权确认
+      options:
+        - label: 我已确认所用字体可免费商用或开源；若方案文件包含字体，我也确认这些字体允许随方案再分发。
+          required: true
   - type: textarea
     id: file
     attributes:
       label: 方案文件
-      description: 将插件导出的 ZIP 或 JSON 拖入此输入框；大于 Issue 附件限制时，填写 GitHub Release 文件链接。
+      description: 将插件导出的 ZIP 或 JSON 拖入此处。Issue 附件每个文件最大 25 MB；超过时可填写无需登录、无需提取码且能直接下载文件的 HTTPS 网盘链接（例如 GitHub Release 文件链接）。自动发布支持的文件最大为 100 MB。
     validations:
       required: true

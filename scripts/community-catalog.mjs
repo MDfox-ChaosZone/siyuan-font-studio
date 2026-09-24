@@ -14,21 +14,26 @@ const ACCEPTED_EXTENSIONS = new Set(["woff2", "woff", "ttf", "otf"]);
 const digest = (bytes) => createHash("sha256").update(bytes).digest("hex");
 const apiHeaders = (token) => ({Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28", Authorization: `Bearer ${token}`});
 
-export function parseIssueBody(body) {
+export function parseIssueBody(body, title) {
     const fields = new Map();
     for (const [, title, content] of body.matchAll(/(?:^|\n)### ([^\n]+)\n([\s\S]*?)(?=\n### |$)/g)) fields.set(title.trim(), content.trim());
-    const required = ["方案名称", "简介", "效果截图", "字体来源与授权", "方案文件"];
+    const name = title?.trim();
+    if (!name || name.length > 100) throw new Error("Issue 标题须填写 1–100 字的方案名称");
+    const required = ["字体授权确认", "方案文件"];
     if (required.some((key) => !fields.get(key) || fields.get(key) === "_No response_")) throw new Error(`缺少投稿字段：${required.filter((key) => !fields.get(key) || fields.get(key) === "_No response_").join("、")}`);
-    const attachment = fields.get("方案文件").match(/https:\/\/[^\s)>]+\.(?:zip|json)(?:\?[^\s)>]*)?|https:\/\/github\.com\/user-attachments\/assets\/[\w-]+/i)?.[0];
-    if (!attachment || !isAllowedAttachmentUrl(attachment)) throw new Error("方案文件须为 GitHub Issue 附件或 GitHub Release 链接");
+    const license = fields.get("字体授权确认");
+    if (!/- \[[xX]\] 我已确认所用字体可免费商用或开源；若方案文件包含字体，我也确认这些字体允许随方案再分发。/.test(license))
+        throw new Error("请勾选字体授权确认");
+    const attachment = fields.get("方案文件").match(/https:\/\/[^\s)>]+/i)?.[0];
+    if (!attachment || !isAllowedAttachmentUrl(attachment)) throw new Error("方案文件须为 Issue 附件或可直接下载的 HTTPS 网盘链接");
     const preview = fields.get("效果截图")?.match(/https:\/\/github\.com\/user-attachments\/assets\/[\w-]+/i)?.[0];
-    if (fields.get("效果截图") && !preview) throw new Error("效果截图须为 GitHub Issue 附件");
-    if (fields.get("方案名称").length > 100 || fields.get("简介").length > 1000 || fields.get("字体来源与授权").length > 4000)
-        throw new Error("名称、简介或授权说明过长");
+    if (fields.get("效果截图") && fields.get("效果截图") !== "_No response_" && !preview) throw new Error("效果截图须为 GitHub Issue 附件");
+    const description = fields.get("简介") === "_No response_" ? "" : fields.get("简介") || "";
+    if (description.length > 1000) throw new Error("简介超过 1000 字");
     return {
-        name: fields.get("方案名称"),
-        description: fields.get("简介"),
-        license: fields.get("字体来源与授权"),
+        name,
+        description,
+        license,
         attachment,
         preview,
     };
@@ -37,10 +42,9 @@ export function parseIssueBody(body) {
 export function isAllowedAttachmentUrl(value) {
     try {
         const url = new URL(value);
-        return url.protocol === "https:" && url.hostname === "github.com" && !url.username && !url.password
-            && (url.pathname.startsWith("/user-attachments/assets/")
-                || /^\/MDfox-ChaosZone\/siyuan-font-studio\/files\//.test(url.pathname)
-                || /^\/[^/]+\/[^/]+\/releases\/download\/[^/]+\/[^/]+\.(?:zip|json)$/i.test(url.pathname));
+        return url.protocol === "https:" && !url.username && !url.password && !url.port
+            && url.hostname.includes(".") && !url.hostname.endsWith(".local") && !url.hostname.endsWith(".internal")
+            && !/^(?:localhost|\d+\.\d+\.\d+\.\d+|\[.*\])$/i.test(url.hostname);
     } catch {
         return false;
     }
@@ -132,7 +136,16 @@ async function requestJson(url, token, init = {}) {
 }
 
 async function downloadAttachment(url) {
-    const response = await fetch(url, {redirect: "follow", signal: AbortSignal.timeout(300_000)});
+    let response;
+    for (let redirects = 0; redirects <= 5; redirects++) {
+        if (!isAllowedAttachmentUrl(url)) throw new Error("下载地址必须是公开的 HTTPS 地址");
+        response = await fetch(url, {redirect: "manual", signal: AbortSignal.timeout(300_000)});
+        if (![301, 302, 303, 307, 308].includes(response.status)) break;
+        if (redirects === 5) throw new Error("下载地址重定向次数过多");
+        const location = response.headers.get("location");
+        if (!location) throw new Error("下载地址重定向缺少目标");
+        url = new URL(location, url).href;
+    }
     if (!response.ok) throw new Error(`附件下载失败：HTTP ${response.status}`);
     const length = Number(response.headers.get("content-length"));
     if (length > MAX_PACKAGE_BYTES) throw new Error("方案文件超过 100 MB");
@@ -149,13 +162,10 @@ async function downloadAttachment(url) {
 async function issueSubmission(number, token) {
     const issue = await requestJson(`https://api.github.com/repos/${REPO}/issues/${number}`, token);
     if (issue.pull_request || !issue.body) throw new Error("找不到有效的投稿 Issue");
-    const form = parseIssueBody(issue.body);
+    const form = parseIssueBody(issue.body, issue.title);
     const bytes = await downloadAttachment(form.attachment);
     const filename = new URL(form.attachment).pathname.split("/").at(-1);
     const info = inspectPresetPackage(bytes, filename);
-    if (info.name !== form.name) throw new Error("Issue 名称与方案文件名称不一致");
-    if (info.includesFonts && !/允许随方案分发|redistributable|redistribution allowed/i.test(form.license))
-        throw new Error("完整包必须明确填写字体允许再分发的依据；否则请提交仅配置文件");
     return {issue, form, bytes, info};
 }
 
@@ -206,7 +216,7 @@ export async function publishIssue(number, token) {
     if (!issue.labels?.some((label) => label.name === "publish-approved")) throw new Error("缺少 publish-approved 审核标签");
     if (process.env.GITHUB_EVENT_PATH && process.env.GITHUB_EVENT_NAME === "issues") {
         const event = JSON.parse(await readFile(process.env.GITHUB_EVENT_PATH, "utf8"));
-        if (event.issue?.body !== issue.body) throw new Error("审核后 Issue 内容已修改，请重新审核");
+        if (event.issue?.body !== issue.body || event.issue?.title !== issue.title) throw new Error("审核后 Issue 标题或内容已修改，请重新审核");
     }
     const {sha: catalogSha, catalog} = await catalogFile(token);
     if (catalog.presets.some((preset) => preset.issueUrl === issue.html_url)) throw new Error("该 Issue 已发布；更新方案须另开投稿");
@@ -217,7 +227,7 @@ export async function publishIssue(number, token) {
         release = await requestJson(`https://api.github.com/repos/${REPO}/releases/tags/${tag}`, token);
     } catch (error) {
         if (!String(error).includes("GitHub API 404")) throw error;
-        release = await requestJson(`https://api.github.com/repos/${REPO}/releases`, token, {method: "POST", body: JSON.stringify({tag_name: tag, name: form.name, body: `来自 ${issue.html_url}\n\n${form.description}\n\n字体来源与授权：\n${form.license}`, draft: false, prerelease: false})});
+        release = await requestJson(`https://api.github.com/repos/${REPO}/releases`, token, {method: "POST", body: JSON.stringify({tag_name: tag, name: form.name, body: `来自 ${issue.html_url}\n\n${form.description}\n\n投稿者的字体授权确认：\n${form.license}`, draft: false, prerelease: false})});
     }
     const ext = bytes[0] === 0x7b ? "json" : "zip";
     const assetName = `${id}.siyuan-font-studio-preset.${ext}`;
