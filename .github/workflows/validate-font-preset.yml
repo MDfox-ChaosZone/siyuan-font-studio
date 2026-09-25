@@ -7,7 +7,7 @@ permissions:
   issues: write
 jobs:
   validate:
-    if: contains(github.event.issue.body, '### 方案文件')
+    if: contains(github.event.issue.labels.*.name, '字体方案分享')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

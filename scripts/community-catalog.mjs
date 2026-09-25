@@ -19,21 +19,17 @@ export function parseIssueBody(body, title) {
     for (const [, title, content] of body.matchAll(/(?:^|\n)### ([^\n]+)\n([\s\S]*?)(?=\n### |$)/g)) fields.set(title.trim(), content.trim());
     const name = title?.trim();
     if (!name || name.length > 100) throw new Error("Issue 标题须填写 1–100 字的方案名称");
-    const required = ["字体授权确认", "方案文件"];
+    const required = ["字体方案压缩包"];
     if (required.some((key) => !fields.get(key) || fields.get(key) === "_No response_")) throw new Error(`缺少投稿字段：${required.filter((key) => !fields.get(key) || fields.get(key) === "_No response_").join("、")}`);
-    const license = fields.get("字体授权确认");
-    if (!/- \[[xX]\] 我已确认所用字体可免费商用或开源；若方案文件包含字体，我也确认这些字体允许随方案再分发。/.test(license))
-        throw new Error("请勾选字体授权确认");
-    const attachment = fields.get("方案文件").match(/https:\/\/[^\s)>]+/i)?.[0];
+    const attachment = fields.get("字体方案压缩包").match(/https:\/\/[^\s)>]+/i)?.[0];
     if (!attachment || !isAllowedAttachmentUrl(attachment)) throw new Error("方案文件须为 Issue 附件或可直接下载的 HTTPS 网盘链接");
     const preview = fields.get("效果截图")?.match(/https:\/\/github\.com\/user-attachments\/assets\/[\w-]+/i)?.[0];
     if (fields.get("效果截图") && fields.get("效果截图") !== "_No response_" && !preview) throw new Error("效果截图须为 GitHub Issue 附件");
-    const description = fields.get("简介") === "_No response_" ? "" : fields.get("简介") || "";
-    if (description.length > 1000) throw new Error("简介超过 1000 字");
+    const description = fields.get("字体方案介绍") === "_No response_" ? "" : fields.get("字体方案介绍") || "";
+    if (description.length > 1000) throw new Error("字体方案介绍超过 1000 字");
     return {
         name,
         description,
-        license,
         attachment,
         preview,
     };
@@ -161,7 +157,7 @@ async function downloadAttachment(url) {
 
 async function issueSubmission(number, token) {
     const issue = await requestJson(`https://api.github.com/repos/${REPO}/issues/${number}`, token);
-    if (issue.pull_request || !issue.body) throw new Error("找不到有效的投稿 Issue");
+    if (issue.pull_request || !issue.body || !issue.labels?.some((label) => label.name === "字体方案分享")) throw new Error("找不到带有字体方案分享标签的投稿 Issue");
     const form = parseIssueBody(issue.body, issue.title);
     const bytes = await downloadAttachment(form.attachment);
     const filename = new URL(form.attachment).pathname.split("/").at(-1);
@@ -217,7 +213,7 @@ export async function publishIssue(number, token) {
         release = await requestJson(`https://api.github.com/repos/${REPO}/releases/tags/${tag}`, token);
     } catch (error) {
         if (!String(error).includes("GitHub API 404")) throw error;
-        release = await requestJson(`https://api.github.com/repos/${REPO}/releases`, token, {method: "POST", body: JSON.stringify({tag_name: tag, name: form.name, body: `来自 ${issue.html_url}\n\n${form.description}\n\n投稿者的字体授权确认：\n${form.license}`, draft: false, prerelease: false})});
+        release = await requestJson(`https://api.github.com/repos/${REPO}/releases`, token, {method: "POST", body: JSON.stringify({tag_name: tag, name: form.name, body: `来自 ${issue.html_url}\n\n${form.description}`, draft: false, prerelease: false})});
     }
     const ext = bytes[0] === 0x7b ? "json" : "zip";
     const assetName = `${id}.siyuan-font-studio-preset.${ext}`;

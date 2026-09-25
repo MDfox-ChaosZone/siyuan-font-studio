@@ -1,27 +1,21 @@
 name: 分享字体方案分享
 description: 标题填写方案名称，想不到可以随便取一个。
+labels: ["字体方案分享"]
 body:
   - type: textarea
     id: description
     attributes:
-      label: 简介
-      description: 介绍适用场景与视觉效果，最多 1000 字。
+      label: 字体方案介绍
+      description: 将字体方案压缩包里readme.md中的表格粘贴到此,还可以写一些简单介绍哦.
   - type: textarea
     id: preview
     attributes:
       label: 效果截图
-      description: 将截图拖入此输入框，建议展示文档和界面效果。
-  - type: checkboxes
-    id: license
-    attributes:
-      label: 字体授权确认
-      options:
-        - label: 我已确认所用字体可免费商用或开源；若方案文件包含字体，我也确认这些字体允许随方案再分发。
-          required: true
+      description: (可选)将截图拖入输入框，展示字体方案效果.
   - type: textarea
     id: file
     attributes:
-      label: 方案文件
-      description: 将插件导出的 ZIP 或 JSON 拖入此处。Issue 附件每个文件最大 25 MB；超过时可填写无需登录、无需提取码且能直接下载文件的 HTTPS 网盘链接（例如 GitHub Release 文件链接）。自动发布支持的文件最大为 100 MB。
+      label: 字体方案压缩包
+      description: 将插件导出的 ZIP 拖入此处。gihub限制每个issue的附件最大为 25 MB. 如果体积超限,可以将字体文件转换为WOFF2格式或提供网盘链接.
     validations:
       required: true
