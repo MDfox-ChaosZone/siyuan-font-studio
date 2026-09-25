@@ -10,11 +10,13 @@ const body = `### 字体方案介绍\n适合阅读。\n\n### 效果截图\n![效
 
 describe("community submission", () => {
     it("reads the standardized Issue form and validates a portable package", () => {
-        expect(parseIssueBody(body, "自拟的方案名称")).toMatchObject({name: "自拟的方案名称", attachment: "https://github.com/user-attachments/assets/package-id"});
-        expect(parseIssueBody(body.replace("适合阅读。", "_No response_").replace(/!\[效果\]\([^)]*\)/, "_No response_"), "自拟的方案名称"))
+        expect(parseIssueBody(body, "[字体方案分享] 自拟的方案名称")).toMatchObject({name: "自拟的方案名称", attachment: "https://github.com/user-attachments/assets/package-id"});
+        expect(parseIssueBody(body.replace("适合阅读。", "_No response_").replace(/!\[效果\]\([^)]*\)/, "_No response_"), "[字体方案分享] 自拟的方案名称"))
             .toMatchObject({description: "", preview: undefined});
-        expect(() => parseIssueBody(body.replace("### 字体方案压缩包", "### 其他文件"), "自拟的方案名称")).toThrow("缺少投稿字段：字体方案压缩包");
-        expect(parseIssueBody(body.replace("https://github.com/user-attachments/assets/package-id", "https://downloads.example.com/preset.zip?token=abc"), "自拟的方案名称").attachment)
+        expect(() => parseIssueBody(body, "[字体方案分享] ")).toThrow("请在标题前缀后填写");
+        expect(() => parseIssueBody(body, "自拟的方案名称")).toThrow("须保留 [字体方案分享] 前缀");
+        expect(() => parseIssueBody(body.replace("### 字体方案压缩包", "### 其他文件"), "[字体方案分享] 自拟的方案名称")).toThrow("缺少投稿字段：字体方案压缩包");
+        expect(parseIssueBody(body.replace("https://github.com/user-attachments/assets/package-id", "https://downloads.example.com/preset.zip?token=abc"), "[字体方案分享] 自拟的方案名称").attachment)
             .toBe("https://downloads.example.com/preset.zip?token=abc");
         expect(isAllowedAttachmentUrl("https://localhost/preset.zip")).toBe(false);
         expect(isAllowedAttachmentUrl("http://downloads.example.com/preset.zip")).toBe(false);
@@ -32,7 +34,7 @@ describe("community submission", () => {
         const fetcher = vi.fn(async (input, init = {}) => {
             const url = String(input);
             calls.push({url, method: init.method || "GET", body: init.body});
-            if (url.endsWith("/issues/42") && !init.method) return json({number: 42, title: "自拟的方案名称", body, html_url: "https://github.com/MDfox-ChaosZone/siyuan-font-studio/issues/42", user: {login: "alice", html_url: "https://github.com/alice"}, labels: [{name: "字体方案分享"}, {name: "publish-approved"}]});
+            if (url.endsWith("/issues/42") && !init.method) return json({number: 42, title: "[字体方案分享] 自拟的方案名称", body, html_url: "https://github.com/MDfox-ChaosZone/siyuan-font-studio/issues/42", user: {login: "alice", html_url: "https://github.com/alice"}, labels: [{name: "字体方案分享"}, {name: "publish-approved"}]});
             if (url.endsWith("/user-attachments/assets/package-id")) return new Response(bytes);
             if (url.includes("/contents/catalog.json?ref=main")) return json({sha: "catalog-sha", content: Buffer.from(JSON.stringify({version: 1, updatedAt: "2026-09-23T00:00:00Z", presets: []})).toString("base64")});
             if (url.endsWith("/releases/tags/community-preset-issue-42")) return json({message: "Not Found"}, 404);

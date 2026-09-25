@@ -17,8 +17,10 @@ const apiHeaders = (token) => ({Accept: "application/vnd.github+json", "X-GitHub
 export function parseIssueBody(body, title) {
     const fields = new Map();
     for (const [, title, content] of body.matchAll(/(?:^|\n)### ([^\n]+)\n([\s\S]*?)(?=\n### |$)/g)) fields.set(title.trim(), content.trim());
-    const name = title?.trim();
-    if (!name || name.length > 100) throw new Error("Issue 标题须填写 1–100 字的方案名称");
+    const prefix = "[字体方案分享]";
+    if (!title?.startsWith(prefix)) throw new Error(`Issue 标题须保留 ${prefix} 前缀`);
+    const name = title.slice(prefix.length).trim();
+    if (!name || name.length > 100) throw new Error("请在标题前缀后填写 1–100 字的名称或文字");
     const required = ["字体方案压缩包"];
     if (required.some((key) => !fields.get(key) || fields.get(key) === "_No response_")) throw new Error(`缺少投稿字段：${required.filter((key) => !fields.get(key) || fields.get(key) === "_No response_").join("、")}`);
     const attachment = fields.get("字体方案压缩包").match(/https:\/\/[^\s)>]+/i)?.[0];
