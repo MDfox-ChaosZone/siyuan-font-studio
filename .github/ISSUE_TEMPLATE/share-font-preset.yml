@@ -3,6 +3,9 @@ description: 保留标题前缀 [字体方案分享]，后面填写字体方案�
 title: "[字体方案分享] "
 labels: ["字体方案分享"]
 body:
+  - type: markdown
+    attributes:
+      value: 请保留标题前缀 **[字体方案分享]**，后面填写字体方案名称、个人昵称、诗歌，或任何你想写的内容。
   - type: textarea
     id: description
     attributes:
