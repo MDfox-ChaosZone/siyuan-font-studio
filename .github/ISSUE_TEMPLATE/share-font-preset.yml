@@ -1,5 +1,6 @@
 name: 分享字体方案分享
-description: 标题填写方案名称，想不到可以随便取一个。
+description: 保留标题前缀 [字体方案分享]，后面填写字体方案名称、个人昵称、诗歌，或任何你想写的内容。
+title: "[字体方案分享] "
 labels: ["字体方案分享"]
 body:
   - type: textarea
