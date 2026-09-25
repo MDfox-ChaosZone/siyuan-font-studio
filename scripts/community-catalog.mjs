@@ -85,8 +85,15 @@ export function inspectPresetPackage(bytes, filename = "preset.zip") {
     if (isJson) config = JSON.parse(Buffer.from(bytes).toString("utf8"));
     else {
         let unpacked = 0;
+        const names = new Set();
         files = unzipSync(bytes, {filter: (file) => {
-            if (file.name !== "preset.json" && !/^fonts\/[a-zA-Z0-9._-]+$/.test(file.name)) return false;
+            if (names.has(file.name)) throw new Error("方案包包含重复文件");
+            names.add(file.name);
+            if (names.size > 103) throw new Error("方案包文件数量过多");
+            if (file.name !== "preset.json" && file.name !== "README.md"
+                && !/^fonts\/[a-zA-Z0-9._-]+\.(?:woff2|woff|ttf|otf)$/i.test(file.name))
+                throw new Error(`方案包包含不允许的文件：${file.name.slice(0, 100)}`);
+            if (file.name === "README.md" && file.originalSize > 256 * 1024) throw new Error("README.md 超过 256 KB");
             unpacked += file.originalSize;
             if (unpacked > MAX_UNPACKED_BYTES) throw new Error("解压后文件超过 500 MB");
             return true;
@@ -97,6 +104,7 @@ export function inspectPresetPackage(bytes, filename = "preset.zip") {
     if (!config || config.format !== "siyuan-font-studio-preset" || config.version !== 1
         || !safeString(config.name, 100) || !config.targets || typeof config.targets !== "object") throw new Error("无效的方案格式或版本");
     const fontMap = new Map();
+    const declaredPaths = new Set();
     for (const font of config.bundledFonts || []) {
         if (!font || !/^fonts\/[a-zA-Z0-9._-]+$/.test(font.path) || !/^[a-f0-9]{64}$/i.test(font.sha256)
             || !ACCEPTED_EXTENSIONS.has(font.extension?.toLowerCase()) || !safeString(font.displayName)
@@ -108,8 +116,12 @@ export function inspectPresetPackage(bytes, filename = "preset.zip") {
             || signature === "wOFF" && font.extension.toLowerCase() === "woff"
             || signature === "OTTO" && font.extension.toLowerCase() === "otf"
             || signature === "\u0000\u0001\u0000\u0000" && font.extension.toLowerCase() === "ttf")) throw new Error("字体文件格式与扩展名不一致");
+        if (declaredPaths.has(font.path)) throw new Error("字体清单包含重复文件");
+        declaredPaths.add(font.path);
         fontMap.set(font.sha256.toLowerCase(), font);
     }
+    if (Object.keys(files).some((path) => path.startsWith("fonts/") && !declaredPaths.has(path)))
+        throw new Error("方案包包含未在清单中声明的字体文件");
     const rows = [];
     for (const target of TARGETS) {
         const settings = config.targets[target];

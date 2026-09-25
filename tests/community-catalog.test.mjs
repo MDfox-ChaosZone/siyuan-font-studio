@@ -24,6 +24,9 @@ describe("community submission", () => {
         expect(inspectPresetPackage(bytes, "preset.json")).toMatchObject({name: "测试方案", includesFonts: false, sha256: sha(bytes)});
         const zip = zipSync({"preset.json": bytes});
         expect(inspectPresetPackage(zip)).toMatchObject({name: "测试方案", includesFonts: false});
+        expect(inspectPresetPackage(zipSync({"preset.json": bytes, "README.md": strToU8("说明")}))).toMatchObject({name: "测试方案"});
+        expect(() => inspectPresetPackage(zipSync({"preset.json": bytes, "virus.exe": strToU8("MZ")}))).toThrow("不允许的文件");
+        expect(() => inspectPresetPackage(zipSync({"preset.json": bytes, "fonts/hidden.ttf": Uint8Array.of(0, 1, 0, 0)}))).toThrow("未在清单中声明");
         expect(() => inspectPresetPackage(zipSync({"preset.json": strToU8(JSON.stringify({...config, version: 99}))}))).toThrow("无效的方案格式或版本");
     });
 
