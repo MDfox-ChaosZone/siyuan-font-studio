@@ -6,6 +6,7 @@ import {unzipSync, strFromU8} from "fflate";
 
 export const REPO = "MDfox-ChaosZone/siyuan-font-studio";
 export const CATALOG_BRANCH = "main";
+export const COMMUNITY_RELEASE_TAG = "社区字体方案";
 export const MAX_PACKAGE_BYTES = 100 * 1024 * 1024;
 const MAX_UNPACKED_BYTES = 500 * 1024 * 1024;
 const TARGETS = ["ui", "content", "mono", "math", "graph", "emoji", "mermaid"];
@@ -200,6 +201,18 @@ async function saveCatalog(catalog, sha, token) {
     });
 }
 
+async function findReleaseAsset(release, name, token) {
+    const initial = release.assets?.find((asset) => asset.name === name);
+    if (initial) return initial;
+    for (let page = 1; page <= 10; page++) {
+        const assets = await requestJson(`https://api.github.com/repos/${REPO}/releases/${release.id}/assets?per_page=100&page=${page}`, token);
+        const found = assets.find((asset) => asset.name === name);
+        if (found) return found;
+        if (assets.length < 100) break;
+    }
+    return undefined;
+}
+
 export async function validateIssue(number, token) {
     try {
         const {info, form} = await issueSubmission(number, token);
@@ -221,17 +234,17 @@ export async function publishIssue(number, token) {
     const {sha: catalogSha, catalog} = await catalogFile(token);
     if (catalog.presets.some((preset) => preset.issueUrl === issue.html_url)) throw new Error("该 Issue 已发布；更新方案须另开投稿");
     const id = `issue-${number}`;
-    const tag = `community-preset-${id}`;
+    const tag = COMMUNITY_RELEASE_TAG;
     let release;
     try {
         release = await requestJson(`https://api.github.com/repos/${REPO}/releases/tags/${tag}`, token);
     } catch (error) {
         if (!String(error).includes("GitHub API 404")) throw error;
-        release = await requestJson(`https://api.github.com/repos/${REPO}/releases`, token, {method: "POST", body: JSON.stringify({tag_name: tag, name: form.name, body: `来自 ${issue.html_url}\n\n${form.description}`, draft: false, prerelease: false})});
+        release = await requestJson(`https://api.github.com/repos/${REPO}/releases`, token, {method: "POST", body: JSON.stringify({tag_name: tag, name: "社区字体方案", body: "社区成员分享的字体方案文件。方案列表、简介与下载入口见插件内的下载页。", draft: false, prerelease: false, make_latest: "false"})});
     }
     const ext = bytes[0] === 0x7b ? "json" : "zip";
     const assetName = `${id}.siyuan-font-studio-preset.${ext}`;
-    let asset = release.assets?.find((item) => item.name === assetName);
+    let asset = await findReleaseAsset(release, assetName, token);
     if (!asset) {
         const uploadUrl = release.upload_url.replace(/\{.*$/, "") + `?name=${encodeURIComponent(assetName)}`;
         asset = await requestJson(uploadUrl, token, {method: "POST", headers: {"Content-Type": "application/octet-stream"}, body: bytes});
@@ -239,6 +252,8 @@ export async function publishIssue(number, token) {
     const url = asset.browser_download_url;
     if (asset.size !== info.size) throw new Error("Release 文件大小不匹配");
     if (asset.digest && asset.digest !== `sha256:${info.sha256}`) throw new Error("Release 文件哈希不匹配");
+    if (!asset.digest && asset.browser_download_url !== form.attachment
+        && digest(await downloadAttachment(asset.browser_download_url)) !== info.sha256) throw new Error("Release 文件哈希不匹配");
     catalog.presets.push({
         id, name: form.name, description: form.description, author: issue.user.login,
         authorUrl: issue.user.html_url, issueUrl: issue.html_url, ...(form.preview ? {previewUrl: form.preview} : {}),
@@ -248,7 +263,6 @@ export async function publishIssue(number, token) {
     catalog.updatedAt = new Date().toISOString();
     await saveCatalog(catalog, catalogSha, token);
     await comment(number, token, `🎉 已发布到字体方案目录：${url}\n\n目录更新可能需要几分钟才能在客户端显示。`);
-    await requestJson(`https://api.github.com/repos/${REPO}/issues/${number}`, token, {method: "PATCH", body: JSON.stringify({state: "closed"})});
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {

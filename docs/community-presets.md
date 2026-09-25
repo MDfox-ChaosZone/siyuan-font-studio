@@ -1,13 +1,13 @@
 # 社区字体方案投稿与发布
 
-社区目录独立于插件版本。插件每次打开“下载字体方案”时读取 `main` 分支中的 `catalog.json`；读取失败时显示本次会话缓存和内置方案。方案文件存放在本仓库的 GitHub Release。
+社区目录独立于插件版本。插件每次打开“下载字体方案”时读取 `main` 分支中的 `catalog.json`；读取失败时显示本次会话缓存和内置方案。审核通过的文件统一存放在本仓库的 [「社区字体方案」Release](https://github.com/MDfox-ChaosZone/siyuan-font-studio/releases/tag/%E7%A4%BE%E5%8C%BA%E5%AD%97%E4%BD%93%E6%96%B9%E6%A1%88)，每个方案是一个独立附件；不会为每个投稿新建 Release。
 
 ## 投稿者
 
 1. 在插件里保存并导出方案。可以导出包含字体的 ZIP，或仅包含设置的 JSON。
 2. 如果字体不允许重新分发，请提交仅配置的 JSON；可以在简介中注明所需字体及获取方式。
 3. 点击插件下载页中的“分享我的方案”。Issue 标题会预填 `[字体方案分享]`；保留此前缀，并在后面填写字体方案名称、个人昵称、诗歌或其他文字。下载页只显示前缀后的内容，不要求与导出文件内的名称一致。字体方案介绍和效果截图可选，字体方案压缩包必填。通过模板创建的 Issue 会自动添加 `字体方案分享` 标签。
-4. GitHub Issue 附件每个文件最大 25 MB。超过时，可将 ZIP 或 JSON 上传到自己的网盘或 GitHub Release，并在表单中填写无需登录、无需提取码、可直接下载的 HTTPS 文件链接。普通网盘分享页面无法用于自动发布。最终发布时文件会复制到本项目的 Release。
+4. GitHub Issue 附件每个文件最大 25 MB。超过时，可将 ZIP 或 JSON 上传到自己的网盘或 GitHub Release，并在表单中填写 HTTPS 链接。无需登录、无需提取码的文件直链可自动检查；普通网盘分享页面需要维护者人工下载，按下文交接。
 5. 关注 Issue 下的自动检查结果；未通过时编辑 Issue 并重新上传文件。
 
 ## 维护者首次设置
@@ -21,10 +21,19 @@
 
 带有 `字体方案分享` 标签的投稿 Issue 创建或编辑时，`validate-font-preset.yml` 自动下载文件、检查预设结构、字体清单、文件大小和哈希，并拒绝 ZIP 中的额外文件、重复文件和未声明字体，再在 Issue 回复结果。这些结构检查不能证明字体没有恶意内容；审核者仍须手工检查实际显示效果与每款字体的商用及再分发许可，自动检查也不能判断许可证是否真实或适用。
 
-审核通过后，维护者添加 `publish-approved` 标签。`publish-font-preset.yml` 将重新下载并校验文件，创建专属 Release，将带哈希的条目加入目录，然后回复并关闭 Issue。若审核后 Issue 标题或正文被修改，发布会中止；请移除并重新添加审核标签。发布中途失败时，可通过 Actions 中的 `workflow_dispatch` 输入 Issue 编号重试，已有 Release 资产会复用。
+审核通过后，维护者添加 `publish-approved` 标签。`publish-font-preset.yml` 将重新下载并校验文件，把新附件上传到共用 Release，或复用已经人工上传的附件，再将带哈希的条目加入目录并回复 Issue。Issue 保持开放，供后续讨论。若审核后 Issue 标题或正文被修改，发布会中止；请移除并重新添加审核标签。发布中途失败时，可通过 Actions 中的 `workflow_dispatch` 输入 Issue 编号重试，已有 Release 资产会复用。
+
+### 网盘分享页面的人工交接
+
+1. 维护者从 Issue 中的网盘链接下载原始 ZIP 或 JSON，并核对实际内容、字体授权及安全性。保留原网盘链接，供追溯。
+2. 将文件重命名为 `issue-N.siyuan-font-studio-preset.zip` 或 `issue-N.siyuan-font-studio-preset.json`，其中 `N` 是投稿 Issue 编号；只改文件名，不改内容。插件方案包仍须小于或等于 100 MiB。
+3. 在 [「社区字体方案」Release](https://github.com/MDfox-ChaosZone/siyuan-font-studio/releases/tag/%E7%A4%BE%E5%8C%BA%E5%AD%97%E4%BD%93%E6%96%B9%E6%A1%88) 点击 **Edit**，把该文件拖入 **Attach binaries** 并保存。此时附件已公开，因此应先完成必要的人工检查。
+4. 在 Issue 留言记录原网盘链接，再把 Issue 正文“字体方案压缩包”字段中的网盘链接**替换**为刚上传的 Release 附件下载链接。编辑 Issue 会重新触发自动检查；看到“自动检查通过”后，再进行人工审批并添加 `publish-approved` 标签。发布脚本会复用该附件，不再上传第二份。
+
+GitHub 的每个 Release 最多容纳 1000 个附件；单个附件须小于 2 GiB，Release 附件总大小与下载带宽没有 GitHub 规定的总上限。本插件更严格：单个方案包最多 100 MiB，目录目前最多显示 500 个方案。该共用 Release 还会显示 GitHub 自动生成的源码归档，发布工作流不会修改插件版本 Release。
 
 目录条目包含名称、作者、简介、预览图、字体配置摘要、文件大小、SHA-256、是否包含字体以及 Issue 链接。插件只接受本项目 Release 的 HTTPS 下载地址，下载后仍会执行大小和 SHA-256 校验。`catalog.json` 位于 GitHub 原始文件服务上，打开下载页时会附加时间参数请求最新版本；远程不可用时继续显示内置方案。
 
 ## 管理已发布内容
 
-若方案需要撤下，应先从 `main` 分支的 `catalog.json` 删除对应条目，再删除相关 Release。已经下载或导入的副本无法远程删除。若需要发布新版方案，请让投稿者创建新 Issue；旧方案可按上述方式下架。
+若方案需要撤下，应先从 `main` 分支的 `catalog.json` 删除对应条目，再从共用 Release 删除该方案对应的附件；不要删除整个共用 Release。已经下载或导入的副本无法远程删除。若需要发布新版方案，请让投稿者创建新 Issue；旧方案可按上述方式下架。
