@@ -1,0 +1,30 @@
+name: Withdraw shared font preset
+on:
+  issues:
+    types: [closed]
+permissions:
+  contents: write
+  issues: write
+concurrency:
+  group: community-font-preset-publish
+  cancel-in-progress: false
+jobs:
+  withdraw:
+    if: >-
+      github.event.sender.id == github.event.issue.user.id &&
+      !github.event.issue.pull_request &&
+      contains(github.event.issue.labels.*.name, '字体方案分享')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: corepack enable
+      - run: corepack pnpm install --frozen-lockfile
+      - name: Remove catalog entry and its shared Release asset
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ACTOR_ID: ${{ github.event.sender.id }}
+        run: node scripts/community-catalog.mjs withdraw "$ISSUE_NUMBER" "$ACTOR_ID"

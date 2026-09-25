@@ -24,11 +24,18 @@
 - 可将字体组合保存为预设方案，轻松切换字体方案；支持导入和导出，方便分享并在多设备间使用。
 - 支持选择多个字体，作为缺失字符的候补字体。
 
+## 分享字体方案
+
+1. 在插件中保存方案，点击“导出”。如果包含字体且压缩包超过 25 MB，勾选“分享至 GitHub Issue 时拆分”，保存全部 ZIP 分包。
+2. 点击插件“下载字体方案 → 分享我的方案”，或直接打开[分享表单](https://github.com/MDfox-ChaosZone/siyuan-font-studio/issues/new?template=share-font-preset.yml)。保留标题前缀，填写自拟名称，并上传方案文件；简介和效果截图可选。全部分包须放在同一个 Issue 中。
+3. 提交后等待自动检查和人工审核。通过后，方案会出现在插件的下载页。请只分享允许再分发的字体；不确定授权时导出仅含设置的 JSON。
+
+想撤回已发布方案，原投稿者关闭自己的投稿 Issue 即可。详细规则见[社区方案说明](docs/community-presets.md)。
+
 ## 额外说明
 
 - 关系图字体：思源 3.8 及以上版本采用新版关系图渲染器，目前仅支持修改字体，不提供字号设置。
 - 推荐使用体积更小的 WOFF2 字体格式。TTF/OTF 格式字体可以通过 [CloudConvert](https://cloudconvert.com/ttf-to-woff2) 在线转换，或使用我的项目 [FontConvert](https://github.com/MDfox-ChaosZone/Font-Converter) 转换。
-- 欢迎通过插件“下载字体方案 → 分享我的方案”投稿；自动格式检查、人工审核和发布流程见[社区方案说明](docs/community-presets.md)。
 
 ## 更新记录
 

@@ -295,6 +295,7 @@ export async function validateIssue(number, token) {
 
 export async function publishIssue(number, token) {
     const {issue, form, bytes, info} = await issueSubmission(number, token);
+    if (issue.state === "closed") throw new Error("投稿 Issue 已关闭，不能发布");
     if (!issue.labels?.some((label) => label.name === "publish-approved")) throw new Error("缺少 publish-approved 审核标签");
     if (process.env.GITHUB_EVENT_PATH && process.env.GITHUB_EVENT_NAME === "issues") {
         const event = JSON.parse(await readFile(process.env.GITHUB_EVENT_PATH, "utf8"));
@@ -331,15 +332,65 @@ export async function publishIssue(number, token) {
     });
     catalog.updatedAt = new Date().toISOString();
     await saveCatalog(catalog, catalogSha, token);
-    await comment(number, token, `🎉 已发布到字体方案目录：${url}\n\n目录更新可能需要几分钟才能在客户端显示。`);
+    await comment(number, token, `🎉 已发布到字体方案目录：${url}\n\n目录更新可能需要几分钟才能在客户端显示。如需自主下架，原投稿者关闭本 Issue 即可。`);
+}
+
+export async function withdrawIssue(number, actorId, token) {
+    if (!Number.isSafeInteger(actorId) || actorId < 1) throw new Error("需要有效的操作人 ID");
+    const issue = await requestJson(`https://api.github.com/repos/${REPO}/issues/${number}`, token);
+    const issueUrl = `https://github.com/${REPO}/issues/${number}`;
+    if (issue.pull_request || issue.html_url !== issueUrl || !issue.labels?.some((label) => label.name === "字体方案分享")
+        || issue.state !== "closed" || !issue.user?.id || actorId !== issue.user.id)
+        throw new Error("仅原投稿者关闭自己的字体方案 Issue 时才能撤回方案");
+
+    const {sha, catalog} = await catalogFile(token);
+    const id = `issue-${number}`;
+    const entries = catalog.presets.filter((preset) => preset.id === id || preset.issueUrl === issueUrl);
+    if (entries.length > 1 || entries.some((preset) => preset.id !== id || preset.issueUrl !== issueUrl))
+        throw new Error("目录中的 Issue 与方案编号不一致，请维护者检查");
+    const entry = entries[0];
+    const names = [`${id}.siyuan-font-studio-preset.zip`, `${id}.siyuan-font-studio-preset.json`];
+    let release;
+    try {
+        release = await requestJson(`https://api.github.com/repos/${REPO}/releases/tags/${COMMUNITY_RELEASE_TAG}`, token);
+    } catch (error) {
+        if (!String(error).includes("GitHub API 404")) throw error;
+    }
+    const assets = release ? (await Promise.all(names.map((name) => findReleaseAsset(release, name, token)))).filter(Boolean) : [];
+    if (entry && !assets.some((asset) => asset.browser_download_url === entry.packageUrl))
+        throw new Error("目录下载地址与共用 Release 附件不一致，请维护者检查");
+    if (assets.some((asset) => !Number.isSafeInteger(asset.id) || asset.id < 1))
+        throw new Error("Release 附件缺少有效 ID");
+
+    try {
+        await requestJson(`https://api.github.com/repos/${REPO}/issues/${number}/labels/publish-approved`, token, {method: "DELETE"});
+    } catch (error) {
+        if (!String(error).includes("GitHub API 404")) throw error;
+    }
+    if (entry) {
+        catalog.presets = catalog.presets.filter((preset) => preset !== entry);
+        catalog.updatedAt = new Date().toISOString();
+        await saveCatalog(catalog, sha, token);
+    }
+    for (const asset of assets) {
+        try {
+            await requestJson(`https://api.github.com/repos/${REPO}/releases/assets/${asset.id}`, token, {method: "DELETE"});
+        } catch (error) {
+            if (!String(error).includes("GitHub API 404")) throw error;
+        }
+    }
+    await comment(number, token, entry || assets.length
+        ? "🗑️ 已按原投稿者要求撤回方案：已从插件目录下架，并清理共用 Release 中对应的方案附件。Issue 投稿附件及用户已下载的副本不会随之删除。"
+        : "ℹ️ 此方案已撤回，目录和共用 Release 中均无对应文件。");
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
-    const [, , command, numberText] = process.argv;
+    const [, , command, numberText, actorIdText] = process.argv;
     const number = Number(numberText);
     const token = process.env.GITHUB_TOKEN;
     if (!token || !Number.isSafeInteger(number) || number < 1) throw new Error("需要 GITHUB_TOKEN 和有效 Issue 编号");
     if (command === "validate") await validateIssue(number, token);
     else if (command === "publish") await publishIssue(number, token);
-    else throw new Error("命令须为 validate 或 publish");
+    else if (command === "withdraw") await withdrawIssue(number, Number(actorIdText), token);
+    else throw new Error("命令须为 validate、publish 或 withdraw");
 }

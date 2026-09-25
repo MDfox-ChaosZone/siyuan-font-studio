@@ -1,7 +1,7 @@
 import {createHash} from "node:crypto";
 import {describe, expect, it, vi} from "vitest";
 import {strToU8, unzipSync, zipSync} from "fflate";
-import {assembleSplitParts, inspectPresetPackage, isAllowedAttachmentUrl, parseIssueBody, publishIssue} from "../scripts/community-catalog.mjs";
+import {assembleSplitParts, inspectPresetPackage, isAllowedAttachmentUrl, parseIssueBody, publishIssue, withdrawIssue} from "../scripts/community-catalog.mjs";
 import {splitPresetPackage} from "../src/preset-parts";
 
 const sha = (bytes) => createHash("sha256").update(bytes).digest("hex");
@@ -138,6 +138,82 @@ describe("community submission", () => {
             expect(calls.some((call) => call.url.startsWith("https://uploads.github.com/"))).toBe(false);
             expect(calls.some((call) => call.url.endsWith("/issues/42") && call.method === "PATCH")).toBe(false);
             expect(calls.some((call) => call.url.endsWith("/contents/catalog.json") && call.method === "PUT")).toBe(true);
+        } finally {
+            vi.unstubAllGlobals();
+        }
+    });
+
+    it("lets only the original author withdraw the matching catalog entry and Release asset", async () => {
+        const issueUrl = "https://github.com/MDfox-ChaosZone/siyuan-font-studio/issues/42";
+        const assetUrl = "https://github.com/MDfox-ChaosZone/siyuan-font-studio/releases/download/社区字体方案/issue-42.siyuan-font-studio-preset.zip";
+        const other = {id: "issue-43", issueUrl: "https://github.com/MDfox-ChaosZone/siyuan-font-studio/issues/43", packageUrl: "https://example.com/other.zip"};
+        const calls = [];
+        const json = (value, status = 200) => new Response(JSON.stringify(value), {status});
+        vi.stubGlobal("fetch", vi.fn(async (input, init = {}) => {
+            const url = String(input);
+            const method = init.method || "GET";
+            calls.push({url, method, body: init.body});
+            if (url.endsWith("/issues/42") && method === "GET") return json({html_url: issueUrl, user: {id: 10}, labels: [{name: "字体方案分享"}, {name: "publish-approved"}], state: "closed"});
+            if (url.includes("/contents/catalog.json?ref=main")) return json({sha: "old-sha", content: Buffer.from(JSON.stringify({version: 1, presets: [other, {id: "issue-42", issueUrl, packageUrl: assetUrl}]})).toString("base64")});
+            if (url.endsWith("/releases/tags/社区字体方案")) return json({id: 8, assets: [{id: 123, name: "issue-42.siyuan-font-studio-preset.zip", browser_download_url: assetUrl}, {id: 124, name: "issue-43.siyuan-font-studio-preset.zip"}]});
+            if (url.includes("/releases/8/assets?")) return json([]);
+            if (url.endsWith("/issues/42/labels/publish-approved") && method === "DELETE") return new Response(null, {status: 204});
+            if (url.endsWith("/contents/catalog.json") && method === "PUT") return json({content: {sha: "new-sha"}}, 201);
+            if (url.endsWith("/releases/assets/123") && method === "DELETE") return new Response(null, {status: 204});
+            if (url.endsWith("/issues/42/comments") && method === "POST") return json({id: 100}, 201);
+            throw new Error(`Unexpected ${method} ${url}`);
+        }));
+        try {
+            await withdrawIssue(42, 10, "test-token");
+            const saved = calls.find(({url, method}) => url.endsWith("/contents/catalog.json") && method === "PUT");
+            const catalog = JSON.parse(Buffer.from(JSON.parse(saved.body).content, "base64").toString());
+            expect(catalog.presets).toEqual([other]);
+            expect(calls.filter(({method, url}) => method === "DELETE" && url.includes("/releases/assets/"))).toEqual([{url: "https://api.github.com/repos/MDfox-ChaosZone/siyuan-font-studio/releases/assets/123", method: "DELETE", body: undefined}]);
+            expect(calls.findIndex(({url}) => url.endsWith("/contents/catalog.json") && !url.includes("?"))).toBeLessThan(calls.findIndex(({url}) => url.endsWith("/releases/assets/123")));
+            expect(calls.some(({url, method}) => url.endsWith("/issues/42") && method === "PATCH")).toBe(false);
+        } finally {
+            vi.unstubAllGlobals();
+        }
+    });
+
+    it("rejects an Issue closed by someone other than its author before changing anything", async () => {
+        const calls = [];
+        vi.stubGlobal("fetch", vi.fn(async (input, init = {}) => {
+            calls.push({url: String(input), method: init.method || "GET"});
+            if (String(input).endsWith("/issues/42")) return new Response(JSON.stringify({html_url: "https://github.com/MDfox-ChaosZone/siyuan-font-studio/issues/42", user: {id: 10}, labels: [{name: "字体方案分享"}], state: "closed"}));
+            throw new Error("Unexpected request");
+        }));
+        try {
+            await expect(withdrawIssue(42, 11, "test-token")).rejects.toThrow("仅原投稿者");
+            expect(calls).toHaveLength(1);
+            expect(calls.every(({method}) => method === "GET")).toBe(true);
+        } finally {
+            vi.unstubAllGlobals();
+        }
+    });
+
+    it("can finish a withdrawal after the catalog entry was already removed", async () => {
+        const issueUrl = "https://github.com/MDfox-ChaosZone/siyuan-font-studio/issues/42";
+        const assetUrl = "https://github.com/MDfox-ChaosZone/siyuan-font-studio/releases/download/社区字体方案/issue-42.siyuan-font-studio-preset.json";
+        const calls = [];
+        const json = (value) => new Response(JSON.stringify(value));
+        vi.stubGlobal("fetch", vi.fn(async (input, init = {}) => {
+            const url = String(input);
+            const method = init.method || "GET";
+            calls.push({url, method});
+            if (url.endsWith("/issues/42") && method === "GET") return json({html_url: issueUrl, user: {id: 10}, labels: [{name: "字体方案分享"}], state: "closed"});
+            if (url.includes("/contents/catalog.json?ref=main")) return json({sha: "new-sha", content: Buffer.from(JSON.stringify({version: 1, presets: []})).toString("base64")});
+            if (url.endsWith("/releases/tags/社区字体方案")) return json({id: 8, assets: [{id: 456, name: "issue-42.siyuan-font-studio-preset.json", browser_download_url: assetUrl}]});
+            if (url.includes("/releases/8/assets?")) return json([]);
+            if (url.endsWith("/issues/42/labels/publish-approved") && method === "DELETE") return new Response("missing", {status: 404});
+            if (url.endsWith("/releases/assets/456") && method === "DELETE") return new Response(null, {status: 204});
+            if (url.endsWith("/issues/42/comments") && method === "POST") return json({id: 100});
+            throw new Error(`Unexpected ${method} ${url}`);
+        }));
+        try {
+            await withdrawIssue(42, 10, "test-token");
+            expect(calls.some(({url, method}) => url.endsWith("/contents/catalog.json") && method === "PUT")).toBe(false);
+            expect(calls.some(({url, method}) => url.endsWith("/releases/assets/456") && method === "DELETE")).toBe(true);
         } finally {
             vi.unstubAllGlobals();
         }
