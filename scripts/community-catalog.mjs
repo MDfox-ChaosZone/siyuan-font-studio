@@ -11,6 +11,9 @@ export const MAX_PACKAGE_BYTES = 100 * 1024 * 1024;
 const MAX_UNPACKED_BYTES = 500 * 1024 * 1024;
 const TARGETS = ["ui", "content", "mono", "math", "graph", "emoji", "mermaid"];
 const ACCEPTED_EXTENSIONS = new Set(["woff2", "woff", "ttf", "otf"]);
+const MAX_SHARE_PARTS = 5;
+const MAX_SHARE_PART_BYTES = 25_000_000;
+const MAX_CHUNK_BYTES = 24_000_000;
 
 const digest = (bytes) => createHash("sha256").update(bytes).digest("hex");
 const apiHeaders = (token) => ({Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28", Authorization: `Bearer ${token}`});
@@ -24,8 +27,10 @@ export function parseIssueBody(body, title) {
     if (!name || name.length > 100) throw new Error("请在标题前缀后填写 1–100 字的名称或文字");
     const required = ["字体方案压缩包"];
     if (required.some((key) => !fields.get(key) || fields.get(key) === "_No response_")) throw new Error(`缺少投稿字段：${required.filter((key) => !fields.get(key) || fields.get(key) === "_No response_").join("、")}`);
-    const attachment = fields.get("字体方案压缩包").match(/https:\/\/[^\s)>]+/i)?.[0];
-    if (!attachment || !isAllowedAttachmentUrl(attachment)) throw new Error("方案文件须为 Issue 附件或可直接下载的 HTTPS 网盘链接");
+    const attachments = [...fields.get("字体方案压缩包").matchAll(/https:\/\/[^\s)>]+/gi)].map(([url]) => url);
+    if (!attachments.length || attachments.length > MAX_SHARE_PARTS || new Set(attachments).size !== attachments.length
+        || attachments.some((url) => !isAllowedAttachmentUrl(url))) throw new Error("方案文件须为 1–5 个不同的 Issue 附件或可直接下载的 HTTPS 链接");
+    const attachment = attachments[0];
     const preview = fields.get("效果截图")?.match(/https:\/\/github\.com\/user-attachments\/assets\/[\w-]+/i)?.[0];
     if (fields.get("效果截图") && fields.get("效果截图") !== "_No response_" && !preview) throw new Error("效果截图须为 GitHub Issue 附件");
     const description = fields.get("字体方案介绍") === "_No response_" ? "" : fields.get("字体方案介绍") || "";
@@ -34,6 +39,7 @@ export function parseIssueBody(body, title) {
         name,
         description,
         attachment,
+        attachments,
         preview,
     };
 }
@@ -170,13 +176,76 @@ async function downloadAttachment(url) {
     return Buffer.concat(chunks, total);
 }
 
+function readSplitPart(bytes) {
+    if (!bytes.length || bytes.length >= MAX_SHARE_PART_BYTES) throw new Error("分包附件必须小于 25 MB");
+    const names = new Set();
+    const files = unzipSync(bytes, {filter: (file) => {
+        if (names.has(file.name) || !["part.json", "data.bin"].includes(file.name)) throw new Error("分包 ZIP 包含重复或额外文件");
+        names.add(file.name);
+        if (file.originalSize > (file.name === "part.json" ? 1024 : MAX_CHUNK_BYTES)) throw new Error("分包内容过大");
+        return true;
+    }});
+    if (!files["part.json"] || !files["data.bin"] || names.size !== 2) throw new Error("分包 ZIP 缺少 part.json 或 data.bin");
+    const manifest = JSON.parse(strFromU8(files["part.json"]));
+    if (manifest?.format !== "siyuan-font-studio-preset-part" || manifest.version !== 1
+        || !Number.isSafeInteger(manifest.index) || !Number.isSafeInteger(manifest.total)
+        || manifest.index < 1 || manifest.total < 2 || manifest.total > MAX_SHARE_PARTS || manifest.index > manifest.total
+        || !Number.isSafeInteger(manifest.archiveSize) || manifest.archiveSize < 1 || manifest.archiveSize > MAX_PACKAGE_BYTES
+        || !/^[a-f0-9]{64}$/.test(manifest.archiveSha256) || !/^[a-f0-9]{64}$/.test(manifest.chunkSha256)
+        || !files["data.bin"].length || digest(files["data.bin"]) !== manifest.chunkSha256) throw new Error("分包元数据或分包哈希无效");
+    return {manifest, chunk: files["data.bin"]};
+}
+
+async function downloadSubmission(attachments) {
+    if (attachments.length === 1) {
+        const bytes = await downloadAttachment(attachments[0]);
+        const filename = new URL(attachments[0]).pathname.split("/").at(-1);
+        try {
+            return {bytes, info: inspectPresetPackage(bytes, filename)};
+        } catch (error) {
+            try {
+                const part = readSplitPart(bytes);
+                throw new Error(`检测到第 ${part.manifest.index}/${part.manifest.total} 个分包；请在同一字段上传全部分包链接`);
+            } catch (partError) {
+                if (String(partError.message).startsWith("检测到第 ")) throw partError;
+                throw error;
+            }
+        }
+    }
+    const partBytes = [];
+    for (const url of attachments) partBytes.push(await downloadAttachment(url));
+    return assembleSplitParts(partBytes);
+}
+
+export function assembleSplitParts(partBytes) {
+    if (!Array.isArray(partBytes) || partBytes.length < 2 || partBytes.length > MAX_SHARE_PARTS) throw new Error("需要 2–5 个分包");
+    const parts = partBytes.map(readSplitPart);
+    const first = parts[0].manifest;
+    const byIndex = new Map();
+    let size = 0;
+    for (const {manifest, chunk} of parts) {
+        if (manifest.total !== parts.length || manifest.total !== first.total
+            || manifest.archiveSize !== first.archiveSize || manifest.archiveSha256 !== first.archiveSha256
+            || byIndex.has(manifest.index)) throw new Error("分包数量、编号或整包信息不一致");
+        byIndex.set(manifest.index, chunk);
+        size += chunk.length;
+        if (size > MAX_PACKAGE_BYTES) throw new Error("组装后的方案包超过 100 MB");
+    }
+    if (size !== first.archiveSize) throw new Error("组装后的方案包大小不匹配");
+    const bytes = Buffer.concat(Array.from({length: parts.length}, (_, index) => {
+        const chunk = byIndex.get(index + 1);
+        if (!chunk) throw new Error("缺少分包");
+        return chunk;
+    }), size);
+    if (digest(bytes) !== first.archiveSha256) throw new Error("组装后的方案包 SHA-256 不匹配");
+    return {bytes, info: inspectPresetPackage(bytes)};
+}
+
 async function issueSubmission(number, token) {
     const issue = await requestJson(`https://api.github.com/repos/${REPO}/issues/${number}`, token);
     if (issue.pull_request || !issue.body || !issue.labels?.some((label) => label.name === "字体方案分享")) throw new Error("找不到带有字体方案分享标签的投稿 Issue");
     const form = parseIssueBody(issue.body, issue.title);
-    const bytes = await downloadAttachment(form.attachment);
-    const filename = new URL(form.attachment).pathname.split("/").at(-1);
-    const info = inspectPresetPackage(bytes, filename);
+    const {bytes, info} = await downloadSubmission(form.attachments);
     return {issue, form, bytes, info};
 }
 

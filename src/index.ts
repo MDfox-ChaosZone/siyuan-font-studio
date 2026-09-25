@@ -27,6 +27,7 @@ import {
     resolvePresetAsset,
 } from "./example-preset";
 import {fetchCommunityCatalog, parseCommunityCatalog} from "./preset-catalog";
+import {SHARE_PART_BYTES, SHARE_PACKAGE_LIMIT_BYTES, splitPresetPackage} from "./preset-parts";
 import {activatePreset, clampLibraryPreviewWidth, cloneTargets, parseState, removeFontFromState, syncActivePreset} from "./state";
 import {mergeMermaidConfig, mermaidOverrides} from "./mermaid";
 import {applyGraphCanvasFontWeight} from "./graph-font";
@@ -889,6 +890,7 @@ export default class SiYuanFontStudio extends Plugin {
     <label class="sfs-preset-export__option"><input type="radio" name="export-mode" value="package" checked><span><strong>${this.i18n.exportWithFonts}</strong><small>${this.i18n.exportWithFontsDescription}</small></span></label>
     <label class="sfs-preset-export__option"><input type="radio" name="export-mode" value="config"><span><strong>${this.i18n.exportConfigOnly}</strong><small>${this.i18n.exportConfigOnlyDescription}</small></span></label>
     <label class="sfs-preset-export__unused"><input type="checkbox" data-role="include-unused-fonts"><span>${this.i18n.includeUnusedFonts}</span></label>
+    <label class="sfs-preset-export__unused"><input type="checkbox" data-role="split-for-issue"><span>${this.i18n.splitForIssue}</span></label>
     <p class="sfs-preset-export__notice">${this.i18n.exportMarkdownNotice}</p>
     <p class="sfs-preset-export__notice">${this.i18n.exportFontExclusionNotice}</p>
   </div>
@@ -898,11 +900,18 @@ export default class SiYuanFontStudio extends Plugin {
         });
         const form = this.presetTransferDialog.element.querySelector<HTMLFormElement>(".sfs-preset-export");
         const includeUnused = form?.querySelector<HTMLInputElement>("input[data-role='include-unused-fonts']");
+        const splitForIssue = form?.querySelector<HTMLInputElement>("input[data-role='split-for-issue']");
         form?.querySelectorAll<HTMLInputElement>("input[name='export-mode']").forEach((input) => {
             input.addEventListener("change", () => {
-                if (!includeUnused) return;
-                includeUnused.disabled = input.value !== "package" || !input.checked;
-                if (includeUnused.disabled) includeUnused.checked = false;
+                const disabled = input.value !== "package" || !input.checked;
+                if (includeUnused) {
+                    includeUnused.disabled = disabled;
+                    if (disabled) includeUnused.checked = false;
+                }
+                if (splitForIssue) {
+                    splitForIssue.disabled = disabled;
+                    if (disabled) splitForIssue.checked = false;
+                }
             });
         });
         form?.querySelector<HTMLButtonElement>("button[type='button']")?.addEventListener("click", () => this.presetTransferDialog?.destroy());
@@ -911,13 +920,13 @@ export default class SiYuanFontStudio extends Plugin {
             const submit = form.querySelector<HTMLButtonElement>("button[type='submit']");
             const mode = form.querySelector<HTMLInputElement>("input[name='export-mode']:checked")?.value;
             if (submit) submit.disabled = true;
-            void this.exportActivePreset(mode === "package", Boolean(includeUnused?.checked)).finally(() => {
+            void this.exportActivePreset(mode === "package", Boolean(includeUnused?.checked), Boolean(splitForIssue?.checked)).finally(() => {
                 if (submit && this.presetTransferDialog) submit.disabled = false;
             });
         });
     }
 
-    private async exportActivePreset(withFonts: boolean, includeUnused: boolean): Promise<void> {
+    private async exportActivePreset(withFonts: boolean, includeUnused: boolean, splitForIssue: boolean): Promise<void> {
         const preset = this.state.presets.find((item) => item.id === this.state.activePresetId);
         if (!preset) return;
         try {
@@ -960,13 +969,42 @@ export default class SiYuanFontStudio extends Plugin {
                     mermaid: this.i18n.mermaidFont,
                     emoji: this.i18n.emojiFont,
                 });
-                downloadFile(new Blob([archive], {type: "application/zip"}), `${safeFileName(displayName)}.${PRESET_FILE_FORMAT}.zip`);
+                const baseName = `${safeFileName(displayName)}.${PRESET_FILE_FORMAT}`;
+                if (splitForIssue && archive.length > SHARE_PART_BYTES) {
+                    if (archive.length > SHARE_PACKAGE_LIMIT_BYTES) throw new Error(this.i18n.sharePackageTooLarge);
+                    const parts = await splitPresetPackage(archive, baseName);
+                    this.showSplitPresetParts(parts);
+                    showMessage(this.i18n.exportPresetSuccess, 3500, "info");
+                    return;
+                }
+                downloadFile(new Blob([archive], {type: "application/zip"}), `${baseName}.zip`);
             }
             this.presetTransferDialog?.destroy();
             showMessage(this.i18n.exportPresetSuccess, 3500, "info");
         } catch (error) {
             showMessage(`${this.i18n.exportPresetFailed}: ${error instanceof Error ? error.message : error}`, 6000, "error");
         }
+    }
+
+    private showSplitPresetParts(parts: Array<{name: string; bytes: Uint8Array<ArrayBuffer>}>): void {
+        this.presetTransferDialog?.destroy();
+        this.presetTransferDialog = new Dialog({
+            title: this.i18n.splitExportTitle,
+            width: "520px",
+            content: `<div class="b3-dialog__content sfs-preset-export">
+  <p>${this.i18n.splitExportNotice.replace("${count}", String(parts.length))}</p>
+  ${parts.map((part, index) => `<p><button class="b3-button b3-button--outline" type="button" data-split-download="${index}">${this.i18n.splitDownloadPart.replace("${index}", String(index + 1)).replace("${count}", String(parts.length))}</button> ${escapeHtml(part.name)} (${formatFileSize(part.bytes.length)})</p>`).join("")}
+  </div>
+  <div class="b3-dialog__action"><button class="b3-button b3-button--cancel" type="button" data-split-close>${this.i18n.splitExportDone}</button></div>`,
+            destroyCallback: () => { this.presetTransferDialog = undefined; },
+        });
+        this.presetTransferDialog.element.querySelectorAll<HTMLButtonElement>("[data-split-download]").forEach((button) => {
+            button.addEventListener("click", () => {
+                const part = parts[Number(button.dataset.splitDownload)];
+                if (part) downloadFile(new Blob([part.bytes], {type: "application/zip"}), part.name);
+            });
+        });
+        this.presetTransferDialog.element.querySelector<HTMLButtonElement>("[data-split-close]")?.addEventListener("click", () => this.presetTransferDialog?.destroy());
     }
 
     private async importPresetFiles(files: File[]): Promise<void> {
