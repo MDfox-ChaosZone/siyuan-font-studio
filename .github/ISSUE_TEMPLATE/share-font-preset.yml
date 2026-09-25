@@ -5,7 +5,7 @@ labels: ["字体方案分享"]
 body:
   - type: markdown
     attributes:
-      value: 请保留标题前缀 **[字体方案分享]**，后面填写字体方案名称、个人昵称、诗歌，或任何你想写的内容。
+      value: 保留标题前缀 **[字体方案分享]**，后面填写字体方案名称、个人昵称、诗歌，或任何你想写的内容。
   - type: textarea
     id: description
     attributes:
@@ -15,11 +15,11 @@ body:
     id: preview
     attributes:
       label: 效果截图
-      description: (可选)将截图拖入输入框，展示字体方案效果.
+      description: (可选)截图展示字体方案效果
   - type: textarea
     id: file
     attributes:
       label: 字体方案压缩包
-      description: 将插件导出的 ZIP 拖入此处。gihub限制每个issue的附件最大为 25 MB. 如果体积超限,可以将字体文件转换为WOFF2格式或提供网盘链接.
+      description: 将插件导出的 ZIP 拖入此处。GitHub 限制单个 ZIP 附件小于 25 MB；可在插件导出时选择拆分，并把全部分包上传到此字段。也可使用体积更小的 WOFF2 字体或提供网盘链接。
     validations:
       required: true
