@@ -882,6 +882,22 @@
 }
 
 .sfs-preset-catalog {
+  display: flex;
+  flex-direction: column;
+  max-height: min(840px, calc(100vh - 120px));
+  min-height: 0;
+
+  > .b3-dialog__content {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  > .b3-dialog__action {
+    flex: none;
+  }
+
   &__status,
   &__description,
   &__package {
@@ -916,6 +932,7 @@
     header {
       align-items: flex-start;
       display: flex;
+      flex-wrap: wrap;
       gap: 16px;
       justify-content: space-between;
       padding: 14px 16px 12px;
@@ -925,6 +942,15 @@
         display: flex;
         flex-wrap: wrap;
         gap: 8px;
+      }
+
+      > .sfs-preset-catalog__heading {
+        flex: 1 1 180px;
+        min-width: 0;
+      }
+
+      > .sfs-preset-catalog__actions {
+        justify-content: flex-end;
       }
 
       h3,
@@ -1016,6 +1042,10 @@
     align-items: flex-start;
     flex-direction: column;
     gap: 6px;
+
+    > .sfs-preset-catalog__actions {
+      justify-content: flex-start;
+    }
   }
 
   .bfm-font {

@@ -716,12 +716,6 @@ export default class SiYuanFontStudio extends Plugin {
     }
 
     private bindPresetCatalogActions(dialog: Dialog, items: PresetCatalogItem[]): void {
-        dialog.element.querySelectorAll<HTMLButtonElement>("[data-preset-catalog-release]").forEach((button) => {
-            button.addEventListener("click", () => {
-                const item = items.find((candidate) => candidate.id === button.dataset.presetCatalogRelease);
-                if (item) window.open(item.issueUrl || item.releaseUrl, "_blank", "noopener,noreferrer");
-            });
-        });
         dialog.element.querySelectorAll<HTMLButtonElement>("[data-preset-catalog-download]").forEach((button) => {
             button.addEventListener("click", () => {
                 const item = items.find((candidate) => candidate.id === button.dataset.presetCatalogDownload);
@@ -736,6 +730,7 @@ export default class SiYuanFontStudio extends Plugin {
         const description = item.description ? `<p class="sfs-preset-catalog__description">${escapeHtml(item.description)}</p>` : "";
         const preview = item.previewUrl ? `<img class="sfs-preset-catalog__preview" src="${escapeHtml(item.previewUrl)}" alt="${escapeHtml(name)}" loading="lazy">` : "";
         const packageNote = item.packageUrl ? `<p class="sfs-preset-catalog__package">${item.includesFonts ? this.i18n.presetIncludesFonts : this.i18n.presetNeedsFonts} · ${formatFileSize(item.packageSize || 0)}</p>` : "";
+        const issueLink = item.issueUrl ? `<a class="b3-button b3-button--outline" href="${escapeHtml(item.issueUrl)}" target="_blank" rel="noopener noreferrer">${this.i18n.openPresetIssue}</a>` : "";
         const rows = item.rows.map((row) => {
             const supportsSize = row.target !== "graph" && row.target !== "emoji";
             const fonts = row.fonts.map((font) => escapeHtml(font === "SiYuan" ? this.i18n.followSiyuan : font)).join("<br>");
@@ -746,10 +741,9 @@ export default class SiYuanFontStudio extends Plugin {
             return `<tr><th scope="row">${escapeHtml(this.presetCatalogTargetLabel(row.target))}</th><td>${fonts}</td><td>${escapeHtml(size)}</td><td>${weights}</td></tr>`;
         }).join("");
         return `<article class="sfs-preset-catalog__card">
-  <header><div><span class="b3-chip">${escapeHtml(type)}</span><h3>${escapeHtml(name)}</h3></div><p>${escapeHtml(this.i18n.presetAuthor)}：<a href="${escapeHtml(item.authorUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(item.author)}</a></p></header>
+  <header><div class="sfs-preset-catalog__heading"><span class="b3-chip">${escapeHtml(type)}</span><h3>${escapeHtml(name)}</h3></div><div class="sfs-preset-catalog__actions"><p>${escapeHtml(this.i18n.presetAuthor)}：${escapeHtml(item.author)}</p>${issueLink}<button class="b3-button b3-button--text" type="button" data-preset-catalog-download="${item.id}">${this.i18n.downloadAndImportPreset}</button></div></header>
   ${description}${preview}${packageNote}
   <div class="sfs-preset-catalog__table-wrap"><table><thead><tr><th>${this.i18n.presetMarkdownFontElement}</th><th>${this.i18n.presetMarkdownFonts}</th><th>${this.i18n.fontSize}</th><th>${this.i18n.presetMarkdownFontWeight}</th></tr></thead><tbody>${rows}</tbody></table></div>
-  <footer><button class="b3-button b3-button--outline" type="button" data-preset-catalog-release="${item.id}">${this.i18n.openExamplePresetRelease}</button><button class="b3-button b3-button--text" type="button" data-preset-catalog-download="${item.id}">${this.i18n.downloadAndImportPreset}</button></footer>
 </article>`;
     }
 
@@ -988,23 +982,22 @@ export default class SiYuanFontStudio extends Plugin {
 
     private showSplitPresetParts(parts: Array<{name: string; bytes: Uint8Array<ArrayBuffer>}>): void {
         this.presetTransferDialog?.destroy();
+        const downloadAll = () => {
+            for (const part of parts) downloadFile(new Blob([part.bytes], {type: "application/zip"}), part.name);
+        };
         this.presetTransferDialog = new Dialog({
             title: this.i18n.splitExportTitle,
             width: "520px",
             content: `<div class="b3-dialog__content sfs-preset-export">
   <p>${this.i18n.splitExportNotice.replace("${count}", String(parts.length))}</p>
-  ${parts.map((part, index) => `<p><button class="b3-button b3-button--outline" type="button" data-split-download="${index}">${this.i18n.splitDownloadPart.replace("${index}", String(index + 1)).replace("${count}", String(parts.length))}</button> ${escapeHtml(part.name)} (${formatFileSize(part.bytes.length)})</p>`).join("")}
+  ${parts.map((part) => `<p>${escapeHtml(part.name)} (${formatFileSize(part.bytes.length)})</p>`).join("")}
   </div>
-  <div class="b3-dialog__action"><button class="b3-button b3-button--cancel" type="button" data-split-close>${this.i18n.splitExportDone}</button></div>`,
+  <div class="b3-dialog__action"><button class="b3-button b3-button--outline" type="button" data-split-download-all>${this.i18n.splitDownloadAll}</button><div class="fn__space"></div><button class="b3-button b3-button--cancel" type="button" data-split-close>${this.i18n.splitExportDone}</button></div>`,
             destroyCallback: () => { this.presetTransferDialog = undefined; },
         });
-        this.presetTransferDialog.element.querySelectorAll<HTMLButtonElement>("[data-split-download]").forEach((button) => {
-            button.addEventListener("click", () => {
-                const part = parts[Number(button.dataset.splitDownload)];
-                if (part) downloadFile(new Blob([part.bytes], {type: "application/zip"}), part.name);
-            });
-        });
+        this.presetTransferDialog.element.querySelector<HTMLButtonElement>("[data-split-download-all]")?.addEventListener("click", downloadAll);
         this.presetTransferDialog.element.querySelector<HTMLButtonElement>("[data-split-close]")?.addEventListener("click", () => this.presetTransferDialog?.destroy());
+        downloadAll();
     }
 
     private async importPresetFiles(files: File[]): Promise<void> {

@@ -56,6 +56,7 @@ export const PRESET_CATALOG: PresetCatalogItem[] = [
         id: "community",
         author: "sungas444",
         authorUrl: "https://github.com/sungas444",
+        issueUrl: "https://github.com/MDfox-ChaosZone/siyuan-font-studio/issues/8",
         assetName: COMMUNITY_PRESET_ASSET_NAME,
         releaseUrl: COMMUNITY_PRESET_RELEASE_URL,
         releaseApiUrl: "https://api.github.com/repos/MDfox-ChaosZone/siyuan-font-studio/releases/tags/%E7%A4%BE%E5%8C%BA%E5%AD%97%E4%BD%93%E6%96%B9%E6%A1%88",

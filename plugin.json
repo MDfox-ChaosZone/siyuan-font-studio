@@ -2,7 +2,7 @@
   "name": "siyuan-font-studio",
   "author": "MDfox",
   "url": "https://github.com/MDfox-ChaosZone/siyuan-font-studio",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "minAppVersion": "3.8.0",
   "backends": ["all"],
   "frontends": ["all"],
