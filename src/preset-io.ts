@@ -1,6 +1,6 @@
 import {strFromU8, strToU8, unzipSync, zip} from "fflate";
 import {parseState} from "./state";
-import {FontChoice, FontPreset, FontTarget, ImportedFont, TARGETS, TargetSettings} from "./types";
+import {HEADING_TARGETS, FontChoice, FontPreset, FontTarget, ImportedFont, TARGETS, TargetSettings} from "./types";
 
 export const PRESET_FILE_FORMAT = "siyuan-font-studio-preset";
 export const PRESET_FILE_VERSION = 1;
@@ -149,6 +149,7 @@ export function createPresetMarkdown(
     const rows: Array<{label: string; settings: TargetSettings; supportsSize: boolean}> = [
         {label: labels.ui, settings: preset.targets.ui, supportsSize: true},
         {label: labels.content, settings: preset.targets.content, supportsSize: true},
+        ...HEADING_TARGETS.map((target) => ({label: target.toUpperCase(), settings: preset.targets[target], supportsSize: true})),
         ...(mono.decoupled
             ? [
                 {label: labels.inlineCode, settings: mono, supportsSize: true},
@@ -320,6 +321,11 @@ export function parsePresetConfig(value: unknown, fonts: ImportedFont[]): Import
     const targets = {} as Record<FontTarget, TargetSettings>;
     for (const target of TARGETS) {
         const settings = source.targets[target];
+        // Older v1 presets have no per-heading settings.
+        if (settings === undefined && HEADING_TARGETS.includes(target as typeof HEADING_TARGETS[number])) {
+            targets[target] = {fonts: [], size: null};
+            continue;
+        }
         if (!settings || typeof settings !== "object" || !Array.isArray(settings.fonts)) throw new Error("invalid-preset");
         targets[target] = deserializeTarget(settings, fonts, missingFonts);
     }

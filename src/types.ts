@@ -1,4 +1,8 @@
-export type FontTarget = "ui" | "content" | "mono" | "graph" | "emoji" | "math" | "mermaid";
+export const HEADING_TARGETS = ["h1", "h2", "h3", "h4", "h5", "h6"] as const;
+export type HeadingTarget = typeof HEADING_TARGETS[number];
+export type BaseFontTarget = "ui" | "content" | "mono" | "graph" | "emoji" | "math" | "mermaid";
+
+export type FontTarget = BaseFontTarget | HeadingTarget;
 
 export interface ImportedFont {
     id: string;
@@ -78,7 +82,7 @@ export interface FontRuntimeStatus {
 
 export const SIMPLE_TARGETS: FontTarget[] = ["ui", "content", "mono", "math"];
 export const ADVANCED_TARGETS: FontTarget[] = ["graph", "emoji", "mermaid"];
-export const TARGETS: FontTarget[] = [...SIMPLE_TARGETS, ...ADVANCED_TARGETS];
+export const TARGETS: FontTarget[] = [...SIMPLE_TARGETS, ...HEADING_TARGETS, ...ADVANCED_TARGETS];
 
 export const DEFAULT_STATE: PluginState = {
     version: 3,
@@ -91,6 +95,12 @@ export const DEFAULT_STATE: PluginState = {
     targets: {
         ui: {fonts: [], size: null},
         content: {fonts: [], size: null},
+        h1: {fonts: [], size: null},
+        h2: {fonts: [], size: null},
+        h3: {fonts: [], size: null},
+        h4: {fonts: [], size: null},
+        h5: {fonts: [], size: null},
+        h6: {fonts: [], size: null},
         mono: {fonts: [], size: null, decoupled: false, secondary: {fonts: [], size: null}},
         graph: {fonts: [], size: null},
         emoji: {fonts: [], size: null},

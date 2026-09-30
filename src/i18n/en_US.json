@@ -151,5 +151,14 @@
   "saveFailed": "Failed to save settings",
   "deleteFailed": "Failed to delete font",
   "unsupportedSize": "Font files may not exceed 100 MB",
-  "folderOpenFailed": "Unable to open the fonts folder"
+  "folderOpenFailed": "Unable to open the fonts folder",
+  "headingFonts": "Heading fonts",
+  "headingFontsDescription": "Set fonts for H1-H6 headings; inherits document fonts and SiYuan/theme sizes by default",
+  "followDocument": "Inherit document font",
+  "h1Font": "Heading 1 (H1)",
+  "h2Font": "Heading 2 (H2)",
+  "h3Font": "Heading 3 (H3)",
+  "h4Font": "Heading 4 (H4)",
+  "h5Font": "Heading 5 (H5)",
+  "h6Font": "Heading 6 (H6)"
 }

@@ -13,7 +13,7 @@ module.exports = (_env, argv) => {
     if (production) {
         plugins.push(new webpack.BannerPlugin({banner: () => fs.readFileSync("LICENSE", "utf8")}));
         plugins.push(new CopyPlugin({patterns: [
-            {from: "preview.png", to: "dist/"},
+            {from: "preview.webp", to: "dist/"},
             {from: "icon.png", to: "dist/"},
             {from: "README*.md", to: "dist/"},
             {from: "assets/donate", to: "dist/assets/donate"},

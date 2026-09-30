@@ -638,7 +638,8 @@
   output {
     color: var(--b3-theme-on-surface-light);
     font-variant-numeric: tabular-nums;
-    width: 42px;
+    min-width: 42px;
+    white-space: nowrap;
   }
 
 }

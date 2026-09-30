@@ -1,5 +1,5 @@
 import {EMOJI_UNICODE_RANGE, emojiRuntimeFamily, familyForChoices, quoteFamily, runtimeFamily, variableWeightForChoices, weightForChoices} from "./font-utils";
-import {FontChoice, FontTarget, ImportedFont, PluginState} from "./types";
+import {BaseFontTarget, FontChoice, FontTarget, HEADING_TARGETS, ImportedFont, PluginState} from "./types";
 
 const STYLE_ID = "siyuan-font-studio-overrides";
 const SIYUAN_UI_FALLBACK = '"Emojis Additional", "Emojis Reset", BlinkMacSystemFont, Helvetica, "Luxi Sans", "DejaVu Sans", arial, sans-serif, emojis';
@@ -23,7 +23,7 @@ const MONO_BLOCK_SELECTORS = '.b3-typography .hljs, .protyle-wysiwyg .hljs, .pro
 
 export class StyleManager {
     private originalProperties = new Map<string, {value: string; priority: string}>();
-    private baselineFamilies: Record<FontTarget, string>;
+    private baselineFamilies: Record<BaseFontTarget, string>;
 
     constructor() {
         this.baselineFamilies = this.readBaselineFamilies();
@@ -36,7 +36,7 @@ export class StyleManager {
         }
     }
 
-    private readBaselineFamilies(): Record<FontTarget, string> {
+    private readBaselineFamilies(): Record<BaseFontTarget, string> {
         const computed = getComputedStyle(document.documentElement);
         const baselineUi = computed.getPropertyValue("--b3-font-family").trim() || SIYUAN_UI_FALLBACK;
         const resolveReferences = (value: string, fallback: string, references: Record<string, string> = {}) => {
@@ -65,7 +65,7 @@ export class StyleManager {
     }
 
     getBaselineFamily(target: FontTarget): string {
-        return this.baselineFamilies[target];
+        return this.baselineFamilies[HEADING_TARGETS.includes(target as typeof HEADING_TARGETS[number]) ? "content" : target as BaseFontTarget];
     }
 
     apply(state: PluginState, loadedIds: Set<string>): void {
@@ -130,7 +130,18 @@ export class StyleManager {
         const mathBlockVariableWeight = state.targets.math.decoupled
             ? variableWeightForChoices(mathBlockChoices, state.fonts)
             : mathVariableWeight;
-        style.textContent = [...restrictedEmoji.faceRules, this.buildRules(state, {ui, content, mono, graph, emoji, math, mermaid: null}, {monoBlock, mathBlock}, weights, monoBlockWeight, mathBlockWeight, mathVariableWeight, mathBlockVariableWeight)].filter(Boolean).join("\n");
+        style.textContent = [...restrictedEmoji.faceRules, ...HEADING_TARGETS.map((target) => {
+            const settings = state.targets[target];
+            const choices = effectiveChoices(settings.fonts);
+            const family = familyForChoices(choices, state.fonts, loadedIds, runtimeFamily, "var(--b3-font-family-protyle)");
+            const weight = weightForChoices(choices, state.fonts);
+            const declarations = [
+                family ? `font-family: ${emoji ? `${emoji}, ` : ""}${family}, var(--b3-font-family-protyle) !important;` : "",
+                settings.size !== null ? `font-size: ${settings.size}px !important;` : "",
+                weight !== null ? `font-weight: ${weight} !important;` : "",
+            ].filter(Boolean).join(" ");
+            return declarations ? `.protyle-wysiwyg [data-type="NodeHeading"][data-subtype="${target}"], .b3-typography:not(.b3-typography--default) ${target} { ${declarations} }` : "";
+        }), this.buildRules(state, {ui, content, mono, graph, emoji, math, mermaid: null}, {monoBlock, mathBlock}, weights, monoBlockWeight, mathBlockWeight, mathVariableWeight, mathBlockVariableWeight)].filter(Boolean).join("\n");
     }
 
     destroy(): void {
@@ -138,7 +149,7 @@ export class StyleManager {
         document.getElementById(STYLE_ID)?.remove();
     }
 
-    private buildRules(state: PluginState, families: Record<FontTarget, string | null>, separated: {monoBlock: string | null; mathBlock: string | null}, weights: {ui: number | null; content: number | null; mono: number | null; graph: number | null; math: number | null; mermaid: number | null}, monoBlockWeight: number | null, mathBlockWeight: number | null, mathVariableWeight: number | null, mathBlockVariableWeight: number | null): string {
+    private buildRules(state: PluginState, families: Record<BaseFontTarget, string | null>, separated: {monoBlock: string | null; mathBlock: string | null}, weights: {ui: number | null; content: number | null; mono: number | null; graph: number | null; math: number | null; mermaid: number | null}, monoBlockWeight: number | null, mathBlockWeight: number | null, mathVariableWeight: number | null, mathBlockVariableWeight: number | null): string {
         const rules: string[] = [];
         if (weights.ui !== null) rules.push(`body { font-weight: ${weights.ui}; }`);
         if (weights.content !== null) rules.push(`.b3-typography:not(.b3-typography--default), .protyle-wysiwyg, .protyle-title { font-weight: ${weights.content}; }`);

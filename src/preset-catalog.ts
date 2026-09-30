@@ -9,7 +9,7 @@ export interface CommunityCatalog {
     presets: PresetCatalogItem[];
 }
 
-const TARGETS = new Set(["ui", "content", "mono", "inlineCode", "codeBlock", "math", "inlineFormula", "formulaBlock", "graph", "emoji", "mermaid"]);
+const TARGETS = new Set(["h1", "h2", "h3", "h4", "h5", "h6", "ui", "content", "mono", "inlineCode", "codeBlock", "math", "inlineFormula", "formulaBlock", "graph", "emoji", "mermaid"]);
 const PACKAGE_PREFIX = "https://github.com/MDfox-ChaosZone/siyuan-font-studio/releases/download/";
 
 function record(value: unknown): value is Record<string, unknown> {
@@ -57,7 +57,7 @@ export function parseCommunityCatalog(value: unknown): CommunityCatalog {
             || !raw.packageUrl.startsWith(PACKAGE_PREFIX)
             || typeof raw.packageSize !== "number" || !Number.isSafeInteger(raw.packageSize) || raw.packageSize < 1 || raw.packageSize > 100 * 1024 * 1024
             || typeof raw.packageSha256 !== "string" || !/^[a-f0-9]{64}$/.test(raw.packageSha256)
-            || typeof raw.includesFonts !== "boolean" || !Array.isArray(raw.rows) || raw.rows.length < 7 || raw.rows.length > 9) {
+            || typeof raw.includesFonts !== "boolean" || !Array.isArray(raw.rows) || raw.rows.length < 7 || raw.rows.length > 15) {
             throw new Error("invalid-catalog");
         }
         const rows = raw.rows.map(parseRow);

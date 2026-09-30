@@ -151,5 +151,14 @@
   "saveFailed": "保存设置失败",
   "deleteFailed": "删除字体失败",
   "unsupportedSize": "字体文件不能超过 100 MB",
-  "folderOpenFailed": "无法打开字体文件夹"
+  "folderOpenFailed": "无法打开字体文件夹",
+  "headingFonts": "各级标题字体",
+  "headingFontsDescription": "分别设置H1-H6标题的字体；默认继承文档字体，字号跟随思源或主题",
+  "followDocument": "继承文档字体",
+  "h1Font": "一级标题 H1",
+  "h2Font": "二级标题 H2",
+  "h3Font": "三级标题 H3",
+  "h4Font": "四级标题 H4",
+  "h5Font": "五级标题 H5",
+  "h6Font": "六级标题 H6"
 }

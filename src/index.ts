@@ -44,7 +44,7 @@ import {
 } from "./preset-io";
 import {deleteFontFile, deletePluginStorage, ensureFontDirectory, FONT_STORAGE_ROOT, readFontFile, storedFontFileName, writeFontFile} from "./storage";
 import {StyleManager} from "./style-manager";
-import {ADVANCED_TARGETS, FontChoice, FontPreset, FontRuntimeStatus, FontTarget, ImportedFont, PluginState, SIMPLE_TARGETS, SystemFont} from "./types";
+import {ADVANCED_TARGETS, HEADING_TARGETS, FontChoice, FontPreset, FontRuntimeStatus, FontTarget, ImportedFont, PluginState, SIMPLE_TARGETS, SystemFont} from "./types";
 import {supportsAssignedWeight} from "./weight-controls";
 
 const STATE_FILE = "font-manager.json";
@@ -381,6 +381,7 @@ export default class SiYuanFontStudio extends Plugin {
         this.disconnectFontPreviewObservers();
         root.style.setProperty("--bfm-library-preview-width", `${this.state.layout.libraryPreviewWidth}px`);
         const primaryOpen = root.querySelector<HTMLDetailsElement>(".bfm-primary")?.open ?? true;
+        const headingsOpen = root.querySelector<HTMLDetailsElement>(".bfm-headings")?.open ?? false;
         const advancedOpen = root.querySelector<HTMLDetailsElement>(".bfm-secondary")?.open ?? false;
         const openMenuElement = root.querySelector<HTMLElement>("[data-font-menu]:not([hidden])");
         const openMenu = openMenuElement?.dataset.fontMenu;
@@ -406,6 +407,10 @@ export default class SiYuanFontStudio extends Plugin {
   <details class="bfm-advanced bfm-primary" ${primaryOpen ? "open" : ""}>
     <summary><span>${this.i18n.primaryFonts}</span><small>${this.i18n.primaryFontsDescription}</small></summary>
     <div class="bfm-targets">${SIMPLE_TARGETS.map((target) => this.targetHtml(target)).join("")}</div>
+  </details>
+  <details class="bfm-advanced bfm-headings" ${headingsOpen ? "open" : ""}>
+    <summary><span>${this.i18n.headingFonts}</span><small>${this.i18n.headingFontsDescription}</small></summary>
+    <div class="bfm-targets">${HEADING_TARGETS.map((target) => this.targetHtml(target)).join("")}</div>
   </details>
   <details class="bfm-advanced bfm-secondary" ${advancedOpen ? "open" : ""}>
     <summary><span>${this.i18n.advancedFonts}</span><small>${this.i18n.advancedFontsDescription}</small></summary>
@@ -585,11 +590,31 @@ export default class SiYuanFontStudio extends Plugin {
         }
     }
 
+    private headingSize(target: FontTarget): number {
+        // Measure the current theme without changing document content or saving an override.
+        const probe = document.createElement("div");
+        probe.className = "protyle-wysiwyg";
+        probe.style.cssText = "position:fixed;left:-10000px;visibility:hidden;pointer-events:none;";
+        const heading = document.createElement("div");
+        heading.className = target;
+        heading.dataset.type = "NodeHeading";
+        heading.dataset.subtype = target;
+        probe.appendChild(heading);
+        document.body.appendChild(probe);
+        try {
+            const size = Number.parseFloat(getComputedStyle(heading).fontSize);
+            return Number.isFinite(size) && size > 0 ? Math.round(size * 100) / 100 : window.siyuan.config?.editor.fontSize || 16;
+        } finally {
+            probe.remove();
+        }
+    }
+
     private targetHtml(target: FontTarget): string {
         const config = this.state.targets[target];
         const label = this.i18n[`${target}Font`];
-        const description = this.i18n[`${target}Description`];
-        const bounds = target === "ui" ? {min: 10, max: 24, fallback: 14}
+        const description = this.i18n[`${target}Description`] || "";
+        const bounds = HEADING_TARGETS.includes(target as typeof HEADING_TARGETS[number]) ? {min: 9, max: 72, fallback: config.size ?? this.headingSize(target)}
+            : target === "ui" ? {min: 10, max: 24, fallback: 14}
             : target === "content" ? {min: 9, max: 72, fallback: window.siyuan.config?.editor.fontSize || 16}
                 : target === "emoji" || target === "graph" ? {min: 8, max: 72, fallback: 19}
                     : target === "mermaid" ? {min: 10, max: 32, fallback: 16}
@@ -614,7 +639,7 @@ export default class SiYuanFontStudio extends Plugin {
             ? `<span class="bfm-info-tip${hintPositionClass}" tabindex="0" aria-label="${escapeHtml(hint)}"><span aria-hidden="true">i</span><span class="bfm-info-tip__content" role="tooltip">${escapeHtml(hint)}</span></span>`
             : "";
         return `<article class="bfm-target">
-  <div class="bfm-target__title"><div class="bfm-target__label"><strong>${label}</strong>${titleHint}<span class="bfm-target__description">${description}</span></div>${decouple}</div>
+  <div class="bfm-target__title"><div class="bfm-target__label"><strong>${label}</strong>${titleHint}${description ? `<span class="bfm-target__description">${description}</span>` : ""}</div>${decouple}</div>
   ${controls}
 </article>`;
     }
@@ -753,6 +778,12 @@ export default class SiYuanFontStudio extends Plugin {
 
     private presetCatalogTargetLabel(target: PresetCatalogTarget): string {
         const labels: Record<PresetCatalogTarget, string> = {
+            h1: this.i18n.h1Font,
+            h2: this.i18n.h2Font,
+            h3: this.i18n.h3Font,
+            h4: this.i18n.h4Font,
+            h5: this.i18n.h5Font,
+            h6: this.i18n.h6Font,
             ui: this.i18n.uiFont,
             content: this.i18n.contentFont,
             mono: this.i18n.monoFont,
@@ -1187,7 +1218,7 @@ export default class SiYuanFontStudio extends Plugin {
         const config = this.settingsFor(target, secondary);
         const size = config.size ?? bounds.fallback;
         const supportsSize = target !== "emoji" && target !== "graph";
-        const sizeControls = supportsSize ? `<div class="bfm-size"><input type="range" data-role="size" data-target="${target}" data-secondary="${secondary}" min="${bounds.min}" max="${bounds.max}" step="1" value="${size}"><output data-size-output="${target}-${secondary}">${size}px</output></div>` : "";
+        const sizeControls = supportsSize ? `<div class="bfm-size"><input type="range" aria-label="${escapeHtml(this.i18n[`${target}Font`])}" data-role="size" data-target="${target}" data-secondary="${secondary}" min="${bounds.min}" max="${bounds.max}" step="1" value="${size}"><output data-size-output="${target}-${secondary}">${size}px</output></div>` : "";
         const resetSize = supportsSize ? `<button class="b3-button bfm-reset ${config.size === null ? "" : "bfm-reset--active"}" data-reset-size="${target}" data-secondary="${secondary}">${this.i18n.resetSize}</button>` : "";
         return `<div class="bfm-setting-pane">${this.fontPickerHtml(target, secondary, config.fonts)}
   ${sizeControls}
@@ -1195,7 +1226,7 @@ export default class SiYuanFontStudio extends Plugin {
     }
 
     private fontPickerHtml(target: FontTarget, secondary: boolean, selected: FontChoice[]): string {
-        const followLabel = `${this.i18n.followSiyuan}（${this.baselineDisplayName(target)}）`;
+        const followLabel = HEADING_TARGETS.includes(target as typeof HEADING_TARGETS[number]) ? this.i18n.followDocument : `${this.i18n.followSiyuan}（${this.baselineDisplayName(target)}）`;
         const labelFor = (choice: FontChoice) => choice.kind === "imported" ? this.importedGroupFor(choice.id)?.familyName || this.state.fonts.find((font) => font.id === choice.id)?.displayName || this.i18n.missing : choice.kind === "system" ? this.systemFontGroups().find((group) => group.family === choice.family)?.displayName || choice.displayName : followLabel;
         const stack = selected.length ? selected.map((choice, index) => `<div class="bfm-stack__item" draggable="false" data-stack-item data-target="${target}" data-secondary="${secondary}" data-index="${index}"><span class="bfm-drag" draggable="true" title="${this.i18n.dragToSort}">⠿</span><div class="bfm-stack__main"><span>${escapeHtml(labelFor(choice))}</span>${this.assignedWeightControlHtml(choice, target, secondary, index)}</div><button type="button" data-remove-font data-target="${target}" data-secondary="${secondary}" data-index="${index}" aria-label="${this.i18n.remove}">×</button></div>`).join("") : `<div class="bfm-stack__default">${escapeHtml(followLabel)}</div>`;
         const scope = `${target}-${secondary}`;
@@ -1269,7 +1300,7 @@ export default class SiYuanFontStudio extends Plugin {
     }
 
     private fontOptionsHtml(target: FontTarget, secondary: boolean, selected: FontChoice[], initialSystemCount: number): string {
-        const followLabel = `${this.i18n.followSiyuan}（${this.baselineDisplayName(target)}）`;
+        const followLabel = HEADING_TARGETS.includes(target as typeof HEADING_TARGETS[number]) ? this.i18n.followDocument : `${this.i18n.followSiyuan}（${this.baselineDisplayName(target)}）`;
         const imported = groupImportedFonts(this.state.fonts).map((group) => {
             const font = this.preferredImportedFont(group.fonts);
             return this.fontOptionHtml(target, secondary, selected, `imported:${font.id}`, group.familyName, {importedId: font.id, weight: font.variationAxes?.wght?.default ?? font.fontWeight, weightCount: group.fonts.length, variableWeight: Boolean(font.variationAxes?.wght)});
