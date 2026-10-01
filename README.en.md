@@ -7,7 +7,7 @@ Font playground:
 - Easily customize a wide range of font elements in SiYuan!
 - Freely combine fonts and switch between your font presets!
 
-![SiYuan Font Studio preview](preview.webp)
+<img src="assets/screenshots/font-studio-settings.png" alt="SiYuan Font Studio settings" width="480">
 
 ## Features
 
@@ -27,12 +27,6 @@ Customize the font family and size of the following elements:
 - Save font combinations as presets and switch between them easily. Import and export presets for sharing and use across devices.
 - Select multiple fonts to provide fallbacks for missing characters.
 
-## Heading fonts
-
-Configure fonts, fallback fonts, weights, and sizes independently for H1–H6 under “Heading fonts”. Imported and system fonts are supported. Heading settings are saved, switched, imported, and exported with presets; older presets retain their original appearance.
-
-Fonts inherit the document settings by default, while sizes follow SiYuan or the theme. The panel displays computed pixel sizes, which may include decimals. Manually adjusted sizes use fixed pixels (9–72px); “Reset font size” restores default sizing. These settings affect headings inside documents, not the document title at the top.
-
 ## Additional notes
 
 - Graph fonts: SiYuan 3.8 and later use a new graph renderer. The plugin currently supports changing the font family only and does not provide a graph font-size setting.
@@ -40,6 +34,10 @@ Fonts inherit the document settings by default, while sizes follow SiYuan or the
 
 ## Changelog
 
+- **v1.0.0**:
+  - Fixed the mismatch between the formula size slider and the actual size after resetting to defaults. Inline formulas and formula blocks display their computed sizes separately; defaults may include decimals, while manual adjustments still use whole pixels.
+  - Fixed hard-to-read settings tooltips in themes such as neo by using matching theme background and text colors.
+  - Updated some text and images.
 - **v0.1.9**: Added independent H1–H6 fonts, weights, and sizes with default resets and preset import/export; display computed default sizes while preserving older presets; refreshed the plugin preview and documentation.
 - **v0.1.8**: Added community preset submission, review, and live downloads; added split uploads for large presets and author-initiated withdrawal; improved the download dialog and saving split packages.
 - **v0.1.7**: Improved variable-font support; fixed font weights not applying to formula fallback fonts and prevented those fallbacks from overriding KaTeX digits and operators; fixed the “Failed to save settings: [object Object]” error when downloading the example preset in SiYuan 3.8.3.
@@ -57,7 +55,7 @@ To withdraw a published preset, the original author can close its submission Iss
 
 ## Support and sponsorship
 
-If this plugin is useful to you, please give it a **Star on GitHub**. It means a lot to me—pretty please!
+If this plugin is useful to you, please give it a **free Star on GitHub**. It means a lot to me—pretty please!
 
 Any sponsorship is also greatly appreciated!
 

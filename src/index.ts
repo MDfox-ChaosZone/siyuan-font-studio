@@ -522,6 +522,8 @@ export default class SiYuanFontStudio extends Plugin {
         root.addEventListener("click", () => root.querySelectorAll<HTMLElement>("[data-font-menu]").forEach((menu) => this.closeFontMenu(menu)));
         root.querySelectorAll<HTMLInputElement>("input[data-role='size']").forEach((input) => {
             input.addEventListener("input", () => {
+                // Preserve fractional theme defaults, while manual adjustments still use whole pixels.
+                if (input.dataset.target === "math") input.value = String(Math.round(Number(input.value)));
                 const output = root.querySelector<HTMLElement>(`[data-size-output="${input.dataset.target}-${input.dataset.secondary === "true"}"]`);
                 if (output) output.textContent = `${input.value}px`;
                 const target = input.dataset.target as FontTarget;
@@ -1216,13 +1218,42 @@ export default class SiYuanFontStudio extends Plugin {
 
     private settingControlsHtml(target: FontTarget, secondary: boolean, bounds: {min: number; max: number; fallback: number}): string {
         const config = this.settingsFor(target, secondary);
-        const size = config.size ?? bounds.fallback;
+        const size = config.size ?? (target === "math" ? this.mathSize(secondary) : bounds.fallback);
         const supportsSize = target !== "emoji" && target !== "graph";
-        const sizeControls = supportsSize ? `<div class="bfm-size"><input type="range" aria-label="${escapeHtml(this.i18n[`${target}Font`])}" data-role="size" data-target="${target}" data-secondary="${secondary}" min="${bounds.min}" max="${bounds.max}" step="1" value="${size}"><output data-size-output="${target}-${secondary}">${size}px</output></div>` : "";
+        const sizeControls = supportsSize ? `<div class="bfm-size"><input type="range" aria-label="${escapeHtml(this.i18n[`${target}Font`])}" data-role="size" data-target="${target}" data-secondary="${secondary}" min="${bounds.min}" max="${bounds.max}" step="${target === "math" ? "any" : "1"}" value="${size}"><output data-size-output="${target}-${secondary}">${size}px</output></div>` : "";
         const resetSize = supportsSize ? `<button class="b3-button bfm-reset ${config.size === null ? "" : "bfm-reset--active"}" data-reset-size="${target}" data-secondary="${secondary}">${this.i18n.resetSize}</button>` : "";
         return `<div class="bfm-setting-pane">${this.fontPickerHtml(target, secondary, config.fonts)}
   ${sizeControls}
   <div class="bfm-target__actions"><button class="b3-button bfm-reset ${config.fonts.length ? "bfm-reset--active" : ""}" data-reset-font="${target}" data-secondary="${secondary}">${this.i18n.resetFont}</button>${resetSize}</div></div>`;
+    }
+
+    private mathSize(secondary: boolean): number {
+        const baseSize = this.state.targets.content.size ?? (window.siyuan.config?.editor.fontSize || 16);
+        const probe = document.createElement("div");
+        probe.id = "siyuan-font-studio-math-probe";
+        probe.className = "protyle-wysiwyg";
+        probe.style.cssText = `position:fixed;left:-10000px;visibility:hidden;pointer-events:none;font-size:${baseSize}px;`;
+        // KaTeX's CSS is loaded lazily. A layered fallback lets theme and plugin rules take precedence.
+        const fallback = document.createElement("style");
+        fallback.textContent = "@layer { #siyuan-font-studio-math-probe .katex { font-size: 1.21em; } }";
+        const wrapper = document.createElement(secondary ? "div" : "span");
+        wrapper.dataset.type = secondary ? "NodeMath" : "inline-math";
+        if (secondary) wrapper.dataset.subtype = "math";
+        const display = document.createElement("span");
+        if (secondary) display.className = "katex-display";
+        const formula = document.createElement("span");
+        formula.className = "katex";
+        display.appendChild(formula);
+        wrapper.appendChild(display);
+        probe.appendChild(fallback);
+        probe.appendChild(wrapper);
+        document.body.appendChild(probe);
+        try {
+            const size = Number.parseFloat(getComputedStyle(formula).fontSize);
+            return Math.round((Number.isFinite(size) && size > 0 ? size : baseSize * 1.21) * 100) / 100;
+        } finally {
+            probe.remove();
+        }
     }
 
     private fontPickerHtml(target: FontTarget, secondary: boolean, selected: FontChoice[]): string {

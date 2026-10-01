@@ -230,11 +230,11 @@
   }
 
   &__content {
-    background: var(--b3-tooltips-background);
+    background: var(--b3-menu-background, var(--b3-theme-background));
     border-radius: var(--b3-border-radius);
     bottom: calc(100% + 8px);
     box-shadow: var(--b3-dialog-shadow);
-    color: var(--b3-tooltips-color);
+    color: var(--b3-theme-on-background);
     font-family: var(--b3-font-family);
     font-size: 12px;
     font-weight: 400;
