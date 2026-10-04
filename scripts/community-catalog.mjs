@@ -10,7 +10,7 @@ export const COMMUNITY_RELEASE_TAG = "社区字体方案";
 export const MAX_PACKAGE_BYTES = 100 * 1024 * 1024;
 const MAX_UNPACKED_BYTES = 500 * 1024 * 1024;
 const HEADING_TARGETS = ["h1", "h2", "h3", "h4", "h5", "h6"];
-const TARGETS = ["ui", "content", ...HEADING_TARGETS, "mono", "math", "graph", "emoji", "mermaid"];
+const TARGETS = ["ui", "content", ...HEADING_TARGETS, "mono", "math", "graph", "emoji", "mermaid", "mindmap"];
 const ACCEPTED_EXTENSIONS = new Set(["woff2", "woff", "ttf", "otf"]);
 const MAX_SHARE_PARTS = 5;
 const MAX_SHARE_PART_BYTES = 25_000_000;
@@ -133,7 +133,7 @@ export function inspectPresetPackage(bytes, filename = "preset.zip") {
     const rows = [];
     for (const target of TARGETS) {
         const settings = config.targets[target];
-        if (settings === undefined && HEADING_TARGETS.includes(target)) continue;
+        if (settings === undefined && (HEADING_TARGETS.includes(target) || target === "mindmap")) continue;
         if ((target === "mono" || target === "math") && settings?.decoupled) {
             if (!settings.secondary) throw new Error(`缺少 ${target} 的第二组设置`);
             rows.push(row(target === "mono" ? "inlineCode" : "inlineFormula", settings, fontMap));

@@ -1,5 +1,7 @@
 import {EMOJI_UNICODE_RANGE, emojiRuntimeFamily, familyForChoices, quoteFamily, runtimeFamily, variableWeightForChoices, weightForChoices} from "./font-utils";
 import {BaseFontTarget, FontChoice, FontTarget, HEADING_TARGETS, ImportedFont, PluginState} from "./types";
+import {mindmapOverrides} from "./mindmap";
+import {supportsGraphFonts, supportsMindmapFonts} from "./compatibility";
 
 const STYLE_ID = "siyuan-font-studio-overrides";
 const SIYUAN_UI_FALLBACK = '"Emojis Additional", "Emojis Reset", BlinkMacSystemFont, Helvetica, "Luxi Sans", "DejaVu Sans", arial, sans-serif, emojis';
@@ -48,14 +50,16 @@ export class StyleManager {
         };
         const baselineProtyle = resolveReferences(computed.getPropertyValue("--b3-font-family-protyle"), baselineUi);
         const baselineCode = resolveReferences(computed.getPropertyValue("--b3-font-family-code"), SIYUAN_MONO_FALLBACK);
+        const baselineEditor = resolveReferences(computed.getPropertyValue("--b3-font-family-editor"), baselineProtyle, {"--b3-font-family-protyle": baselineProtyle});
         return {
             ui: baselineUi,
-            content: resolveReferences(computed.getPropertyValue("--b3-font-family-editor"), baselineProtyle, {"--b3-font-family-protyle": baselineProtyle}),
+            content: baselineEditor,
             mono: resolveReferences(computed.getPropertyValue("--b3-font-family-editor-code"), baselineCode, {"--b3-font-family-code": baselineCode}),
             graph: computed.getPropertyValue("--b3-font-family-graph").trim() || "arial",
             emoji: computed.getPropertyValue("--b3-font-family-emoji").trim() || SIYUAN_EMOJI_FALLBACK,
             math: computed.getPropertyValue("--b3-font-family-math").trim() || "KaTeX_Math",
             mermaid: "sans-serif",
+            mindmap: baselineEditor,
         };
     }
 
@@ -104,8 +108,10 @@ export class StyleManager {
         }
         else if (ui) root.setProperty("--b3-font-family-code", this.baselineFamilies.mono, "important");
         if (weights.mono !== null) root.setProperty("--b3-font-weight-editor-code", String(weights.mono), "important");
-        if (graph) root.setProperty("--b3-font-family-graph", `${graph}, ${this.baselineFamilies.graph}`, "important");
-        if (weights.graph !== null) root.setProperty("--bfm-font-weight-graph", String(weights.graph), "important");
+        if (supportsGraphFonts()) {
+            if (graph) root.setProperty("--b3-font-family-graph", `${graph}, ${this.baselineFamilies.graph}`, "important");
+            if (weights.graph !== null) root.setProperty("--bfm-font-weight-graph", String(weights.graph), "important");
+        }
         if (emoji) root.setProperty("--b3-font-family-emoji", `${emoji}, ${this.baselineFamilies.emoji}`, "important");
         if (state.targets.ui.size !== null) root.setProperty("--b3-font-size", `${state.targets.ui.size}px`, "important");
         if (state.targets.content.size !== null) root.setProperty("--b3-font-size-editor", `${state.targets.content.size}px`, "important");
@@ -130,7 +136,15 @@ export class StyleManager {
         const mathBlockVariableWeight = state.targets.math.decoupled
             ? variableWeightForChoices(mathBlockChoices, state.fonts)
             : mathVariableWeight;
-        style.textContent = [...restrictedEmoji.faceRules, ...HEADING_TARGETS.map((target) => {
+        const mindmap = mindmapOverrides(state, loadedIds);
+        const mindmapDeclarations = [
+            mindmap.fontFamily ? `font-family: ${mindmap.fontFamily} !important;` : "",
+            mindmap.fontWeight !== undefined ? `font-weight: ${mindmap.fontWeight} !important;` : "",
+            mindmap.fontSize !== undefined ? `font-size: ${mindmap.fontSize}px !important;` : "",
+        ].filter(Boolean).join(" ");
+        const mindmapRule = supportsMindmapFonts() && mindmapDeclarations
+            ? `.mindmap-view .mindmap-view__node, .mindmap-view .mindmap-view__content, .mindmap-view .mindmap-view__editor .protyle-wysiwyg { ${mindmapDeclarations} }` : "";
+        style.textContent = [mindmapRule, ...restrictedEmoji.faceRules, ...HEADING_TARGETS.map((target) => {
             const settings = state.targets[target];
             const choices = effectiveChoices(settings.fonts);
             const family = familyForChoices(choices, state.fonts, loadedIds, runtimeFamily, "var(--b3-font-family-protyle)");
@@ -141,7 +155,7 @@ export class StyleManager {
                 weight !== null ? `font-weight: ${weight} !important;` : "",
             ].filter(Boolean).join(" ");
             return declarations ? `.protyle-wysiwyg [data-type="NodeHeading"][data-subtype="${target}"], .b3-typography:not(.b3-typography--default) ${target} { ${declarations} }` : "";
-        }), this.buildRules(state, {ui, content, mono, graph, emoji, math, mermaid: null}, {monoBlock, mathBlock}, weights, monoBlockWeight, mathBlockWeight, mathVariableWeight, mathBlockVariableWeight)].filter(Boolean).join("\n");
+        }), this.buildRules(state, {ui, content, mono, graph, emoji, math, mermaid: null, mindmap: null}, {monoBlock, mathBlock}, weights, monoBlockWeight, mathBlockWeight, mathVariableWeight, mathBlockVariableWeight)].filter(Boolean).join("\n");
     }
 
     destroy(): void {

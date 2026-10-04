@@ -7,7 +7,7 @@ export const COMMUNITY_PRESET_RELEASE_URL = "https://github.com/MDfox-ChaosZone/
 export const MAX_EXAMPLE_PRESET_BYTES = 100 * 1024 * 1024;
 
 export type PresetCatalogId = string;
-export type PresetCatalogTarget = "h1" | "h2" | "h3" | "h4" | "h5" | "h6" | "ui" | "content" | "mono" | "inlineCode" | "codeBlock" | "math" | "inlineFormula" | "formulaBlock" | "graph" | "emoji" | "mermaid";
+export type PresetCatalogTarget = "h1" | "h2" | "h3" | "h4" | "h5" | "h6" | "ui" | "content" | "mono" | "inlineCode" | "codeBlock" | "math" | "inlineFormula" | "formulaBlock" | "graph" | "emoji" | "mermaid" | "mindmap";
 
 export interface PresetCatalogRow {
     target: PresetCatalogTarget;

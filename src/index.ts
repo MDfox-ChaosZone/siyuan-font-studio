@@ -31,6 +31,8 @@ import {SHARE_PART_BYTES, SHARE_PACKAGE_LIMIT_BYTES, splitPresetPackage} from ".
 import {activatePreset, clampLibraryPreviewWidth, cloneTargets, parseState, removeFontFromState, syncActivePreset} from "./state";
 import {mergeMermaidConfig, mermaidOverrides} from "./mermaid";
 import {applyGraphCanvasFontWeight} from "./graph-font";
+import {mindmapOverrides} from "./mindmap";
+import {currentSystemFonts, supportsGraphFonts, supportsMindmapFonts} from "./compatibility";
 import {errorMessage, isSiyuanErrorCode} from "./error-message";
 import {
     BundledFontDescriptor,
@@ -56,7 +58,8 @@ interface MermaidRuntime {
 }
 
 interface ProtyleRenderAPI {
-    mermaidRender(element: Element): void;
+    mermaidRender?(element: Element): void;
+    mindmapRender?(element: Element): void;
 }
 
 class ManagerSetting extends Setting {
@@ -96,6 +99,8 @@ export default class SiYuanFontStudio extends Plugin {
     private mermaidWrappedInitialize?: MermaidRuntime["initialize"];
     private mermaidRefreshTimer?: number;
     private lastMermaidSignature = "";
+    private mindmapRefreshTimer?: number;
+    private lastMindmapSignature = "";
     private disposed = false;
 
     async onload(): Promise<void> {
@@ -146,15 +151,17 @@ export default class SiYuanFontStudio extends Plugin {
         if (this.disposed) return;
         this.styleManager?.refreshBaselines();
         this.applySettings();
-        this.graphObserver = new MutationObserver((records) => {
-            const graphAdded = records.some((record) => Array.from(record.addedNodes).some((node) => node instanceof Element
-                && (node.matches(".graph__svg, .graph__labels") || Boolean(node.querySelector(".graph__svg, .graph__labels")))));
-            if (graphAdded) {
-                window.setTimeout(() => this.updateGraphModels(), 300);
-                window.setTimeout(() => this.updateGraphModels(), 1200);
-            }
-        });
-        this.graphObserver.observe(document.body, {childList: true, subtree: true});
+        if (supportsGraphFonts()) {
+            this.graphObserver = new MutationObserver((records) => {
+                const graphAdded = records.some((record) => Array.from(record.addedNodes).some((node) => node instanceof Element
+                    && (node.matches(".graph__svg, .graph__labels") || Boolean(node.querySelector(".graph__svg, .graph__labels")))));
+                if (graphAdded) {
+                    window.setTimeout(() => this.updateGraphModels(), 300);
+                    window.setTimeout(() => this.updateGraphModels(), 1200);
+                }
+            });
+            this.graphObserver.observe(document.body, {childList: true, subtree: true});
+        }
         this.addTopBar({
             icon: "iconSiYuanFontStudio",
             title: this.i18n.openManager,
@@ -169,6 +176,7 @@ export default class SiYuanFontStudio extends Plugin {
         this.graphObserver?.disconnect();
         this.mermaidScriptObserver?.disconnect();
         if (this.mermaidRefreshTimer !== undefined) window.clearTimeout(this.mermaidRefreshTimer);
+        if (this.mindmapRefreshTimer !== undefined) window.clearTimeout(this.mindmapRefreshTimer);
         this.restoreMermaidRuntime();
         this.renameDialog?.destroy();
         this.presetTransferDialog?.destroy();
@@ -177,6 +185,7 @@ export default class SiYuanFontStudio extends Plugin {
         this.exampleDownloadDialog?.destroy();
         this.managerDialog?.destroy();
         this.styleManager?.destroy();
+        this.refreshMindmapLayouts();
         document.querySelectorAll<HTMLCanvasElement>("canvas.graph__labels")
             .forEach((canvas) => applyGraphCanvasFontWeight(canvas, null));
         for (const face of this.faces.values()) document.fonts.delete(face);
@@ -242,6 +251,11 @@ export default class SiYuanFontStudio extends Plugin {
         if (this.disposed) return;
         const loadedIds = new Set(Array.from(this.statuses.entries()).filter(([, status]) => status.loaded).map(([id]) => id));
         this.styleManager?.apply(this.state, loadedIds);
+        const mindmapSignature = JSON.stringify(mindmapOverrides(this.state, loadedIds));
+        if (mindmapSignature !== this.lastMindmapSignature) {
+            this.lastMindmapSignature = mindmapSignature;
+            this.scheduleMindmapRefresh();
+        }
         this.updateGraphModels();
         const mermaidSignature = JSON.stringify(mermaidOverrides(this.state, loadedIds));
         if (mermaidSignature !== this.lastMermaidSignature) {
@@ -250,8 +264,27 @@ export default class SiYuanFontStudio extends Plugin {
         }
     }
 
+    private scheduleMindmapRefresh(): void {
+        if (!supportsMindmapFonts()) return;
+        if (this.mindmapRefreshTimer !== undefined) window.clearTimeout(this.mindmapRefreshTimer);
+        this.mindmapRefreshTimer = window.setTimeout(() => {
+            this.mindmapRefreshTimer = undefined;
+            void document.fonts.ready.then(() => {
+                if (!this.disposed) this.refreshMindmapLayouts();
+            });
+        }, 240);
+    }
+
+    private refreshMindmapLayouts(): void {
+        if (!supportsMindmapFonts()) return;
+        const renderer = (SiyuanAPI as unknown as {ProtyleMethod?: ProtyleRenderAPI}).ProtyleMethod;
+        document.querySelectorAll('.protyle-wysiwyg, .b3-typography').forEach(root => {
+            if (root.querySelector('.mindmap-view')) renderer?.mindmapRender?.(root);
+        });
+    }
+
     private updateGraphModels(): void {
-        if (this.disposed) return;
+        if (this.disposed || !supportsGraphFonts()) return;
         const family = getComputedStyle(document.body).getPropertyValue("--b3-font-family-graph").trim();
         if (!family) return;
         const rawWeight = getComputedStyle(document.body).getPropertyValue("--bfm-font-weight-graph").trim();
@@ -262,7 +295,8 @@ export default class SiYuanFontStudio extends Plugin {
         type GraphModel = {
             onGraph?: (highlight: boolean, resetLayout?: boolean) => void;
         };
-        for (const model of getAllModels().graph as GraphModel[]) {
+        const models = typeof getAllModels === "function" ? getAllModels()?.graph : [];
+        for (const model of (Array.isArray(models) ? models : []) as GraphModel[]) {
             try {
                 model.onGraph?.(false);
             } catch (error) {
@@ -291,7 +325,7 @@ export default class SiYuanFontStudio extends Plugin {
     private patchMermaidRuntime(): boolean {
         if (this.disposed) return false;
         const runtime = (window as typeof window & {mermaid?: MermaidRuntime}).mermaid;
-        if (!runtime) return false;
+        if (!runtime || typeof runtime.initialize !== "function") return false;
         if (this.mermaidRuntime === runtime && runtime.initialize === this.mermaidWrappedInitialize) return true;
         this.restoreMermaidRuntime();
         const original = runtime.initialize;
@@ -334,19 +368,20 @@ export default class SiYuanFontStudio extends Plugin {
         await document.fonts.ready;
         if (this.disposed) return;
         this.patchMermaidRuntime();
-        diagrams.forEach((diagram) => diagram.removeAttribute("data-render"));
         const renderer = (SiyuanAPI as unknown as {ProtyleMethod?: ProtyleRenderAPI}).ProtyleMethod;
-        if (renderer) renderer.mermaidRender(document.body);
+        if (!renderer?.mermaidRender) return;
+        diagrams.forEach((diagram) => diagram.removeAttribute("data-render"));
+        renderer.mermaidRender(document.body);
     }
 
     private async loadSystemFonts(): Promise<void> {
         try {
             const response = await fetch("/api/system/getSysFonts", {method: "POST", body: "{}"});
-            const payload = await response.json() as {code: number; data?: SystemFont[]};
+            const payload = await response.json() as {code: number; data?: unknown};
             if (this.disposed) return;
             if (payload.code === 0 && Array.isArray(payload.data)) {
                 const unique = new Map<string, SystemFont>();
-                for (const font of payload.data) unique.set(`${font.family}\u0000${font.weight}`, font);
+                for (const font of currentSystemFonts(payload.data)) unique.set(`${font.family}\u0000${font.weight}`, font);
                 this.systemFonts = Array.from(unique.values()).sort((a, b) => a.displayName.localeCompare(b.displayName));
                 if (this.managerDialog) this.renderManager();
             }
@@ -619,7 +654,7 @@ export default class SiYuanFontStudio extends Plugin {
             : target === "ui" ? {min: 10, max: 24, fallback: 14}
             : target === "content" ? {min: 9, max: 72, fallback: window.siyuan.config?.editor.fontSize || 16}
                 : target === "emoji" || target === "graph" ? {min: 8, max: 72, fallback: 19}
-                    : target === "mermaid" ? {min: 10, max: 32, fallback: 16}
+                    : target === "mermaid" || target === "mindmap" ? {min: 10, max: 32, fallback: 16}
                     : target === "math" ? {min: 8, max: 72, fallback: window.siyuan.config?.editor.fontSize || 16}
                         : {min: 9, max: 72, fallback: 14};
         const supportsDecoupling = target === "mono" || target === "math";
@@ -634,7 +669,9 @@ export default class SiYuanFontStudio extends Plugin {
 </div>${this.settingControlsHtml(target, secondaryActive, bounds)}`
             : this.settingControlsHtml(target, false, bounds);
         const hint = target === "math" ? this.i18n.mathFontHint
+            : target === "graph" ? this.i18n.graphFontHint
             : target === "mermaid" ? this.i18n.mermaidSizeHint
+                : target === "mindmap" ? this.i18n.mindmapFontHint
                 : "";
         const hintPositionClass = target === "math" ? " bfm-info-tip--start" : "";
         const titleHint = hint
@@ -797,6 +834,7 @@ export default class SiYuanFontStudio extends Plugin {
             graph: this.i18n.graphFont,
             emoji: this.i18n.emojiFont,
             mermaid: this.i18n.mermaidFont,
+            mindmap: this.i18n.mindmapFont,
         };
         return labels[target];
     }
@@ -994,6 +1032,7 @@ export default class SiYuanFontStudio extends Plugin {
                     formulaBlock: this.i18n.formulaBlock,
                     graph: this.i18n.graphFont,
                     mermaid: this.i18n.mermaidFont,
+                    mindmap: this.i18n.mindmapFont,
                     emoji: this.i18n.emojiFont,
                 });
                 const baseName = `${safeFileName(displayName)}.${PRESET_FILE_FORMAT}`;

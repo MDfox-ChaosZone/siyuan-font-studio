@@ -27,6 +27,7 @@ export interface PresetMarkdownLabels {
     formulaBlock: string;
     graph: string;
     mermaid: string;
+    mindmap: string;
     emoji: string;
 }
 
@@ -50,6 +51,7 @@ const DEFAULT_MARKDOWN_LABELS: PresetMarkdownLabels = {
     formulaBlock: "Formula blocks",
     graph: "Graphs",
     mermaid: "Mermaid",
+    mindmap: "Mind maps",
     emoji: "Emoji",
 };
 
@@ -165,6 +167,7 @@ export function createPresetMarkdown(
         {label: labels.graph, settings: preset.targets.graph, supportsSize: false},
         {label: labels.emoji, settings: preset.targets.emoji, supportsSize: false},
         {label: labels.mermaid, settings: preset.targets.mermaid, supportsSize: true},
+        {label: labels.mindmap, settings: preset.targets.mindmap, supportsSize: true},
     ];
     const table = rows.map((row) => {
         const choices = row.settings.fonts.length ? row.settings.fonts : [{kind: "default"} as FontChoice];
@@ -321,8 +324,8 @@ export function parsePresetConfig(value: unknown, fonts: ImportedFont[]): Import
     const targets = {} as Record<FontTarget, TargetSettings>;
     for (const target of TARGETS) {
         const settings = source.targets[target];
-        // Older v1 presets have no per-heading settings.
-        if (settings === undefined && HEADING_TARGETS.includes(target as typeof HEADING_TARGETS[number])) {
+        // Older v1 presets have no per-heading or mind map settings.
+        if (settings === undefined && (HEADING_TARGETS.includes(target as typeof HEADING_TARGETS[number]) || target === "mindmap")) {
             targets[target] = {fonts: [], size: null};
             continue;
         }

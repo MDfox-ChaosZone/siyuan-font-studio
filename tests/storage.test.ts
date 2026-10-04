@@ -6,6 +6,19 @@ const font = {storageName: "Demo__safeid.woff2"};
 afterEach(() => vi.unstubAllGlobals());
 
 describe("font storage API", () => {
+    it("writes fonts and directories without appId on the baseline API", async () => {
+        const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({code: 0}), {headers: {"content-type": "application/json"}}));
+        vi.stubGlobal("fetch", fetchMock);
+        await writeFontFile(font, new File(["font"], "demo.woff2"));
+        // Each request needs its own readable response body.
+        fetchMock.mockResolvedValue(new Response(JSON.stringify({code: 0}), {headers: {"content-type": "application/json"}}));
+        await ensureFontDirectory();
+        for (const [, init] of fetchMock.mock.calls) {
+            expect((init.body as FormData).has("app")).toBe(false);
+            expect((init.body as FormData).get("path")).toContain("/data/storage/petal/siyuan-font-studio/fonts");
+        }
+    });
+
     it("builds readable collision-resistant storage names", () => {
         expect(storedFontFileName({
             id: "550e8400-e29b-41d4-a716-446655440000",

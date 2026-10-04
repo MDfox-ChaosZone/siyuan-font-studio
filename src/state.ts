@@ -114,8 +114,8 @@ function sanitizeTargets(targets: Record<FontTarget, TargetSettings>, ids: Set<s
 
 export function clampSize(target: FontTarget, size: number | null): number | null {
     if (size === null || !Number.isFinite(size)) return null;
-    const min = target === "ui" || target === "mermaid" ? 10 : target === "emoji" || target === "math" ? 8 : 9;
-    const max = target === "ui" ? 24 : target === "mermaid" ? 32 : 72;
+    const min = target === "ui" || target === "mermaid" || target === "mindmap" ? 10 : target === "emoji" || target === "math" ? 8 : 9;
+    const max = target === "ui" ? 24 : (target === "mermaid" || target === "mindmap") ? 32 : 72;
     return Math.min(max, Math.max(min, Math.round(size)));
 }
 

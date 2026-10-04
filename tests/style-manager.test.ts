@@ -1,8 +1,9 @@
-import {afterEach, describe, expect, it, vi} from "vitest";
+import {afterEach, beforeEach, describe, expect, it, vi} from "vitest";
 import {StyleManager} from "../src/style-manager";
 import {DEFAULT_STATE, ImportedFont} from "../src/types";
 
 afterEach(() => vi.unstubAllGlobals());
+beforeEach(() => vi.stubGlobal("window", {siyuan: {config: {system: {kernelVersion: "3.8.6"}}}}));
 
 describe("font target isolation", () => {
     it("uses SiYuan's official font stacks when theme variables are not ready yet", () => {
@@ -23,6 +24,7 @@ describe("font target isolation", () => {
         expect(manager.getBaselineFamily("emoji")).toBe('"Emojis Additional", emojis');
         expect(manager.getBaselineFamily("math")).toBe("KaTeX_Math");
         expect(manager.getBaselineFamily("mermaid")).toBe("sans-serif");
+        expect(manager.getBaselineFamily("mindmap")).toBe(manager.getBaselineFamily("content"));
     });
 
     it("freezes the original content and code stacks when only the interface font changes", () => {

@@ -16,6 +16,7 @@ module.exports = (_env, argv) => {
             {from: "preview.webp", to: "dist/"},
             {from: "icon.png", to: "dist/"},
             {from: "README*.md", to: "dist/"},
+            {from: "docs/research/font-compatibility.md", to: "dist/docs/research/font-compatibility.md"},
             {from: "assets/donate", to: "dist/assets/donate"},
             {from: "assets/screenshots", to: "dist/assets/screenshots"},
             {from: "plugin.json", to: "dist/"},

@@ -21,6 +21,7 @@ Customize the font family and size of the following elements:
 | Code | ✅ | ✅ | Inline code and code blocks; each can be configured separately |
 | Formulas | ✅ | ✅ | Inline formulas and formula blocks; each can be configured separately |
 | Graphs | ✅ | ❌ | Document graphs and the global graph |
+| Mind maps | ✅ | ✅ | Independent node fonts, weights and sizes under Other font settings |
 | Mermaid | ✅ | Partial | Some Mermaid elements use independent fixed font sizes that cannot be overridden consistently |
 | Emoji | ✅ | ❌ | Emoji displayed in the document tree, document content, and similar locations |
 
@@ -29,18 +30,18 @@ Customize the font family and size of the following elements:
 
 ## Additional notes
 
-- Graph fonts: SiYuan 3.8 and later use a new graph renderer. The plugin currently supports changing the font family only and does not provide a graph font-size setting.
-- WOFF2 is recommended because of its smaller file size. TTF/OTF fonts can be converted online with [CloudConvert](https://cloudconvert.com/ttf-to-woff2) or with my [FontConvert](https://github.com/MDfox-ChaosZone/Font-Converter) project.
+- For personal use, WOFF2 is recommended for its smaller file size and reduced memory usage. TTF/OTF fonts can be converted online with [CloudConvert](https://cloudconvert.com/ttf-to-woff2) or with my [FontConvert](https://github.com/MDfox-ChaosZone/Font-Converter) project.
+  - When distributing fonts, keeping their original format is recommended to respect any restrictions in the font license.
 
 ## Changelog
 
+- **v1.1.0**: Added mind map font settings.
 - **v1.0.0**:
   - Fixed the mismatch between the formula size slider and the actual size after resetting to defaults. Inline formulas and formula blocks display their computed sizes separately; defaults may include decimals, while manual adjustments still use whole pixels.
   - Fixed hard-to-read settings tooltips in themes such as neo by using matching theme background and text colors.
-  - Updated some text and images.
 - **v0.1.9**: Added independent H1–H6 fonts, weights, and sizes with default resets and preset import/export; display computed default sizes while preserving older presets; refreshed the plugin preview and documentation.
 - **v0.1.8**: Added community preset submission, review, and live downloads; added split uploads for large presets and author-initiated withdrawal; improved the download dialog and saving split packages.
-- **v0.1.7**: Improved variable-font support; fixed font weights not applying to formula fallback fonts and prevented those fallbacks from overriding KaTeX digits and operators; fixed the “Failed to save settings: [object Object]” error when downloading the example preset in SiYuan 3.8.3.
+- **v0.1.7**: Improved variable-font support; fixed font weights not applying to formula fallback fonts and prevented those fallbacks from overriding KaTeX digits and operators; fixed failures when downloading the example preset.
 - **v0.1.6**: Added font weight display and selection, with compatibility for SiYuan 3.8.2.
 - **v0.1.5**: Added on-demand download and automatic import for the example font preset, and refined the preset toolbar layout.
 - **v0.1.4 and earlier**: Completed the plugin's core functionality.
@@ -48,8 +49,8 @@ Customize the font family and size of the following elements:
 ## Share a font preset
 
 1. Save and export your preset in the plugin. If a ZIP containing fonts exceeds 25 MB, select the GitHub Issue split option and save every ZIP part.
-2. Open “Download font presets → Share my preset” or the [submission form](https://github.com/MDfox-ChaosZone/siyuan-font-studio/issues/new?template=share-font-preset.yml). Keep the title prefix, attach your file or all parts to one Issue, and optionally add a description and screenshot.
-3. Submit the Issue for automatic validation and maintainer review. Once approved, the preset appears in the plugin's download list. Only redistribute fonts when the license permits it; otherwise export settings as JSON.
+2. Open “Download font presets → Share my preset” or the [submission form](https://github.com/MDfox-ChaosZone/siyuan-font-studio/issues/new?template=share-font-preset.yml). Keep the title prefix, enter a custom name, and upload the preset file; a description and screenshots are optional. Attach all ZIP parts to the same Issue.
+3. Submit the Issue for automatic validation and maintainer review. Once approved, the preset appears in the plugin's download list. Only share fonts that permit redistribution.
 
 To withdraw a published preset, the original author can close its submission Issue. See the [community preset guide](docs/community-presets.md) for details.
 
