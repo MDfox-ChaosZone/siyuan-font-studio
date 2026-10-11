@@ -35,6 +35,7 @@ Customize the font family and size of the following elements:
 
 ## Changelog
 
+- **v1.1.1**: Fixed spacing between SiYuan's automatic heading numbers and text failing to update immediately when changing document or heading fonts and sizes through the plugin.
 - **v1.1.0**: Added mind map font settings.
 - **v1.0.0**:
   - Fixed the mismatch between the formula size slider and the actual size after resetting to defaults. Inline formulas and formula blocks display their computed sizes separately; defaults may include decimals, while manual adjustments still use whole pixels.

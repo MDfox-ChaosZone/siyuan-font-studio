@@ -32,6 +32,7 @@ import {activatePreset, clampLibraryPreviewWidth, cloneTargets, parseState, remo
 import {mergeMermaidConfig, mermaidOverrides} from "./mermaid";
 import {applyGraphCanvasFontWeight} from "./graph-font";
 import {mindmapOverrides} from "./mindmap";
+import {HeadingLayout} from "./heading-layout";
 import {currentSystemFonts, supportsGraphFonts, supportsMindmapFonts} from "./compatibility";
 import {errorMessage, isSiyuanErrorCode} from "./error-message";
 import {
@@ -75,6 +76,8 @@ class ManagerSetting extends Setting {
 export default class SiYuanFontStudio extends Plugin {
     private state: PluginState = parseState(null);
     private styleManager?: StyleManager;
+    private headingLayout?: HeadingLayout;
+    private lastHeadingSignature = "";
     private faces = new Map<string, FontFace>();
     private emojiFaces = new Map<string, FontFace>();
     private statuses = new Map<string, FontRuntimeStatus>();
@@ -113,6 +116,7 @@ export default class SiYuanFontStudio extends Plugin {
   <circle cx="27" cy="22" r="3"></circle>
 </symbol>`);
         this.styleManager = new StyleManager();
+        this.headingLayout = new HeadingLayout();
         this.state = parseState(await this.loadData(STATE_FILE));
         try {
             this.communityCatalogCache = parseCommunityCatalog(await this.loadData(CATALOG_CACHE_FILE)).presets;
@@ -139,6 +143,7 @@ export default class SiYuanFontStudio extends Plugin {
             if (this.disposed) return;
             this.styleManager?.refreshBaselines();
             this.applySettings();
+            this.headingLayout?.schedule();
             if (this.managerDialog) this.renderManager();
         });
         this.themeObserver.observe(document.documentElement, {
@@ -151,6 +156,7 @@ export default class SiYuanFontStudio extends Plugin {
         if (this.disposed) return;
         this.styleManager?.refreshBaselines();
         this.applySettings();
+        this.headingLayout?.schedule();
         if (supportsGraphFonts()) {
             this.graphObserver = new MutationObserver((records) => {
                 const graphAdded = records.some((record) => Array.from(record.addedNodes).some((node) => node instanceof Element
@@ -185,6 +191,7 @@ export default class SiYuanFontStudio extends Plugin {
         this.exampleDownloadDialog?.destroy();
         this.managerDialog?.destroy();
         this.styleManager?.destroy();
+        this.headingLayout?.destroy();
         this.refreshMindmapLayouts();
         document.querySelectorAll<HTMLCanvasElement>("canvas.graph__labels")
             .forEach((canvas) => applyGraphCanvasFontWeight(canvas, null));
@@ -251,6 +258,15 @@ export default class SiYuanFontStudio extends Plugin {
         if (this.disposed) return;
         const loadedIds = new Set(Array.from(this.statuses.entries()).filter(([, status]) => status.loaded).map(([id]) => id));
         this.styleManager?.apply(this.state, loadedIds);
+        const headingSignature = JSON.stringify([
+            this.state.targets.ui.fonts, this.state.targets.content,
+            ...HEADING_TARGETS.map(target => this.state.targets[target]),
+            this.state.targets.emoji.fonts, Array.from(loadedIds),
+        ]);
+        if (headingSignature !== this.lastHeadingSignature) {
+            this.lastHeadingSignature = headingSignature;
+            this.headingLayout?.schedule();
+        }
         const mindmapSignature = JSON.stringify(mindmapOverrides(this.state, loadedIds));
         if (mindmapSignature !== this.lastMindmapSignature) {
             this.lastMindmapSignature = mindmapSignature;
