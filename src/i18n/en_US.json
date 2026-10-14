@@ -95,6 +95,7 @@
   "monoFont": "Monospace font",
   "uiDescription": "Used by SiYuan interfaces",
   "contentDescription": "Used by document content",
+  "contentSizeHint": "When you change the document font size, monospace text and formulas using their default sizes scale proportionally. Manually set sizes stay fixed; reset them to default to follow again. With Set separately enabled, inline and block sizes follow this rule independently.",
   "monoDescription": "Used by inline code and code blocks",
   "graphFont": "Graph font",
   "graphDescription": "Used by local and global graphs",

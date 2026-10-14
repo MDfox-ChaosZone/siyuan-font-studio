@@ -203,7 +203,8 @@ export class StyleManager {
             rules.push(`${MONO_BLOCK_SELECTORS} { font-size: ${monoBlockSize}px !important; }`);
         }
         if (state.targets.math.size !== null) {
-            rules.push(`.b3-typography .katex, .protyle-wysiwyg .katex { font-size: ${state.targets.math.size}px !important; }`);
+            const mathRoot = state.targets.math.decoupled ? ".katex:not(.katex-display .katex)" : ".katex";
+            rules.push(`.b3-typography ${mathRoot}, .protyle-wysiwyg ${mathRoot} { font-size: ${state.targets.math.size}px !important; }`);
         }
         const mathBlockSize = state.targets.math.decoupled ? state.targets.math.secondary?.size : null;
         if (mathBlockSize !== null && mathBlockSize !== undefined) rules.push(`.b3-typography .katex-display .katex, .protyle-wysiwyg .katex-display .katex { font-size: ${mathBlockSize}px !important; }`);

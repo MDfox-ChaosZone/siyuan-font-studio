@@ -28,6 +28,12 @@ Customize the font family and size of the following elements:
 - Save font combinations as presets and switch between them easily. Import and export presets for sharing and use across devices.
 - Select multiple fonts to provide fallbacks for missing characters.
 
+### Font size settings
+
+- Monospace text and formulas using default sizes scale with the document font size at the default ratios defined by SiYuan or the theme. Manually set sizes stay fixed; click “Reset size” to follow the document size again.
+- With “Set separately” enabled, inline code and code blocks, as well as inline formulas and formula blocks, use independent sizes without affecting each other.
+- Default sizes display their computed values and may include decimals; manual adjustments still use whole pixels. Hover over the information icon next to “Document font” for an explanation of how sizes follow the document.
+
 ## Additional notes
 
 - For personal use, WOFF2 is recommended for its smaller file size and reduced memory usage. TTF/OTF fonts can be converted online with [CloudConvert](https://cloudconvert.com/ttf-to-woff2) or with my [FontConvert](https://github.com/MDfox-ChaosZone/Font-Converter) project.
@@ -35,6 +41,10 @@ Customize the font family and size of the following elements:
 
 ## Changelog
 
+- **v1.1.2**:
+  - Monospace default sizes now display their computed values. Default monospace and formula size values update immediately when the document font size changes.
+  - Fixed a custom inline formula size affecting formula blocks using their default size when “Set separately” was enabled.
+  - Fixed mismatches between slider values and displayed values when default sizes fell outside the manual adjustment range. Added a font size tooltip next to “Document font”.
 - **v1.1.1**: Fixed spacing between SiYuan's automatic heading numbers and text failing to update immediately when changing document or heading fonts and sizes through the plugin.
 - **v1.1.0**: Added mind map font settings.
 - **v1.0.0**:

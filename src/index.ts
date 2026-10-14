@@ -258,6 +258,7 @@ export default class SiYuanFontStudio extends Plugin {
         if (this.disposed) return;
         const loadedIds = new Set(Array.from(this.statuses.entries()).filter(([, status]) => status.loaded).map(([id]) => id));
         this.styleManager?.apply(this.state, loadedIds);
+        this.refreshDefaultSizes();
         const headingSignature = JSON.stringify([
             this.state.targets.ui.fonts, this.state.targets.content,
             ...HEADING_TARGETS.map(target => this.state.targets[target]),
@@ -574,7 +575,10 @@ export default class SiYuanFontStudio extends Plugin {
         root.querySelectorAll<HTMLInputElement>("input[data-role='size']").forEach((input) => {
             input.addEventListener("input", () => {
                 // Preserve fractional theme defaults, while manual adjustments still use whole pixels.
-                if (input.dataset.target === "math") input.value = String(Math.round(Number(input.value)));
+                if (input.dataset.target === "math" || input.dataset.target === "mono") {
+                    const min = input.dataset.target === "math" ? 8 : 9;
+                    input.value = String(Math.max(min, Math.min(72, Math.round(Number(input.value)))));
+                }
                 const output = root.querySelector<HTMLElement>(`[data-size-output="${input.dataset.target}-${input.dataset.secondary === "true"}"]`);
                 if (output) output.textContent = `${input.value}px`;
                 const target = input.dataset.target as FontTarget;
@@ -684,12 +688,13 @@ export default class SiYuanFontStudio extends Plugin {
   <button type="button" role="tab" class="${secondaryActive ? "bfm-setting-tabs--active" : ""}" data-setting-tab data-target="${target}" data-secondary="true" aria-selected="${secondaryActive}">${secondaryLabel}</button>
 </div>${this.settingControlsHtml(target, secondaryActive, bounds)}`
             : this.settingControlsHtml(target, false, bounds);
-        const hint = target === "math" ? this.i18n.mathFontHint
+        const hint = target === "content" ? this.i18n.contentSizeHint
+            : target === "math" ? this.i18n.mathFontHint
             : target === "graph" ? this.i18n.graphFontHint
             : target === "mermaid" ? this.i18n.mermaidSizeHint
                 : target === "mindmap" ? this.i18n.mindmapFontHint
                 : "";
-        const hintPositionClass = target === "math" ? " bfm-info-tip--start" : "";
+        const hintPositionClass = target === "content" || target === "math" ? " bfm-info-tip--start" : "";
         const titleHint = hint
             ? `<span class="bfm-info-tip${hintPositionClass}" tabindex="0" aria-label="${escapeHtml(hint)}"><span aria-hidden="true">i</span><span class="bfm-info-tip__content" role="tooltip">${escapeHtml(hint)}</span></span>`
             : "";
@@ -1273,39 +1278,66 @@ export default class SiYuanFontStudio extends Plugin {
 
     private settingControlsHtml(target: FontTarget, secondary: boolean, bounds: {min: number; max: number; fallback: number}): string {
         const config = this.settingsFor(target, secondary);
-        const size = config.size ?? (target === "math" ? this.mathSize(secondary) : bounds.fallback);
+        const relativeSize = target === "math" || target === "mono";
+        const size = config.size ?? (relativeSize ? this.defaultSize(target, secondary) : bounds.fallback);
+        const min = relativeSize ? Math.min(bounds.min, size) : bounds.min;
+        const max = relativeSize ? Math.max(bounds.max, size) : bounds.max;
         const supportsSize = target !== "emoji" && target !== "graph";
-        const sizeControls = supportsSize ? `<div class="bfm-size"><input type="range" aria-label="${escapeHtml(this.i18n[`${target}Font`])}" data-role="size" data-target="${target}" data-secondary="${secondary}" min="${bounds.min}" max="${bounds.max}" step="${target === "math" ? "any" : "1"}" value="${size}"><output data-size-output="${target}-${secondary}">${size}px</output></div>` : "";
+        const sizeControls = supportsSize ? `<div class="bfm-size"><input type="range" aria-label="${escapeHtml(this.i18n[`${target}Font`])}" data-role="size" data-target="${target}" data-secondary="${secondary}" min="${min}" max="${max}" step="${relativeSize ? "any" : "1"}" value="${size}"><output data-size-output="${target}-${secondary}">${size}px</output></div>` : "";
         const resetSize = supportsSize ? `<button class="b3-button bfm-reset ${config.size === null ? "" : "bfm-reset--active"}" data-reset-size="${target}" data-secondary="${secondary}">${this.i18n.resetSize}</button>` : "";
         return `<div class="bfm-setting-pane">${this.fontPickerHtml(target, secondary, config.fonts)}
   ${sizeControls}
   <div class="bfm-target__actions"><button class="b3-button bfm-reset ${config.fonts.length ? "bfm-reset--active" : ""}" data-reset-font="${target}" data-secondary="${secondary}">${this.i18n.resetFont}</button>${resetSize}</div></div>`;
     }
 
-    private mathSize(secondary: boolean): number {
+    private refreshDefaultSizes(): void {
+        const root = this.managerDialog?.element.querySelector<HTMLElement>(".bfm-manager");
+        root?.querySelectorAll<HTMLInputElement>('input[data-role="size"][data-target="mono"], input[data-role="size"][data-target="math"]').forEach((input) => {
+            const target = input.dataset.target as "mono" | "math";
+            const secondary = input.dataset.secondary === "true";
+            if (this.settingsFor(target, secondary).size !== null) return;
+            const size = this.defaultSize(target, secondary);
+            input.min = String(Math.min(target === "math" ? 8 : 9, size));
+            input.max = String(Math.max(72, size));
+            input.value = String(size);
+            const output = root.querySelector<HTMLElement>(`[data-size-output="${target}-${secondary}"]`);
+            if (output) output.textContent = `${size}px`;
+        });
+    }
+
+    private defaultSize(target: "mono" | "math", secondary: boolean): number {
         const baseSize = this.state.targets.content.size ?? (window.siyuan.config?.editor.fontSize || 16);
+        const ratio = target === "math" ? 1.21 : 0.85;
         const probe = document.createElement("div");
-        probe.id = "siyuan-font-studio-math-probe";
+        probe.id = "siyuan-font-studio-size-probe";
         probe.className = "protyle-wysiwyg";
         probe.style.cssText = `position:fixed;left:-10000px;visibility:hidden;pointer-events:none;font-size:${baseSize}px;`;
-        // KaTeX's CSS is loaded lazily. A layered fallback lets theme and plugin rules take precedence.
+        // Layered fallbacks let loaded SiYuan, theme and plugin rules take precedence.
         const fallback = document.createElement("style");
-        fallback.textContent = "@layer { #siyuan-font-studio-math-probe .katex { font-size: 1.21em; } }";
+        fallback.textContent = `@layer { #siyuan-font-studio-size-probe .katex { font-size: 1.21em; } #siyuan-font-studio-size-probe .hljs, #siyuan-font-studio-size-probe span[data-type~="code"] { font-size: 85%; } }`;
         const wrapper = document.createElement(secondary ? "div" : "span");
-        wrapper.dataset.type = secondary ? "NodeMath" : "inline-math";
-        if (secondary) wrapper.dataset.subtype = "math";
-        const display = document.createElement("span");
-        if (secondary) display.className = "katex-display";
-        const formula = document.createElement("span");
-        formula.className = "katex";
-        display.appendChild(formula);
-        wrapper.appendChild(display);
+        wrapper.dataset.type = target === "math" ? secondary ? "NodeMath" : "inline-math" : secondary ? "NodeCodeBlock" : "code";
+        let sample = wrapper;
+        if (target === "math") {
+            if (secondary) wrapper.dataset.subtype = "math";
+            const display = document.createElement("span");
+            if (secondary) display.className = "katex-display";
+            sample = document.createElement("span");
+            sample.className = "katex";
+            display.appendChild(sample);
+            wrapper.appendChild(display);
+        } else if (secondary) {
+            wrapper.className = "code-block";
+            sample = document.createElement("div");
+            sample.className = "hljs";
+            wrapper.appendChild(sample);
+        }
         probe.appendChild(fallback);
         probe.appendChild(wrapper);
         document.body.appendChild(probe);
         try {
-            const size = Number.parseFloat(getComputedStyle(formula).fontSize);
-            return Math.round((Number.isFinite(size) && size > 0 ? size : baseSize * 1.21) * 100) / 100;
+            const size = Number.parseFloat(getComputedStyle(sample).fontSize);
+            return Math.round((Number.isFinite(size) && size > 0 ? size : baseSize * ratio) * 100) / 100;
         } finally {
             probe.remove();
         }
