@@ -72,7 +72,7 @@ export class StyleManager {
         return this.baselineFamilies[HEADING_TARGETS.includes(target as typeof HEADING_TARGETS[number]) ? "content" : target as BaseFontTarget];
     }
 
-    apply(state: PluginState, loadedIds: Set<string>): void {
+    apply(state: PluginState, loadedIds: Set<string>, emojiLoadedIds = loadedIds): void {
         this.restoreRoot();
         const root = document.documentElement.style;
         const effectiveChoices = (choices: FontChoice[]) => isOnlySiyuanDefault(choices) ? [] : choices;
@@ -80,7 +80,7 @@ export class StyleManager {
         const content = familyForChoices(effectiveChoices(state.targets.content.fonts), state.fonts, loadedIds, runtimeFamily, this.baselineFamilies.content);
         const mono = familyForChoices(effectiveChoices(state.targets.mono.fonts), state.fonts, loadedIds, runtimeFamily, this.baselineFamilies.mono);
         const graph = familyForChoices(effectiveChoices(state.targets.graph.fonts), state.fonts, loadedIds, runtimeFamily, this.baselineFamilies.graph);
-        const restrictedEmoji = restrictedEmojiFamilies(effectiveChoices(state.targets.emoji.fonts), state.fonts, loadedIds, this.baselineFamilies.emoji);
+        const restrictedEmoji = restrictedEmojiFamilies(effectiveChoices(state.targets.emoji.fonts), state.fonts, emojiLoadedIds, this.baselineFamilies.emoji);
         const emoji = restrictedEmoji.family;
         const mathChoices = effectiveMathChoices(state.targets.math.fonts);
         const math = familyForChoices(mathChoices, state.fonts, loadedIds, runtimeFamily, this.baselineFamilies.math);

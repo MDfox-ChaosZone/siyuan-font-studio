@@ -27,6 +27,7 @@ Customize the font family and size of the following elements:
 
 - Save font combinations as presets and switch between them easily. Import and export presets for sharing and use across devices.
 - Select multiple fonts to provide fallbacks for missing characters.
+- Fonts load on demand: startup loads only fonts used by the current preset; other fonts load when previewed or selected.
 
 ### Font size settings
 
@@ -41,6 +42,7 @@ Customize the font family and size of the following elements:
 
 ## Changelog
 
+- **v1.2.0**: Improved font loading: startup loads only fonts used by the current preset, and previews load as you scroll. Font metadata is cached, and Emoji faces load only when used.
 - **v1.1.2**:
   - Monospace default sizes now display their computed values. Default monospace and formula size values update immediately when the document font size changes.
   - Fixed a custom inline formula size affecting formula blocks using their default size when “Set separately” was enabled.

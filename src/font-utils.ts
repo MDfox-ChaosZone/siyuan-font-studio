@@ -3,6 +3,7 @@ import {create as createFont} from "fontkit";
 
 export const SUPPORTED_EXTENSIONS = new Set(["woff2", "woff", "ttf", "otf"]);
 export const MAX_FONT_BYTES = 100 * 1024 * 1024;
+export const FONT_METADATA_VERSION = 1;
 export const EMOJI_UNICODE_RANGE = [
     "U+231A-231B", "U+23E9-23EC", "U+23F0", "U+23F3", "U+25FD-25FE",
     "U+2600-2604", "U+2614-2615", "U+2618", "U+261D", "U+2620", "U+2622-2623", "U+2626", "U+262A",
@@ -27,6 +28,7 @@ const COMMON_EMOJI_FACES = new Set([
 ]);
 
 export interface FontMetadata {
+    metadataVersion: number;
     fontName: string;
     fontStyle: string;
     fontWeight: number;
@@ -115,6 +117,7 @@ export function extractFontMetadata(buffer: ArrayBuffer, fallbackName: string): 
         const fontStyle = localizedSubfamilyName(parsed) || cleanMetadata(parsed.subfamilyName) || "Regular";
         const variationAxes = normalizeVariationAxes(parsed.variationAxes);
         return {
+            metadataVersion: FONT_METADATA_VERSION,
             fontName: localizedFamilyName(parsed) || cleanMetadata(parsed.familyName || parsed.fullName || parsed.postscriptName) || fallbackName,
             fontStyle,
             fontWeight: normalizeFontWeight(parsed["OS/2"]?.usWeightClass, fontStyle),
@@ -123,7 +126,7 @@ export function extractFontMetadata(buffer: ArrayBuffer, fallbackName: string): 
             coverage: detectFontCoverage(parsed.characterSet || [], hasColorEmojiTables(parsed.directory?.tables)),
         };
     } catch {
-        return {fontName: fallbackName, fontStyle: "Regular", fontWeight: 400, variationAxes: {}, fontVersion: "—", coverage: {chinese: false, english: false, emoji: false, math: false}};
+        return {metadataVersion: FONT_METADATA_VERSION, fontName: fallbackName, fontStyle: "Regular", fontWeight: 400, variationAxes: {}, fontVersion: "—", coverage: {chinese: false, english: false, emoji: false, math: false}};
     }
 }
 

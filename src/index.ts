@@ -3,8 +3,6 @@ import {confirm, Dialog, getAllModels, Menu, Plugin, Setting, showMessage} from 
 import "./index.scss";
 import {
     createId,
-    EMOJI_UNICODE_RANGE,
-    emojiRuntimeFamily,
     extractFontMetadata,
     extensionOf,
     fontWeightName,
@@ -47,7 +45,8 @@ import {
 } from "./preset-io";
 import {deleteFontFile, deletePluginStorage, ensureFontDirectory, FONT_STORAGE_ROOT, readFontFile, storedFontFileName, writeFontFile} from "./storage";
 import {StyleManager} from "./style-manager";
-import {ADVANCED_TARGETS, HEADING_TARGETS, FontChoice, FontPreset, FontRuntimeStatus, FontTarget, ImportedFont, PluginState, SIMPLE_TARGETS, SystemFont} from "./types";
+import {FontLoader, selectedFontRequests} from "./font-loader";
+import {ADVANCED_TARGETS, HEADING_TARGETS, FontChoice, FontPreset, FontTarget, ImportedFont, PluginState, SIMPLE_TARGETS, SystemFont} from "./types";
 import {supportsAssignedWeight} from "./weight-controls";
 
 const STATE_FILE = "font-manager.json";
@@ -78,9 +77,7 @@ export default class SiYuanFontStudio extends Plugin {
     private styleManager?: StyleManager;
     private headingLayout?: HeadingLayout;
     private lastHeadingSignature = "";
-    private faces = new Map<string, FontFace>();
-    private emojiFaces = new Map<string, FontFace>();
-    private statuses = new Map<string, FontRuntimeStatus>();
+    private fontLoader!: FontLoader;
     private systemFonts: SystemFont[] = [];
     private managerDialog?: Dialog;
     private renameDialog?: Dialog;
@@ -108,6 +105,7 @@ export default class SiYuanFontStudio extends Plugin {
 
     async onload(): Promise<void> {
         this.disposed = false;
+        this.fontLoader = new FontLoader(() => { void this.persist().catch(() => undefined); });
         this.addIcons(`<symbol id="iconSiYuanFontStudio" viewBox="0 0 32 32">
   <path fill-rule="evenodd" d="M8 4h4l7 24h-4.2l-1.6-5.5H6.8L5.2 28H1L8 4zm0 14.5h4l-2-7.3-2 7.3z"></path>
   <rect x="19" y="9" width="12" height="2" rx="1"></rect>
@@ -125,9 +123,8 @@ export default class SiYuanFontStudio extends Plugin {
         }
         if (this.disposed) return;
         this.observeMermaidRuntime();
-        const metadataChanged = (await Promise.all(this.state.fonts.map((font) => this.loadStoredFont(font)))).some(Boolean);
+        await this.ensureSelectedFonts();
         if (this.disposed) return;
-        if (metadataChanged) await this.persist();
         this.applySettings();
         void this.loadSystemFonts();
 
@@ -195,10 +192,8 @@ export default class SiYuanFontStudio extends Plugin {
         this.refreshMindmapLayouts();
         document.querySelectorAll<HTMLCanvasElement>("canvas.graph__labels")
             .forEach((canvas) => applyGraphCanvasFontWeight(canvas, null));
-        for (const face of this.faces.values()) document.fonts.delete(face);
-        for (const face of this.emojiFaces.values()) document.fonts.delete(face);
-        this.faces.clear();
-        this.emojiFaces.clear();
+        this.disconnectFontPreviewObservers();
+        this.fontLoader.destroy();
     }
 
     async uninstall(): Promise<void> {
@@ -209,60 +204,32 @@ export default class SiYuanFontStudio extends Plugin {
         }
     }
 
-    private async loadStoredFont(font: ImportedFont): Promise<boolean> {
-        try {
-            const buffer = await readFontFile(font);
-            const metadata = extractFontMetadata(buffer, font.displayName || nameWithoutExtension(font.originalName));
-            const changed = font.fontName !== metadata.fontName
-                || font.fontStyle !== metadata.fontStyle
-                || font.fontWeight !== metadata.fontWeight
-                || JSON.stringify(font.variationAxes) !== JSON.stringify(metadata.variationAxes)
-                || font.fontVersion !== metadata.fontVersion
-                || JSON.stringify(font.coverage) !== JSON.stringify(metadata.coverage);
-            font.fontName = metadata.fontName;
-            font.fontStyle = metadata.fontStyle;
-            font.fontWeight = metadata.fontWeight;
-            font.variationAxes = metadata.variationAxes;
-            font.fontVersion = metadata.fontVersion;
-            font.coverage = metadata.coverage;
-            await this.registerFont(font, buffer);
-            this.statuses.set(font.id, {loaded: true});
-            return changed;
-        } catch (error) {
-            this.statuses.set(font.id, {loaded: false, error: error instanceof Error ? error.message : String(error)});
-            return false;
-        }
+    private async ensureSelectedFonts(): Promise<void> {
+        await Promise.all(selectedFontRequests(this.state).map(({id, emoji}) => {
+            const font = this.state.fonts.find(font => font.id === id);
+            return font ? this.ensureFont(font, emoji) : undefined;
+        }));
     }
 
-    private async registerFont(font: ImportedFont, buffer: ArrayBuffer): Promise<void> {
-        const previous = this.faces.get(font.id);
-        if (previous) document.fonts.delete(previous);
-        const previousEmoji = this.emojiFaces.get(font.id);
-        if (previousEmoji) document.fonts.delete(previousEmoji);
-        const normalizedStyle = (font.fontStyle || "").toLocaleLowerCase();
-        const weightAxis = font.variationAxes?.wght;
-        const face = new FontFace(runtimeFamily(font.id), buffer.slice(0), {
-            style: normalizedStyle.includes("italic") ? "italic" : normalizedStyle.includes("oblique") ? "oblique" : "normal",
-            weight: weightAxis ? `${weightAxis.min} ${weightAxis.max}` : String(font.fontWeight || 400),
+    private async ensureFont(font: ImportedFont, emoji = false): Promise<void> {
+        if (!await this.fontLoader.ensure(font, emoji) || this.disposed) return;
+        this.applySettings();
+        this.managerDialog?.element.querySelectorAll<HTMLElement>(`[data-library-group="${font.id}"]`).forEach(row => {
+            row.classList.toggle("bfm-font--error", Boolean(this.fontLoader.statuses.get(font.id)?.error));
         });
-        const emojiFace = new FontFace(emojiRuntimeFamily(font.id), buffer.slice(0), {unicodeRange: EMOJI_UNICODE_RANGE});
-        await Promise.all([face.load(), emojiFace.load()]);
-        if (this.disposed) return;
-        document.fonts.add(face);
-        document.fonts.add(emojiFace);
-        this.faces.set(font.id, face);
-        this.emojiFaces.set(font.id, emojiFace);
     }
 
     private applySettings(): void {
         if (this.disposed) return;
-        const loadedIds = new Set(Array.from(this.statuses.entries()).filter(([, status]) => status.loaded).map(([id]) => id));
-        this.styleManager?.apply(this.state, loadedIds);
+        void this.ensureSelectedFonts();
+        const loadedIds = new Set(this.fontLoader.faces.keys());
+        const emojiLoadedIds = new Set(this.fontLoader.emojiFaces.keys());
+        this.styleManager?.apply(this.state, loadedIds, emojiLoadedIds);
         this.refreshDefaultSizes();
         const headingSignature = JSON.stringify([
             this.state.targets.ui.fonts, this.state.targets.content,
             ...HEADING_TARGETS.map(target => this.state.targets[target]),
-            this.state.targets.emoji.fonts, Array.from(loadedIds),
+            this.state.targets.emoji.fonts, Array.from(loadedIds), Array.from(emojiLoadedIds),
         ]);
         if (headingSignature !== this.lastHeadingSignature) {
             this.lastHeadingSignature = headingSignature;
@@ -347,7 +314,7 @@ export default class SiYuanFontStudio extends Plugin {
         this.restoreMermaidRuntime();
         const original = runtime.initialize;
         const wrapped: MermaidRuntime["initialize"] = (options) => {
-            const loadedIds = new Set(Array.from(this.statuses.entries()).filter(([, status]) => status.loaded).map(([id]) => id));
+            const loadedIds = new Set(this.fontLoader.faces.keys());
             return original.call(runtime, mergeMermaidConfig(options, mermaidOverrides(this.state, loadedIds)));
         };
         runtime.initialize = wrapped;
@@ -483,7 +450,7 @@ export default class SiYuanFontStudio extends Plugin {
   <input class="fn__none" type="file" data-role="font-input" accept=".woff2,.woff,.ttf,.otf" multiple>
   <div class="bfm-library">${this.libraryHtml()}</div>
 </section>`;
-        this.applyFontPreviews(root);
+        this.observeFontPreviews(root, root);
 
         root.querySelectorAll<HTMLButtonElement>("button[data-font-trigger]").forEach((button) => {
             button.addEventListener("click", (event) => {
@@ -1188,15 +1155,8 @@ export default class SiYuanFontStudio extends Plugin {
         const testFace = new FontFace(`BFM_VALIDATE_${font.id}`, data.buffer.slice(0));
         await testFace.load();
         await writeFontFile(font, file, this.app.appId);
-        try {
-            await this.registerFont(font, data.buffer);
-            this.statuses.set(font.id, {loaded: true});
-            this.state.fonts.push(font);
-            return true;
-        } catch (error) {
-            await deleteFontFile(font, this.app.appId).catch(() => undefined);
-            throw error;
-        }
+        this.state.fonts.push(font);
+        return true;
     }
 
     private uniquePresetName(rawName: string): string {
@@ -1540,7 +1500,7 @@ export default class SiYuanFontStudio extends Plugin {
             const preferredFont = group.fonts.find((font) => (font.fontWeight || 400) === 400) || group.fonts[0];
             const selectedId = this.selectedLibraryVariants.get(group.key);
             const selectedFont = group.fonts.find((font) => font.id === selectedId) || preferredFont;
-            const status = this.statuses.get(selectedFont.id) || {loaded: false};
+            const status = this.fontLoader.statuses.get(selectedFont.id);
             const coverageTags = [
                 selectedFont.coverage?.chinese ? this.i18n.coverageChinese : "",
                 selectedFont.coverage?.english ? this.i18n.coverageEnglish : "",
@@ -1558,7 +1518,7 @@ export default class SiYuanFontStudio extends Plugin {
                     const optionLabel = `${font.fontStyle || fontWeightName(font.fontWeight || 400)} · ${font.fontWeight || 400}`;
                     return `<option value="${escapeHtml(font.id)}" ${font.id === selectedFont.id ? "selected" : ""}>${escapeHtml(optionLabel)}</option>`;
                 }).join("")}</select>`;
-            return `<article class="bfm-font ${status.loaded ? "" : "bfm-font--error"}" draggable="false" data-library-group="${selectedFont.id}">
+            return `<article class="bfm-font ${status?.error ? "bfm-font--error" : ""}" draggable="false" data-library-group="${selectedFont.id}">
   <span class="bfm-drag bfm-font__handle" draggable="true" title="${this.i18n.dragToSort}">⠿</span>
   <div class="bfm-font__name" data-preview-font-id="${escapeHtml(selectedFont.id)}" data-preview-weight="${previewWeight}"><strong>${escapeHtml(group.familyName)}</strong>${selector}</div>
   <div class="bfm-font__column-resizer" data-library-column-resizer draggable="false" role="separator" aria-orientation="vertical" aria-label="${escapeHtml(this.i18n.resizeFontColumns)}" title="${escapeHtml(this.i18n.resizeFontColumns)}"></div>
@@ -1579,7 +1539,10 @@ export default class SiYuanFontStudio extends Plugin {
 
     private applyFontPreview(element: HTMLElement): void {
         if (element.dataset.previewFontId) {
-            element.style.fontFamily = `"${runtimeFamily(element.dataset.previewFontId)}", var(--b3-font-family)`;
+            const font = this.state.fonts.find(font => font.id === element.dataset.previewFontId);
+            if (!font) return;
+            void this.ensureFont(font);
+            element.style.fontFamily = `"${runtimeFamily(font.id)}", var(--b3-font-family)`;
             if (element.dataset.previewWeight) element.style.fontWeight = element.dataset.previewWeight;
         } else if (element.dataset.previewFamily) {
             element.style.fontFamily = element.dataset.previewFamily!;
@@ -1836,20 +1799,12 @@ export default class SiYuanFontStudio extends Plugin {
                 await testFace.load();
                 await writeFontFile(font, file, this.app.appId);
                 try {
-                    await this.registerFont(font, buffer);
-                    this.statuses.set(font.id, {loaded: true});
                     this.state.fonts.push(font);
                     await this.persist();
                     imported++;
                 } catch (error) {
                     this.state.fonts = this.state.fonts.filter((item) => item.id !== font.id);
-                    const registered = this.faces.get(font.id);
-                    if (registered) document.fonts.delete(registered);
-                    const registeredEmoji = this.emojiFaces.get(font.id);
-                    if (registeredEmoji) document.fonts.delete(registeredEmoji);
-                    this.faces.delete(font.id);
-                    this.emojiFaces.delete(font.id);
-                    this.statuses.delete(font.id);
+                    this.fontLoader.remove(font.id);
                     await deleteFontFile(font, this.app.appId).catch(() => undefined);
                     throw error;
                 }
@@ -1910,16 +1865,11 @@ export default class SiYuanFontStudio extends Plugin {
     private async deleteFont(font: ImportedFont): Promise<void> {
         const previous = this.state;
         this.state = removeFontFromState(this.state, font.id);
+        // Invalidate in-flight loads before awaiting storage operations.
+        this.fontLoader.remove(font.id);
         try {
             await this.persist();
             await deleteFontFile(font, this.app.appId).catch((error) => console.warn(`[${this.name}] orphaned font file`, error));
-            const face = this.faces.get(font.id);
-            if (face) document.fonts.delete(face);
-            const emojiFace = this.emojiFaces.get(font.id);
-            if (emojiFace) document.fonts.delete(emojiFace);
-            this.faces.delete(font.id);
-            this.emojiFaces.delete(font.id);
-            this.statuses.delete(font.id);
             this.applySettings();
             this.renderManager();
         } catch (error) {

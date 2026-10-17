@@ -333,6 +333,7 @@ describe("font utilities", () => {
 
     it("falls back cleanly when font metadata cannot be parsed", () => {
         expect(extractFontMetadata(new Uint8Array([1, 2, 3]).buffer, "Fallback")).toEqual({
+            metadataVersion: 1,
             fontName: "Fallback",
             fontStyle: "Regular",
             fontWeight: 400,

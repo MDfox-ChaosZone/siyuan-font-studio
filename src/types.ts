@@ -13,6 +13,7 @@ export interface ImportedFont {
     size: number;
     sha256: string;
     importedAt: string;
+    metadataVersion?: number;
     fontName?: string;
     fontStyle?: string;
     fontWeight?: number;
