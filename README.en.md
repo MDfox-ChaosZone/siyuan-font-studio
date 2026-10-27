@@ -62,17 +62,10 @@ If this plugin is useful to you, please give it a **free Star on GitHub**. It me
 
 Any sponsorship is also greatly appreciated!
 
-### WeChat Pay and Alipay
+[PayPal](https://paypal.me/MDfox7788) · [Ko-fi](https://ko-fi.com/mdfox)
 
-| WeChat Pay | Alipay |
-| :---: | :---: |
-| <img src="assets/donate/Wechat-pay.webp" alt="WeChat Pay QR code" width="220"> | <img src="assets/donate/Alipay.jpg" alt="Alipay QR code" width="220"> |
+| WeChat Pay | Alipay | USDT (Aptos) |
+| :---: | :---: | :---: |
+| <img src="assets/donate/Wechat-pay.webp" alt="WeChat Pay QR code" width="200"> | <img src="assets/donate/Alipay.jpg" alt="Alipay QR code" width="200"> | <img src="assets/donate/USDT-APTOS.jpg" alt="USDT deposit QR code on Aptos" width="200"> |
 
-### USDT
-
-- Plasma: `0x742fa2ac27c5d3ff0c337b93ad688d39a77da4c8`
-- Aptos: `0xb3ba1611884cc1c2d2d970d081f6c24089d363817a772bddab52a0a278c6ffef`
-
-| Plasma | Aptos |
-| :---: | :---: |
-| <img src="assets/donate/USDT-Plasma.jpg" alt="USDT deposit QR code on Plasma" width="220"> | <img src="assets/donate/USDT-APTOS.jpg" alt="USDT deposit QR code on Aptos" width="220"> |
+USDT (Aptos) address: `0xb3ba1611884cc1c2d2d970d081f6c24089d363817a772bddab52a0a278c6ffef`

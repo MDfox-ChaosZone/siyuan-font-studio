@@ -62,17 +62,10 @@
 
 此外，任何赞助都不胜感激哦！
 
-### 微信支付与支付宝
+[PayPal](https://paypal.me/MDfox7788) · [Ko-fi](https://ko-fi.com/mdfox)
 
-| 微信支付 | 支付宝 |
-| :---: | :---: |
-| <img src="assets/donate/Wechat-pay.webp" alt="微信支付收款码" width="220"> | <img src="assets/donate/Alipay.jpg" alt="支付宝收款码" width="220"> |
+| 微信支付 | 支付宝 | USDT（Aptos） |
+| :---: | :---: | :---: |
+| <img src="assets/donate/Wechat-pay.webp" alt="微信支付收款码" width="200"> | <img src="assets/donate/Alipay.jpg" alt="支付宝收款码" width="200"> | <img src="assets/donate/USDT-APTOS.jpg" alt="Aptos 网络 USDT 充值二维码" width="200"> |
 
-### USDT
-
-- Plasma：`0x742fa2ac27c5d3ff0c337b93ad688d39a77da4c8`
-- Aptos：`0xb3ba1611884cc1c2d2d970d081f6c24089d363817a772bddab52a0a278c6ffef`
-
-| Plasma | Aptos |
-| :---: | :---: |
-| <img src="assets/donate/USDT-Plasma.jpg" alt="Plasma 网络 USDT 充值二维码" width="220"> | <img src="assets/donate/USDT-APTOS.jpg" alt="Aptos 网络 USDT 充值二维码" width="220"> |
+USDT（Aptos）地址：`0xb3ba1611884cc1c2d2d970d081f6c24089d363817a772bddab52a0a278c6ffef`
