@@ -21,7 +21,7 @@ Customize the fonts and sizes of the following elements:
 | Code | ✅ | ✅ | Inline code and code blocks; each can be configured separately |
 | Formulas | ✅ | ✅ | Inline formulas and formula blocks; each can be configured separately |
 | Graphs | ✅ | ❌ | Document graphs and the global graph |
-| Mind maps | ✅ | ✅ | Independent node fonts, weights and sizes under Other font settings |
+| Mind maps | ✅ | ✅ | Independent node fonts, weights and sizes under Other fonts |
 | Mermaid | ✅ | Partial | Some Mermaid elements use independent fixed font sizes that cannot be overridden consistently |
 | Emoji | ✅ | ❌ | Emoji displayed in the document tree, the editor, and similar locations |
 

@@ -553,16 +553,16 @@ export default class SiYuanFontStudio extends Plugin {
     <input class="fn__none" type="file" data-role="preset-input" accept=".json,.zip,application/json,application/zip" multiple>
   </div>
   <details class="bfm-advanced bfm-primary" ${primaryOpen ? "open" : ""}>
-    <summary><span>${this.i18n.primaryFonts}</span><small>${this.i18n.primaryFontsDescription}</small></summary>
+    <summary><span>${this.i18n.primaryFonts}</span></summary>
     <div class="bfm-targets">${SIMPLE_TARGETS.map((target) => this.targetHtml(target)).join("")}</div>
   </details>
-  <details class="bfm-advanced bfm-headings" ${headingsOpen ? "open" : ""}>
-    <summary><span>${this.i18n.headingFonts}</span><small>${this.i18n.headingFontsDescription}</small></summary>
-    <div class="bfm-targets">${HEADING_TARGETS.map((target) => this.targetHtml(target)).join("")}</div>
-  </details>
   <details class="bfm-advanced bfm-secondary" ${advancedOpen ? "open" : ""}>
-    <summary><span>${this.i18n.advancedFonts}</span><small>${this.i18n.advancedFontsDescription}</small></summary>
+    <summary><span>${this.i18n.advancedFonts}</span></summary>
     <div class="bfm-targets bfm-targets--advanced">${ADVANCED_TARGETS.map((target) => this.targetHtml(target)).join("")}</div>
+  </details>
+  <details class="bfm-advanced bfm-headings" ${headingsOpen ? "open" : ""}>
+    <summary><span>${this.i18n.headingFonts}</span></summary>
+    <div class="bfm-targets">${HEADING_TARGETS.map((target) => this.targetHtml(target)).join("")}</div>
   </details>
 </section>
 <section class="bfm-section">
