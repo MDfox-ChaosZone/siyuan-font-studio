@@ -1565,12 +1565,10 @@ export default class SiYuanFontStudio extends Plugin {
   <div class="bfm-font__name"><strong data-preview-font-id="${escapeHtml(selectedFont.id)}" data-preview-weight="${previewWeight}">${escapeHtml(group.familyName)}</strong>${selector}</div>
   <div class="bfm-font__column-resizer" data-library-column-resizer draggable="false" role="separator" aria-orientation="vertical" aria-label="${escapeHtml(this.i18n.resizeFontColumns)}" title="${escapeHtml(this.i18n.resizeFontColumns)}"></div>
   <div class="bfm-font__info">
-    <div class="bfm-font__header">
-      <div class="bfm-font__selected"><strong>${escapeHtml(selectedFont.displayName)}</strong><span title="${escapeHtml(metadata)}">${escapeHtml(metadata)}</span></div>
-      <div class="bfm-font__actions"><button class="b3-button b3-button--cancel" data-delete="${selectedFont.id}">${this.i18n.delete}</button></div>
-    </div>
+    <div class="bfm-font__selected"><strong>${escapeHtml(selectedFont.displayName)}</strong><span title="${escapeHtml(metadata)}">${escapeHtml(metadata)}</span></div>
     ${coverageTags ? `<div class="bfm-font__tags">${coverageTags}</div>` : ""}
   </div>
+  <button type="button" class="bfm-font__delete" data-delete="${selectedFont.id}" aria-label="${escapeHtml(this.i18n.delete)}" title="${escapeHtml(this.i18n.delete)}"><svg><use xlink:href="#iconTrashcan"></use></svg></button>
 </article>`;
         }).join("");
     }
