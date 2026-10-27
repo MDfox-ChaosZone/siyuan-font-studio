@@ -11,7 +11,7 @@ Typography playground:
 
 ## Features
 
-Customize the typography of the following elements:
+The settings window has two tabs, “Fonts” and “Spacing & layout”. Switch between them at any time; settings on one tab do not affect the other. Customize the typography of the following elements:
 
 | Element | Font | Size | Letter spacing | Line height | Scope |
 | --- | :---: | :---: | :---: | :---: | --- |
@@ -26,7 +26,7 @@ Customize the typography of the following elements:
 | Emoji | ✅ | ❌ | ❌ | ❌ | Emoji displayed in the document tree, document content, and similar locations |
 | Keyboard keys | ✅ | ❌ | ❌ | ❌ | Keyboard keys and shortcuts in documents, menus and settings |
 
-- Documents also offer a bold weight, first-line indent, CJK–Latin spacing and “No faux bold/italic”. These options only change how text is displayed; document content is never modified.
+- In “Fonts”, the document font also offers a bold weight and “No faux bold/italic”; in “Spacing & layout”, documents also offer first-line indent and CJK–Latin spacing. These options only change how text is displayed; document content is never modified.
 - After you import the Bold, Italic and similar files of the same font, bold and italic text uses those real faces instead of browser-simulated ones.
 - Save your settings as presets and switch between them easily. Import and export presets to use them across devices.
 - Select multiple fonts to provide fallbacks for missing characters.
@@ -41,7 +41,8 @@ Customize the typography of the following elements:
 
 ### Letter spacing and line height
 
-- Unset values follow SiYuan: letter spacing 0 and SiYuan's default line height of 1.625. Unset headings follow the document.
+- Set these on the “Spacing & layout” tab. Unset values follow SiYuan: letter spacing 0 and SiYuan's default line height of 1.625. Unset headings follow the document.
+- Inline code and code blocks always have separate spacing, regardless of the “Set separately” switch in the font settings.
 - Letter spacing is measured in em and scales with each element's size. Unset code does not inherit interface or document letter spacing, so columns stay aligned.
 - Click ↺ next to a slider to reset it.
 
@@ -53,7 +54,7 @@ Customize the typography of the following elements:
 ## Changelog
 
 - **v1.3.0**:
-  - Renamed to “SiYuan Typography Studio”. Added letter spacing and line height, plus document options for bold weight, first-line indent, CJK–Latin spacing and no faux bold/italic; added a keyboard key font.
+  - Renamed to “SiYuan Typography Studio”. Added a “Spacing & layout” tab for letter spacing, line height, first-line indent and CJK–Latin spacing; added bold weight and no faux bold/italic options to the document font; added a keyboard key font.
   - Bold and italic text uses the real faces of the same font when those files are imported.
   - The document font size now sets SiYuan's editor font size, fixing conflicts with SiYuan's font-size shortcuts and broken code-block line heights when line numbers are shown.
   - Adapted to SiYuan's newer global fonts, emoji corrections and custom fonts (Docker and mobile); the plugin refreshes when SiYuan's own font settings change.

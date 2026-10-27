@@ -12,10 +12,12 @@ export function supportsLetterSpacing(target: FontTarget): boolean {
     return target === "ui" || target === "content" || target === "mono" || isHeading(target);
 }
 
-// Inline code shares its paragraph's lines, so code line height belongs to code blocks.
-export function supportsLineHeight(target: FontTarget, secondary: boolean, decoupled: boolean): boolean {
+// Spacing is independent of the font tab's "set separately" switch: the
+// primary mono settings are inline code, the secondary ones code blocks.
+// Inline code shares its paragraph's lines, so only code blocks get a line height.
+export function supportsLineHeight(target: FontTarget, secondary: boolean): boolean {
     if (target === "content" || isHeading(target)) return !secondary;
-    return target === "mono" && (secondary || !decoupled);
+    return target === "mono" && secondary;
 }
 
 export function clampLetterSpacing(value: unknown): number | null {

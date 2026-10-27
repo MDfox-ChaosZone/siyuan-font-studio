@@ -353,10 +353,10 @@ describe("typography settings", () => {
         expect(css).not.toContain('[data-subtype="h1"]');
     });
 
-    it("gives code blocks their own line height and spacing when separated", () => {
+    it.each([false, true])("keeps inline and block code spacing separate when font decoupling is %s", (decoupled) => {
         const style = stubStyleDocument();
         const state = parseState(null);
-        state.targets.mono.decoupled = true;
+        state.targets.mono.decoupled = decoupled;
         state.targets.mono.letterSpacing = 0.01;
         state.targets.mono.lineHeight = 3;
         state.targets.mono.secondary = {fonts: [], size: null, letterSpacing: 0.02, lineHeight: 1.5};

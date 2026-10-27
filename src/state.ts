@@ -59,8 +59,7 @@ function parseTargetSettings(value: unknown, target: FontTarget): TargetSettings
         fonts,
         size: typeof candidate.size === "number" && Number.isFinite(candidate.size) ? candidate.size : null,
         ...(supportsLetterSpacing(target) ? {letterSpacing: clampLetterSpacing(candidate.letterSpacing)} : {}),
-        // The primary code line height applies to code blocks until inline code is separated.
-        ...(supportsLineHeight(target, false, false) ? {lineHeight: clampLineHeight(candidate.lineHeight)} : {}),
+        ...(supportsLineHeight(target, false) ? {lineHeight: clampLineHeight(candidate.lineHeight)} : {}),
         ...(target === "content" ? {options: parseContentOptions(candidate.options)} : {}),
         ...(target === "mono" || target === "math" ? {
             decoupled: candidate.decoupled === true,

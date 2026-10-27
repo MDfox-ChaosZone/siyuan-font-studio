@@ -236,6 +236,7 @@ describe("typography settings", () => {
         expect(state.targets.content.lineHeight).toBe(1);
         expect(state.targets.content.options).toEqual({boldWeight: null, indent: true, autospace: false, noSynthesis: false});
         expect(state.targets.mono.secondary).toMatchObject({letterSpacing: -0.05, lineHeight: 1.5});
+        expect(state.targets.mono).not.toHaveProperty("lineHeight");
         expect(state.targets.math).not.toHaveProperty("letterSpacing");
         expect(state.targets.graph).toEqual({fonts: [], size: null});
     });

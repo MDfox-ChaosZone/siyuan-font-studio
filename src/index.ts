@@ -68,6 +68,7 @@ const CUSTOM_FONT_CONTAINERS = ["docker", "android", "ios", "harmony"];
 const SIYUAN_EDITOR_FONT_SIZE = 16;
 
 type SpacingKind = "letterSpacing" | "lineHeight";
+type ManagerTab = "fonts" | "spacing";
 type TargetPane = SpacingSettings & {fonts: FontChoice[]; size: number | null};
 // Written by versions that offered community presets; removed on load.
 const LEGACY_CATALOG_CACHE_FILE = "community-catalog.json";
@@ -113,6 +114,8 @@ export default class SiYuanFontStudio extends Plugin {
     private mermaidScriptObserver?: MutationObserver;
     private saveChain: Promise<void> = Promise.resolve();
     private activeSecondaryTab: Partial<Record<FontTarget, boolean>> = {};
+    private activeManagerTab: ManagerTab = "fonts";
+    private sectionOpen: Record<string, boolean> = {};
     private selectedLibraryVariants = new Map<string, string>();
     private selectedLibraryWeights = new Map<string, number>();
     private fontPreviewObservers = new Map<HTMLElement, IntersectionObserver>();
@@ -539,9 +542,9 @@ export default class SiYuanFontStudio extends Plugin {
         if (!root) return;
         this.disconnectFontPreviewObservers();
         root.style.setProperty("--bfm-library-preview-width", `${this.state.layout.libraryPreviewWidth}px`);
-        const primaryOpen = root.querySelector<HTMLDetailsElement>(".bfm-primary")?.open ?? true;
-        const headingsOpen = root.querySelector<HTMLDetailsElement>(".bfm-headings")?.open ?? false;
-        const advancedOpen = root.querySelector<HTMLDetailsElement>(".bfm-secondary")?.open ?? false;
+        root.querySelectorAll<HTMLDetailsElement>("details[data-section]").forEach((details) => {
+            this.sectionOpen[details.dataset.section!] = details.open;
+        });
         const openMenuElement = root.querySelector<HTMLElement>("[data-font-menu]:not([hidden])");
         const openMenu = openMenuElement?.dataset.fontMenu;
         const openMenuScrollTop = openMenuElement?.querySelector<HTMLElement>(".bfm-font-menu__options")?.scrollTop ?? 0;
@@ -563,20 +566,10 @@ export default class SiYuanFontStudio extends Plugin {
     <button type="button" class="b3-button b3-button--text sfs-preset-bar__example" data-action="download-example-preset" title="${escapeHtml(this.i18n.downloadPresetCatalogDescription)}">${this.i18n.downloadPresetCatalog}</button>
     <input class="fn__none" type="file" data-role="preset-input" accept=".json,.zip,application/json,application/zip" multiple>
   </div>
-  <details class="bfm-advanced bfm-primary" ${primaryOpen ? "open" : ""}>
-    <summary><span>${this.i18n.primaryFonts}</span><small>${this.i18n.primaryFontsDescription}</small></summary>
-    <div class="bfm-targets">${SIMPLE_TARGETS.map((target) => this.targetHtml(target)).join("")}</div>
-  </details>
-  <details class="bfm-advanced bfm-headings" ${headingsOpen ? "open" : ""}>
-    <summary><span>${this.i18n.headingFonts}</span><small>${this.i18n.headingFontsDescription}</small></summary>
-    <div class="bfm-targets">${HEADING_TARGETS.map((target) => this.targetHtml(target)).join("")}</div>
-  </details>
-  <details class="bfm-advanced bfm-secondary" ${advancedOpen ? "open" : ""}>
-    <summary><span>${this.i18n.advancedFonts}</span><small>${this.i18n.advancedFontsDescription}</small></summary>
-    <div class="bfm-targets bfm-targets--advanced">${ADVANCED_TARGETS.map((target) => this.targetHtml(target)).join("")}</div>
-  </details>
+  <div class="bfm-manager-tabs" role="tablist" aria-label="${escapeHtml(this.i18n.managerTitle)}">${(["fonts", "spacing"] as const).map((tab) => `<button type="button" role="tab" data-manager-tab="${tab}" class="${tab === this.activeManagerTab ? "bfm-manager-tabs--active" : ""}" aria-selected="${tab === this.activeManagerTab}">${tab === "fonts" ? this.i18n.fontTab : this.i18n.spacingTab}</button>`).join("")}</div>
+  ${this.activeManagerTab === "fonts" ? this.fontSectionsHtml() : this.spacingSectionsHtml()}
 </section>
-<section class="bfm-section">
+${this.activeManagerTab === "fonts" ? `<section class="bfm-section">
   <div class="bfm-section__header">
     <div class="bfm-section__heading">
       <h2>${this.i18n.fontLibrary}</h2>
@@ -589,7 +582,7 @@ export default class SiYuanFontStudio extends Plugin {
   </div>
   <input class="fn__none" type="file" data-role="font-input" accept=".woff2,.woff,.ttf,.otf" multiple>
   <div class="bfm-library">${this.libraryHtml()}</div>
-</section>`;
+</section>` : ""}`;
         this.observeFontPreviews(root, root);
 
         root.querySelectorAll<HTMLButtonElement>("button[data-font-trigger]").forEach((button) => {
@@ -608,6 +601,15 @@ export default class SiYuanFontStudio extends Plugin {
                         this.closeFontMenu(menu);
                     }
                 }
+            });
+        });
+        root.querySelectorAll<HTMLButtonElement>("button[data-manager-tab]").forEach((button) => {
+            button.addEventListener("click", () => {
+                const tab = button.dataset.managerTab as ManagerTab;
+                if (tab === this.activeManagerTab) return;
+                this.activeManagerTab = tab;
+                this.renderManager();
+                root.scrollTop = 0;
             });
         });
         root.querySelector<HTMLSelectElement>("select[data-role='preset-select']")?.addEventListener("change", (event) => {
@@ -782,6 +784,48 @@ export default class SiYuanFontStudio extends Plugin {
                 });
             }
         }
+    }
+
+    private sectionHtml(key: string, defaultOpen: boolean, title: string, description: string, content: string, className = ""): string {
+        const open = this.sectionOpen[key] ?? defaultOpen;
+        return `<details class="bfm-advanced" data-section="${key}" ${open ? "open" : ""}>
+    <summary><span>${title}</span><small>${description}</small></summary>
+    <div class="bfm-targets${className}">${content}</div>
+  </details>`;
+    }
+
+    private fontSectionsHtml(): string {
+        return [
+            this.sectionHtml("fonts-primary", true, this.i18n.primaryFonts, this.i18n.primaryFontsDescription, SIMPLE_TARGETS.map((target) => this.targetHtml(target)).join("")),
+            this.sectionHtml("fonts-headings", false, this.i18n.headingFonts, this.i18n.headingFontsDescription, HEADING_TARGETS.map((target) => this.targetHtml(target)).join("")),
+            this.sectionHtml("fonts-advanced", false, this.i18n.advancedFonts, this.i18n.advancedFontsDescription, ADVANCED_TARGETS.map((target) => this.targetHtml(target)).join(""), " bfm-targets--advanced"),
+        ].join("\n  ");
+    }
+
+    private spacingSectionsHtml(): string {
+        return [
+            this.sectionHtml("spacing-base", true, this.i18n.spacingBase, this.i18n.spacingBaseDescription, [
+                this.spacingTargetHtml("ui", false, this.i18n.uiSpacing, this.i18n.uiDescription),
+                this.spacingTargetHtml("content", false, this.i18n.contentSpacing, this.i18n.contentDescription, this.contentOptionsHtml("spacing")),
+            ].join("")),
+            this.sectionHtml("spacing-headings", false, this.i18n.spacingHeadings, this.i18n.spacingHeadingsDescription,
+                HEADING_TARGETS.map((target) => this.spacingTargetHtml(target, false, this.i18n[`${target}Font`])).join("")),
+            this.sectionHtml("spacing-code", true, this.i18n.spacingCode, this.i18n.spacingCodeDescription, [
+                this.spacingTargetHtml("mono", false, this.i18n.inlineCode, this.i18n.inlineCodeSpacingDescription),
+                this.spacingTargetHtml("mono", true, this.i18n.codeBlock, this.i18n.codeBlockSpacingDescription),
+            ].join("")),
+        ].join("\n  ");
+    }
+
+    private spacingTargetHtml(target: FontTarget, secondary: boolean, label: string, description = "", extra = ""): string {
+        const kinds: SpacingKind[] = [
+            ...(supportsLetterSpacing(target) ? ["letterSpacing" as const] : []),
+            ...(supportsLineHeight(target, secondary) ? ["lineHeight" as const] : []),
+        ];
+        return `<article class="bfm-target">
+  <div class="bfm-target__title"><div class="bfm-target__label"><strong>${label}</strong>${description ? `<span class="bfm-target__description">${description}</span>` : ""}</div></div>
+  <div class="bfm-setting-pane">${kinds.map((kind) => this.spacingControlHtml(target, secondary, kind)).join("")}${extra}</div>
+</article>`;
     }
 
     private headingSize(target: FontTarget): number {
@@ -1329,19 +1373,11 @@ export default class SiYuanFontStudio extends Plugin {
         const min = relativeSize ? Math.min(bounds.min, size) : bounds.min;
         const max = relativeSize ? Math.max(bounds.max, size) : bounds.max;
         const supportsSize = target !== "emoji" && target !== "graph" && target !== "kbd";
-        const decoupled = Boolean(this.state.targets[target].decoupled);
-        const spacingKinds: SpacingKind[] = [
-            ...(supportsLetterSpacing(target) ? ["letterSpacing" as const] : []),
-            ...(supportsLineHeight(target, secondary, decoupled) ? ["lineHeight" as const] : []),
-        ];
-        const labeled = spacingKinds.length > 0;
-        const sizeLabel = labeled ? `<span class="bfm-size__label">${this.i18n.fontSize}</span>` : "";
-        const sizeControls = supportsSize ? `<div class="bfm-size${labeled ? " bfm-size--labeled" : ""}">${sizeLabel}<input type="range" aria-label="${escapeHtml(this.i18n[`${target}Font`])}" data-role="size" data-target="${target}" data-secondary="${secondary}" min="${min}" max="${max}" step="${relativeSize ? "any" : "1"}" value="${size}"><output data-size-output="${target}-${secondary}">${size}px</output>${labeled ? "<span></span>" : ""}</div>` : "";
+        const sizeControls = supportsSize ? `<div class="bfm-size"><input type="range" aria-label="${escapeHtml(this.i18n[`${target}Font`])}" data-role="size" data-target="${target}" data-secondary="${secondary}" min="${min}" max="${max}" step="${relativeSize ? "any" : "1"}" value="${size}"><output data-size-output="${target}-${secondary}">${size}px</output></div>` : "";
         const resetSize = supportsSize ? `<button class="b3-button bfm-reset ${config.size === null ? "" : "bfm-reset--active"}" data-reset-size="${target}" data-secondary="${secondary}">${this.i18n.resetSize}</button>` : "";
-        const spacingControls = spacingKinds.map((kind) => this.spacingControlHtml(target, secondary, kind)).join("");
-        const options = target === "content" && !secondary ? this.contentOptionsHtml() : "";
+        const options = target === "content" && !secondary ? this.contentOptionsHtml("fonts") : "";
         return `<div class="bfm-setting-pane">${this.fontPickerHtml(target, secondary, config.fonts)}
-  ${sizeControls}${spacingControls}${options}
+  ${sizeControls}${options}
   <div class="bfm-target__actions"><button class="b3-button bfm-reset ${config.fonts.length ? "bfm-reset--active" : ""}" data-reset-font="${target}" data-secondary="${secondary}">${this.i18n.resetFont}</button>${resetSize}</div></div>`;
     }
 
@@ -1365,14 +1401,19 @@ export default class SiYuanFontStudio extends Plugin {
         return kind === "letterSpacing" ? formatLetterSpacing(value) : formatLineHeight(value);
     }
 
-    private contentOptionsHtml(): string {
+    // Weight options belong with the document font; layout options with spacing.
+    private contentOptionsHtml(tab: ManagerTab): string {
         const options = this.state.targets.content.options || DEFAULT_CONTENT_OPTIONS;
         const toggle = (option: Exclude<keyof ContentOptions, "boldWeight">, label: string, hint: string) =>
             `<label title="${escapeHtml(hint)}"><input type="checkbox" data-role="content-option" data-option="${option}" ${options[option] ? "checked" : ""}><span>${label}</span></label>`;
-        return `<div class="bfm-options">
-  <label>${this.i18n.boldWeight}<select class="b3-select" data-role="bold-weight"><option value="">${this.i18n.followSiyuan}</option>${BOLD_WEIGHTS.map((weight) => `<option value="${weight}" ${options.boldWeight === weight ? "selected" : ""}>${fontWeightName(weight)} · ${weight}</option>`).join("")}</select></label>
+        if (tab === "spacing") {
+            return `<div class="bfm-options">
   ${toggle("indent", this.i18n.firstLineIndent, this.i18n.firstLineIndentHint)}
   ${toggle("autospace", this.i18n.autospace, this.i18n.autospaceHint)}
+</div>`;
+        }
+        return `<div class="bfm-options">
+  <label>${this.i18n.boldWeight}<select class="b3-select" data-role="bold-weight"><option value="">${this.i18n.followSiyuan}</option>${BOLD_WEIGHTS.map((weight) => `<option value="${weight}" ${options.boldWeight === weight ? "selected" : ""}>${fontWeightName(weight)} · ${weight}</option>`).join("")}</select></label>
   ${toggle("noSynthesis", this.i18n.noSynthesis, this.i18n.noSynthesisHint)}
 </div>`;
     }

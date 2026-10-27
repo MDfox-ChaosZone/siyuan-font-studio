@@ -298,6 +298,35 @@
   }
 }
 
+.bfm-manager-tabs {
+  border-bottom: 1px solid var(--b3-border-color);
+  display: flex;
+  gap: 4px;
+  margin: 4px 0 12px;
+
+  button {
+    background: transparent;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    color: var(--b3-theme-on-surface-light);
+    cursor: pointer;
+    font-family: var(--b3-font-family);
+    font-size: 14px;
+    margin-bottom: -1px;
+    padding: 8px 14px;
+
+    &:hover {
+      color: var(--b3-theme-on-background);
+    }
+  }
+
+  button.bfm-manager-tabs--active {
+    border-bottom-color: var(--b3-theme-primary);
+    color: var(--b3-theme-primary);
+    font-weight: 600;
+  }
+}
+
 .bfm-setting-tabs {
   background: var(--b3-theme-background);
   border: 1px solid var(--b3-border-color);

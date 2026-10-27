@@ -250,15 +250,16 @@ export class StyleManager {
         if (content.letterSpacing != null || ui.letterSpacing != null) {
             rules.push(`${CONTENT_CONTAINERS}, ${CONTENT_BLOCK_SELECTORS} { letter-spacing: ${spacing(content.letterSpacing)}; }`);
         }
+        // Spacing tab: primary mono is inline code and secondary is code blocks, whatever the font tab's decoupling.
         const inlineCodeSpacing = mono.letterSpacing;
-        const blockCodeSpacing = mono.decoupled ? mono.secondary?.letterSpacing : mono.letterSpacing;
+        const blockCodeSpacing = mono.secondary?.letterSpacing;
         const inheritsSpacing = content.letterSpacing != null || ui.letterSpacing != null;
         if (inlineCodeSpacing != null || inheritsSpacing) rules.push(`${INLINE_CODE_SELECTORS} { letter-spacing: ${spacing(inlineCodeSpacing)} !important; }`);
         if (blockCodeSpacing != null || inheritsSpacing) rules.push(`${MONO_BLOCK_SELECTORS} { letter-spacing: ${spacing(blockCodeSpacing)} !important; }`);
         if (content.lineHeight != null) rules.push(`${CONTENT_BLOCK_SELECTORS} { line-height: ${formatLineHeight(content.lineHeight)} !important; }`);
         // SiYuan writes code-block line heights in px from its own editor font size,
         // so any plugin-controlled code size needs a relative line height.
-        const codeLineHeight = mono.decoupled ? mono.secondary?.lineHeight : mono.lineHeight;
+        const codeLineHeight = mono.secondary?.lineHeight;
         if (codeLineHeight != null || monoBlockSize !== null || (options.cssEditorFontSize && content.size !== null)) {
             rules.push(`${CODE_BLOCK_SELECTORS} { line-height: ${formatLineHeight(codeLineHeight ?? SIYUAN_LINE_HEIGHT)} !important; }`);
         }
