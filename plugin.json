@@ -13,8 +13,8 @@
     "zh-CN": "思源字体工坊"
   },
   "description": {
-    "default": "Customize every font element in SiYuan!",
-    "zh-CN": "轻松自定义思源中的所有字体元素！"
+    "default": "Customize every font element in SiYuan! Change the fonts and sizes of the interface, editor, code, formulas, headings, mind maps and more!",
+    "zh-CN": "轻松自定义思源中的所有字体元素！界面,编辑器,代码,公式,标签,思维导图等字体和字号通通可以自定义!"
   },
   "readme": {
     "default": "README.md",
@@ -22,5 +22,5 @@
     "en": "README.en.md"
   },
   "funding": {"custom": ["https://github.com/MDfox-ChaosZone/siyuan-font-studio/blob/main/README.md#支持与赞助"]},
-  "keywords": ["字体", "字体管理", "自定义", "字号", "font", "font manager", "typography", "customize", "font size"]
+  "keywords": ["字体", "字号", "字体管理", "font", "font size", "font manager", "typography"]
 }
