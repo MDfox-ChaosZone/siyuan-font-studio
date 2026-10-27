@@ -699,9 +699,6 @@ export default class SiYuanFontStudio extends Plugin {
             const input = event.currentTarget as HTMLInputElement;
             void this.importFiles(Array.from(input.files || [])).finally(() => { input.value = ""; });
         });
-        root.querySelectorAll<HTMLButtonElement>("button[data-rename]").forEach((button) => {
-            button.addEventListener("click", () => this.openRenameDialog(button.dataset.rename!));
-        });
         root.querySelectorAll<HTMLButtonElement>("button[data-delete]").forEach((button) => {
             button.addEventListener("click", () => this.confirmDelete(button.dataset.delete!));
         });
@@ -1570,7 +1567,7 @@ export default class SiYuanFontStudio extends Plugin {
   <div class="bfm-font__info">
     <div class="bfm-font__header">
       <div class="bfm-font__selected"><strong>${escapeHtml(selectedFont.displayName)}</strong><span title="${escapeHtml(metadata)}">${escapeHtml(metadata)}</span></div>
-      <div class="bfm-font__actions"><button class="b3-button b3-button--outline" data-rename="${selectedFont.id}">${this.i18n.rename}</button><button class="b3-button b3-button--cancel" data-delete="${selectedFont.id}">${this.i18n.delete}</button></div>
+      <div class="bfm-font__actions"><button class="b3-button b3-button--cancel" data-delete="${selectedFont.id}">${this.i18n.delete}</button></div>
     </div>
     ${coverageTags ? `<div class="bfm-font__tags">${coverageTags}</div>` : ""}
   </div>
@@ -1865,44 +1862,6 @@ export default class SiYuanFontStudio extends Plugin {
         this.renderManager();
         const summary = [imported ? `${this.i18n.importSuccess}: ${imported}` : "", duplicates ? `${this.i18n.duplicateSkipped}: ${duplicates}` : "", ...failures].filter(Boolean).map(escapeHtml).join("<br>");
         if (summary) showMessage(summary, failures.length ? 7000 : 4000, failures.length ? "error" : "info");
-    }
-
-    private openRenameDialog(id: string): void {
-        const font = this.state.fonts.find((item) => item.id === id);
-        if (!font) return;
-        this.renameDialog?.destroy();
-        this.renameDialog = new Dialog({
-            title: this.i18n.rename,
-            width: "480px",
-            content: `<form class="bfm-rename"><div class="b3-dialog__content"><label>${this.i18n.renamePrompt}</label><input class="b3-text-field fn__block" maxlength="100" value="${escapeHtml(font.displayName)}"></div><div class="b3-dialog__action"><button class="b3-button b3-button--cancel" type="button">${this.i18n.cancel}</button><div class="fn__space"></div><button class="b3-button b3-button--text" type="submit">${this.i18n.save}</button></div></form>`,
-            destroyCallback: () => { this.renameDialog = undefined; },
-        });
-        const form = this.renameDialog.element.querySelector<HTMLFormElement>(".bfm-rename");
-        const input = form?.querySelector<HTMLInputElement>("input");
-        form?.querySelector<HTMLButtonElement>("button[type='button']")?.addEventListener("click", () => this.renameDialog?.destroy());
-        form?.addEventListener("submit", (event) => {
-            event.preventDefault();
-            if (input) void this.renameFont(id, input.value);
-        });
-        requestAnimationFrame(() => {
-            input?.focus();
-            input?.select();
-        });
-    }
-
-    private async renameFont(id: string, rawValue: string): Promise<void> {
-        const font = this.state.fonts.find((item) => item.id === id);
-        if (!font) return;
-        const value = rawValue.trim();
-        if (!value) return;
-        if (value === font.displayName) {
-            this.renameDialog?.destroy();
-            return;
-        }
-        font.displayName = value.slice(0, 100);
-        await this.persist();
-        this.renameDialog?.destroy();
-        this.renderManager();
     }
 
     private confirmDelete(id: string): void {

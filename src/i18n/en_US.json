@@ -134,7 +134,6 @@
   "close": "Close",
   "cancel": "Cancel",
   "save": "Save",
-  "renamePrompt": "New font display name",
   "saveFailed": "Failed to save settings",
   "deleteFailed": "Failed to delete font",
   "unsupportedSize": "Font files may not exceed 100 MB",

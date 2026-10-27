@@ -134,7 +134,6 @@
   "close": "关闭",
   "cancel": "取消",
   "save": "保存",
-  "renamePrompt": "新的字体显示名称",
   "saveFailed": "保存设置失败",
   "deleteFailed": "删除字体失败",
   "unsupportedSize": "字体文件不能超过 100 MB",
