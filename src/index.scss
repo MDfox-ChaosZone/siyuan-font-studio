@@ -643,33 +643,6 @@
   }
 }
 
-.bfm-options {
-  align-items: center;
-  display: flex;
-  flex-wrap: wrap;
-  font-size: 12px;
-  gap: 8px 14px;
-  margin-top: 12px;
-
-  label {
-    align-items: center;
-    color: var(--b3-theme-on-surface);
-    cursor: pointer;
-    display: flex;
-    gap: 5px;
-  }
-
-  input[type="checkbox"] {
-    accent-color: var(--b3-theme-primary);
-    margin: 0;
-  }
-
-  .b3-select {
-    height: 26px;
-    min-width: 96px;
-  }
-}
-
 .bfm-library {
   display: flex;
   flex-direction: column;

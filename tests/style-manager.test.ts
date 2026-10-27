@@ -299,18 +299,3 @@ describe("font target isolation", () => {
         expect(style.textContent).toContain(".code-block { line-height: 1.625 !important; }");
     });
 });
-
-describe("content options", () => {
-    it("applies the bold weight and faux-style switch to documents", () => {
-        const style = stubStyleDocument();
-        const state = parseState(null);
-        state.targets.content.options = {boldWeight: 600, noSynthesis: true};
-        new StyleManager().apply(state, new Set());
-        const css = style.textContent;
-
-        expect(css).toContain('span[data-type~="strong"], .b3-typography:not(.b3-typography--default) strong, .b3-typography:not(.b3-typography--default) b { font-weight: 600; }');
-        expect(css).toContain(".protyle-title { font-synthesis: none; }");
-        expect(css).not.toContain("letter-spacing");
-        expect(css).not.toContain("text-indent");
-    });
-});

@@ -1,5 +1,4 @@
 import {DEFAULT_STATE, FontChoice, FontPreset, FontTarget, ImportedFont, PluginState, TARGETS, TargetSettings} from "./types";
-import {parseContentOptions} from "./content-options";
 
 const cloneDefault = (): PluginState => JSON.parse(JSON.stringify(DEFAULT_STATE)) as PluginState;
 export const cloneTargets = (targets: Record<FontTarget, TargetSettings>): Record<FontTarget, TargetSettings> =>
@@ -45,7 +44,7 @@ export function parseState(value: unknown): PluginState {
 }
 
 function parseTargetSettings(value: unknown, target: FontTarget): TargetSettings {
-    const candidate = value && typeof value === "object" ? value as {fonts?: unknown; size?: unknown; decoupled?: unknown; secondary?: unknown; options?: unknown} : {};
+    const candidate = value && typeof value === "object" ? value as {fonts?: unknown; size?: unknown; decoupled?: unknown; secondary?: unknown} : {};
     const fonts = Array.isArray(candidate.fonts)
         ? candidate.fonts.filter(isFontChoice).map((choice) => ({...choice}))
         : [];
@@ -58,7 +57,6 @@ function parseTargetSettings(value: unknown, target: FontTarget): TargetSettings
     return {
         fonts,
         size: typeof candidate.size === "number" && Number.isFinite(candidate.size) ? candidate.size : null,
-        ...(target === "content" ? {options: parseContentOptions(candidate.options)} : {}),
         ...(target === "mono" || target === "math" ? {
             decoupled: candidate.decoupled === true,
             secondary: {
@@ -108,7 +106,6 @@ function sanitizeTargets(targets: Record<FontTarget, TargetSettings>, ids: Set<s
         // Raw emoji share text nodes with document content, and SiYuan 3.8+ does
         // not expose an independent graph font-size API.
         if (target === "emoji" || target === "graph") targets[target].size = null;
-        if (target === "content") targets[target].options = parseContentOptions(targets[target].options);
         if (targets[target].secondary) {
             targets[target].secondary!.fonts = uniqueChoices(targets[target].secondary!.fonts.filter((choice) => choice.kind !== "imported" || ids.has(choice.id)));
             targets[target].secondary!.size = clampSize(target, targets[target].secondary!.size);

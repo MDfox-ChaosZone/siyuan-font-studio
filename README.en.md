@@ -25,7 +25,6 @@ Customize the fonts and sizes of the following elements:
 | Mermaid | ✅ | Partial | Some Mermaid elements use independent fixed font sizes that cannot be overridden consistently |
 | Emoji | ✅ | ❌ | Emoji displayed in the document tree, the editor, and similar locations |
 
-- The editor also offers a bold weight and “No faux bold/italic”. These options only change how text is displayed; document content is never modified.
 - After you import the Bold, Italic and similar files of the same font, bold and italic text uses those real faces instead of browser-simulated ones.
 - Save your settings as presets and switch between them easily. Import and export presets to use them across devices.
 - Select multiple fonts to provide fallbacks for missing characters.
@@ -46,7 +45,6 @@ Customize the fonts and sizes of the following elements:
 ## Changelog
 
 - **v1.3.0**:
-  - Added editor options for bold weight and no faux bold/italic.
   - Settings wording now matches SiYuan, for example “Document font” is now “Editor font”.
   - Bold and italic text uses the real faces of the same font when those files are imported.
   - The editor font's size now sets SiYuan's editor font size, fixing conflicts with SiYuan's font-size shortcuts and broken code-block line heights when line numbers are shown.

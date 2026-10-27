@@ -2,7 +2,6 @@ import {EMOJI_UNICODE_RANGE, emojiRuntimeFamily, familyForChoices, quoteFamily, 
 import {BaseFontTarget, FontChoice, FontTarget, HEADING_TARGETS, ImportedFont, PluginState} from "./types";
 import {mindmapOverrides} from "./mindmap";
 import {supportsGraphFonts, supportsMindmapFonts} from "./compatibility";
-import {SIYUAN_LINE_HEIGHT} from "./content-options";
 
 // SiYuan's PDF/HTML export copies every `style[id^="snippetCSS"]` from the
 // main window, so this id carries the plugin's rules into exports. The snippet
@@ -17,11 +16,11 @@ const EMOJI_RESET = 'var(--b3-font-family-emoji-reset, "Emojis Additional", "Emo
 const EDITOR_FAMILY = "var(--b3-font-family-editor, var(--b3-font-family-protyle))";
 // Higher than SiYuan's `:root:root` global font rule and theme `:root` rules.
 const ROOT_SELECTOR = ":root:root:root";
-const CONTENT_CONTAINERS = ".b3-typography:not(.b3-typography--default), .protyle-wysiwyg, .protyle-title";
+// SiYuan's fixed editor line height (_typography.scss), also used by code blocks.
+const SIYUAN_LINE_HEIGHT = 1.625;
 const INLINE_CODE_SELECTORS = '.b3-typography code:not(.hljs), .protyle-wysiwyg span[data-type~="code"]';
 const MONO_BLOCK_SELECTORS = '.b3-typography .hljs, .protyle-wysiwyg .hljs, .protyle-linenumber__rows, textarea[style*="--b3-font-family-code"], textarea[style*="--b3-font-family-editor-code"]';
 const CODE_BLOCK_SELECTORS = ".b3-typography .code-block, .protyle-wysiwyg .code-block";
-const BOLD_SELECTORS = '.protyle-wysiwyg strong, .protyle-wysiwyg b, .protyle-wysiwyg span[data-type~="strong"], .b3-typography:not(.b3-typography--default) strong, .b3-typography:not(.b3-typography--default) b';
 
 export interface ApplyOptions {
     /** Fallback for SiYuan builds without the editor font-size plugin API. */
@@ -222,22 +221,12 @@ export class StyleManager {
         }
         const mathBlockSize = state.targets.math.decoupled ? state.targets.math.secondary?.size : null;
         if (mathBlockSize !== null && mathBlockSize !== undefined) rules.push(`.b3-typography .katex-display .katex, .protyle-wysiwyg .katex-display .katex { font-size: ${mathBlockSize}px !important; }`);
-        rules.push(...this.contentRules(state, monoBlockSize ?? null, options));
-        return rules.join("\n");
-    }
-
-    private contentRules(state: PluginState, monoBlockSize: number | null, options: ApplyOptions): string[] {
-        const rules: string[] = [];
-        const {content} = state.targets;
         // SiYuan writes code-block line heights in px from its own editor font size,
         // so any plugin-controlled code size needs a relative line height.
-        if (monoBlockSize !== null || (options.cssEditorFontSize && content.size !== null)) {
+        if (monoBlockSize != null || (options.cssEditorFontSize && state.targets.content.size !== null)) {
             rules.push(`${CODE_BLOCK_SELECTORS} { line-height: ${SIYUAN_LINE_HEIGHT} !important; }`);
         }
-        const contentOptions = content.options;
-        if (contentOptions?.boldWeight != null) rules.push(`${BOLD_SELECTORS} { font-weight: ${contentOptions.boldWeight}; }`);
-        if (contentOptions?.noSynthesis) rules.push(`${CONTENT_CONTAINERS} { font-synthesis: none; }`);
-        return rules;
+        return rules.join("\n");
     }
 }
 

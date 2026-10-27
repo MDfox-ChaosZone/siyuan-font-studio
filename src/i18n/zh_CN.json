@@ -148,9 +148,6 @@
   "h4Font": "四级标题 H4",
   "h5Font": "五级标题 H5",
   "h6Font": "六级标题 H6",
-  "boldWeight": "粗体字重",
-  "noSynthesis": "禁止伪粗斜体",
-  "noSynthesisHint": "字体缺少粗体或斜体字形时，不再由浏览器模拟加粗或倾斜。导入同一字体的 Bold、Italic 文件后，插件会自动使用这些真实字形。",
   "defaultFontName": "默认字体",
   "saveTimeout": "保存超时，请检查与思源内核的连接"
 }

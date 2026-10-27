@@ -45,8 +45,7 @@ import {
 import {deleteFontFile, deletePluginStorage, ensureFontDirectory, FONT_STORAGE_ROOT, readFontFile, storedFontFileName, writeFontFile} from "./storage";
 import {StyleManager} from "./style-manager";
 import {FontLoader, selectedFontRequests} from "./font-loader";
-import {ADVANCED_TARGETS, ContentOptions, DEFAULT_CONTENT_OPTIONS, HEADING_TARGETS, FontChoice, FontPreset, FontTarget, ImportedFont, PluginState, SIMPLE_TARGETS, SystemFont} from "./types";
-import {BOLD_WEIGHTS} from "./content-options";
+import {ADVANCED_TARGETS, HEADING_TARGETS, FontChoice, FontPreset, FontTarget, ImportedFont, PluginState, SIMPLE_TARGETS, SystemFont} from "./types";
 import {supportsAssignedWeight} from "./weight-controls";
 
 const STATE_FILE = "font-manager.json";
@@ -686,13 +685,6 @@ export default class SiYuanFontStudio extends Plugin {
             });
             input.addEventListener("change", () => void this.commitSize(input.dataset.target as FontTarget, input.dataset.secondary === "true", Number(input.value)));
         });
-        root.querySelector<HTMLSelectElement>("select[data-role='bold-weight']")?.addEventListener("change", (event) => {
-            const value = Number((event.currentTarget as HTMLSelectElement).value);
-            void this.setContentOption({boldWeight: BOLD_WEIGHTS.includes(value) ? value : null});
-        });
-        root.querySelectorAll<HTMLInputElement>("input[data-role='content-option']").forEach((input) => {
-            input.addEventListener("change", () => void this.setContentOption({[input.dataset.option as keyof ContentOptions]: input.checked}));
-        });
         root.querySelectorAll<HTMLButtonElement>("button[data-reset-font]").forEach((button) => {
             button.addEventListener("click", () => void this.resetFont(button.dataset.resetFont as FontTarget, button.dataset.secondary === "true"));
         });
@@ -1298,24 +1290,9 @@ export default class SiYuanFontStudio extends Plugin {
         const supportsSize = target !== "emoji" && target !== "graph";
         const sizeControls = supportsSize ? `<div class="bfm-size"><input type="range" aria-label="${escapeHtml(this.i18n[`${target}Font`])}" data-role="size" data-target="${target}" data-secondary="${secondary}" min="${min}" max="${max}" step="${relativeSize ? "any" : "1"}" value="${size}"><output data-size-output="${target}-${secondary}">${size}px</output></div>` : "";
         const resetSize = supportsSize ? `<button class="b3-button bfm-reset ${config.size === null ? "" : "bfm-reset--active"}" data-reset-size="${target}" data-secondary="${secondary}">${this.i18n.resetSize}</button>` : "";
-        const options = target === "content" && !secondary ? this.contentOptionsHtml() : "";
         return `<div class="bfm-setting-pane">${this.fontPickerHtml(target, secondary, config.fonts)}
-  ${sizeControls}${options}
+  ${sizeControls}
   <div class="bfm-target__actions"><button class="b3-button bfm-reset ${config.fonts.length ? "bfm-reset--active" : ""}" data-reset-font="${target}" data-secondary="${secondary}">${this.i18n.resetFont}</button>${resetSize}</div></div>`;
-    }
-
-    private contentOptionsHtml(): string {
-        const options = this.state.targets.content.options || DEFAULT_CONTENT_OPTIONS;
-        const toggle = (option: Exclude<keyof ContentOptions, "boldWeight">, label: string, hint: string) =>
-            `<label title="${escapeHtml(hint)}"><input type="checkbox" data-role="content-option" data-option="${option}" ${options[option] ? "checked" : ""}><span>${label}</span></label>`;
-        return `<div class="bfm-options">
-  <label>${this.i18n.boldWeight}<select class="b3-select" data-role="bold-weight"><option value="">${this.i18n.followSiyuan}</option>${BOLD_WEIGHTS.map((weight) => `<option value="${weight}" ${options.boldWeight === weight ? "selected" : ""}>${fontWeightName(weight)} · ${weight}</option>`).join("")}</select></label>
-  ${toggle("noSynthesis", this.i18n.noSynthesis, this.i18n.noSynthesisHint)}
-</div>`;
-    }
-
-    private contentOptions(): ContentOptions {
-        return this.state.targets.content.options ||= {...DEFAULT_CONTENT_OPTIONS};
     }
 
     private refreshDefaultSizes(): void {
@@ -1711,12 +1688,6 @@ export default class SiYuanFontStudio extends Plugin {
         this.applySettings();
         await this.persist();
         this.renderManager();
-    }
-
-    private async setContentOption(update: Partial<ContentOptions>): Promise<void> {
-        Object.assign(this.contentOptions(), update);
-        this.applySettings();
-        await this.persist();
     }
 
     private async setDecoupled(target: FontTarget, value: boolean): Promise<void> {

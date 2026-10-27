@@ -30,7 +30,6 @@ describe("state parsing", () => {
     it("creates defaults for missing data", () => {
         const initial = parseState("");
         expect(initial.targets.ui).toEqual({fonts: [], size: null});
-        expect(initial.targets.content.options).toEqual({boldWeight: null, noSynthesis: false});
         expect(initial.presets).toHaveLength(1);
         expect(initial.activePresetId).toBe("default");
         expect(parseState({version: 3, fonts: [], targets: {}}).targets.graph).toEqual({fonts: [], size: null});
@@ -222,22 +221,14 @@ describe("preset transfer", () => {
     });
 });
 
-describe("content options", () => {
-    it("keeps only valid bold weights and switches", () => {
+describe("saved settings", () => {
+    it("drops settings from removed features", () => {
         const state = parseState({version: 3, fonts: [], targets: {
             ui: {fonts: [], size: null, letterSpacing: 0.1, lineHeight: 2},
-            content: {fonts: [], size: null, options: {boldWeight: 650, indent: true, noSynthesis: "yes"}},
+            content: {fonts: [], size: null, options: {boldWeight: 600, noSynthesis: true}},
         }});
         expect(state.targets.ui).toEqual({fonts: [], size: null});
-        expect(state.targets.content.options).toEqual({boldWeight: null, noSynthesis: false});
-    });
-
-    it("carries document options through presets", () => {
-        const state = parseState(null);
-        state.targets.content.options = {boldWeight: 600, noSynthesis: true};
-        syncActivePreset(state);
-        const imported = parsePresetConfig(JSON.parse(serializePreset(state.presets[0], [], "Options")), []);
-        expect(imported.targets).toEqual(state.targets);
+        expect(state.targets.content).toEqual({fonts: [], size: null});
     });
 
     it("pairs a regular face with the real bold and italic faces of its family", () => {

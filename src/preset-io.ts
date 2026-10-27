@@ -1,6 +1,6 @@
 import {strFromU8, strToU8, unzipSync, zip} from "fflate";
 import {parseState} from "./state";
-import {ContentOptions, HEADING_TARGETS, FontChoice, FontPreset, FontTarget, ImportedFont, TARGETS, TargetSettings} from "./types";
+import {HEADING_TARGETS, FontChoice, FontPreset, FontTarget, ImportedFont, TARGETS, TargetSettings} from "./types";
 
 export const PRESET_FILE_FORMAT = "siyuan-font-studio-preset";
 export const PRESET_FILE_VERSION = 1;
@@ -18,7 +18,6 @@ interface PortableTargetSettings {
         fonts: PortableFontChoice[];
         size: number | null;
     };
-    options?: ContentOptions;
 }
 
 export interface BundledFontDescriptor {
@@ -114,7 +113,6 @@ function serializeTarget(settings: TargetSettings, fonts: ImportedFont[]): Porta
             return portable ? [portable] : [];
         }),
         size: settings.size,
-        ...(settings.options ? {options: {...settings.options}} : {}),
         ...(settings.decoupled !== undefined ? {decoupled: settings.decoupled} : {}),
         ...(settings.secondary ? {
             secondary: {
@@ -220,7 +218,6 @@ function deserializeTarget(value: PortableTargetSettings, fonts: ImportedFont[],
             return local ? [local] : [];
         }),
         size: value.size,
-        ...(value.options ? {options: value.options} : {}),
         ...(typeof value.decoupled === "boolean" ? {decoupled: value.decoupled} : {}),
         ...(secondary ? {secondary} : {}),
     };

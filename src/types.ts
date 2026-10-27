@@ -49,11 +49,6 @@ export type FontChoice =
     | {kind: "imported"; id: string; weight?: number}
     | {kind: "system"; family: string; displayName: string; weight: number};
 
-export interface ContentOptions {
-    boldWeight: number | null;
-    noSynthesis: boolean;
-}
-
 export interface TargetSettings {
     fonts: FontChoice[];
     size: number | null;
@@ -62,7 +57,6 @@ export interface TargetSettings {
         fonts: FontChoice[];
         size: number | null;
     };
-    options?: ContentOptions;
 }
 
 export interface FontPreset {
@@ -117,4 +111,3 @@ export const DEFAULT_STATE: PluginState = {
     },
 };
 
-export const DEFAULT_CONTENT_OPTIONS: ContentOptions = {boldWeight: null, noSynthesis: false};

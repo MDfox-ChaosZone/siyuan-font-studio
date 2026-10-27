@@ -148,9 +148,6 @@
   "h4Font": "Heading 4 (H4)",
   "h5Font": "Heading 5 (H5)",
   "h6Font": "Heading 6 (H6)",
-  "boldWeight": "Bold weight",
-  "noSynthesis": "No faux bold/italic",
-  "noSynthesisHint": "Stops the browser from simulating bold or italic text when a font lacks those faces. If you import the Bold and Italic files of the same font, the plugin uses those real faces automatically.",
   "defaultFontName": "Default font",
   "saveTimeout": "Saving timed out. Check the connection to the SiYuan kernel."
 }
