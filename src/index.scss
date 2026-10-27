@@ -8,6 +8,12 @@
   * {
     box-sizing: border-box;
   }
+
+  // Opened as a SiYuan tab: fill the tab and keep a readable width.
+  &--tab {
+    height: 100%;
+    padding: 20px max(20px, calc((100% - 1100px) / 2));
+  }
 }
 
 .bfm-section {
@@ -318,6 +324,13 @@
     &:hover {
       color: var(--b3-theme-on-background);
     }
+  }
+
+  button.bfm-manager-tabs__mode {
+    border-bottom: 0;
+    font-size: 12px;
+    margin-left: auto;
+    padding: 6px 10px;
   }
 
   button.bfm-manager-tabs--active {

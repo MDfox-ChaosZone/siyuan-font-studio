@@ -1,5 +1,5 @@
 import * as SiyuanAPI from "siyuan";
-import {confirm, Dialog, getAllModels, Menu, Plugin, Setting, showMessage} from "siyuan";
+import {confirm, Custom, Dialog, getAllModels, getFrontend, Menu, openTab, Plugin, Setting, showMessage} from "siyuan";
 import "./index.scss";
 import {
     companionFonts,
@@ -45,7 +45,7 @@ import {
 import {deleteFontFile, deletePluginStorage, ensureFontDirectory, FONT_STORAGE_ROOT, readFontFile, storedFontFileName, writeFontFile} from "./storage";
 import {StyleManager} from "./style-manager";
 import {FontLoader, selectedFontRequests} from "./font-loader";
-import {ADVANCED_TARGETS, ContentOptions, DEFAULT_CONTENT_OPTIONS, HEADING_TARGETS, FontChoice, FontPreset, FontTarget, ImportedFont, PluginState, SIMPLE_TARGETS, SpacingSettings, SystemFont} from "./types";
+import {ADVANCED_TARGETS, ContentOptions, ManagerMode, DEFAULT_CONTENT_OPTIONS, HEADING_TARGETS, FontChoice, FontPreset, FontTarget, ImportedFont, PluginState, SIMPLE_TARGETS, SpacingSettings, SystemFont} from "./types";
 import {
     BOLD_WEIGHTS,
     clampLetterSpacing,
@@ -61,6 +61,7 @@ import {
 import {supportsAssignedWeight} from "./weight-controls";
 
 const STATE_FILE = "font-manager.json";
+const MANAGER_TAB_TYPE = "manager";
 // petal: saveData may never settle when the request fails, which would block the save chain.
 const SAVE_TIMEOUT = 15000;
 const CUSTOM_FONT_CONTAINERS = ["docker", "android", "ios", "harmony"];
@@ -103,6 +104,7 @@ export default class SiYuanFontStudio extends Plugin {
     private fontLoader!: FontLoader;
     private systemFonts: SystemFont[] = [];
     private managerDialog?: Dialog;
+    private managerTab?: Custom;
     private renameDialog?: Dialog;
     private presetTransferDialog?: Dialog;
     private presetCatalogDialog?: Dialog;
@@ -142,11 +144,23 @@ export default class SiYuanFontStudio extends Plugin {
   <rect x="19" y="21" width="12" height="2" rx="1"></rect>
   <circle cx="27" cy="22" r="3"></circle>
 </symbol>`);
+        const plugin = this;
+        this.addTab({
+            type: MANAGER_TAB_TYPE,
+            init() {
+                plugin.mountManagerTab(this as unknown as Custom);
+            },
+            destroy() {
+                plugin.unmountManagerTab(this as unknown as Custom);
+            },
+        });
         this.styleManager = new StyleManager();
         this.headingLayout = new HeadingLayout();
         this.state = parseState(await this.loadData(STATE_FILE));
         void this.removeLegacyCatalogCache();
         if (this.disposed) return;
+        // A tab restored from the saved layout may have rendered with default state.
+        this.renderManager();
         this.observeMermaidRuntime();
         await this.ensureSelectedFonts();
         if (this.disposed) return;
@@ -166,7 +180,7 @@ export default class SiYuanFontStudio extends Plugin {
             this.styleManager?.refreshBaselines();
             this.applySettings();
             this.headingLayout?.schedule();
-            if (this.managerDialog) this.renderManager();
+            if (this.managerRoot()) this.renderManager();
         });
         this.themeObserver.observe(document.documentElement, {
             attributes: true,
@@ -193,7 +207,7 @@ export default class SiYuanFontStudio extends Plugin {
         if (this.disposed || !this.styleManager?.refreshBaselines()) return;
         this.applySettings();
         this.headingLayout?.schedule();
-        if (this.managerDialog) this.renderManager();
+        if (this.managerRoot()) this.renderManager();
     }
 
     async onDataChanged(): Promise<void> {
@@ -207,7 +221,7 @@ export default class SiYuanFontStudio extends Plugin {
         this.state = next;
         this.activeSecondaryTab = {};
         this.applySettings();
-        if (this.managerDialog) this.renderManager();
+        if (this.managerRoot()) this.renderManager();
     }
 
     onLayoutReady(): void {
@@ -280,7 +294,7 @@ export default class SiYuanFontStudio extends Plugin {
     private async ensureFont(font: ImportedFont, emoji = false): Promise<void> {
         if (!await this.fontLoader.ensure(font, emoji) || this.disposed) return;
         this.applySettings();
-        this.managerDialog?.element.querySelectorAll<HTMLElement>(`[data-library-group="${font.id}"]`).forEach(row => {
+        this.managerRoot()?.querySelectorAll<HTMLElement>(`[data-library-group="${font.id}"]`).forEach(row => {
             row.classList.toggle("bfm-font--error", Boolean(this.fontLoader.statuses.get(font.id)?.error));
         });
     }
@@ -483,7 +497,7 @@ export default class SiYuanFontStudio extends Plugin {
         const unique = new Map<string, SystemFont>();
         for (const font of [...custom, ...system]) unique.set(`${font.family}\u0000${font.weight}`, font);
         this.systemFonts = Array.from(unique.values()).sort((a, b) => a.displayName.localeCompare(b.displayName));
-        if (this.managerDialog) this.renderManager();
+        if (this.managerRoot()) this.renderManager();
     }
 
     private async requestSystemFonts(container: string): Promise<SystemFont[]> {
@@ -520,6 +534,16 @@ export default class SiYuanFontStudio extends Plugin {
             void this.persist();
         }
         this.applySettings();
+        if (this.managerMode() === "tab") {
+            this.managerDialog?.destroy();
+            this.renderManager();
+            // SiYuan focuses the existing tab when one with this id is open.
+            void openTab({
+                app: this.app,
+                custom: {id: this.name + MANAGER_TAB_TYPE, icon: "iconSiYuanFontStudio", title: this.i18n.managerTitle},
+            });
+            return;
+        }
         if (this.managerDialog) {
             this.managerDialog.destroy();
         }
@@ -537,8 +561,38 @@ export default class SiYuanFontStudio extends Plugin {
         this.renderManager();
     }
 
+    private managerMode(): ManagerMode {
+        // Mobile has no editor tabs, so it always uses the dialog.
+        return this.state.layout.managerMode === "tab" && !getFrontend().includes("mobile") ? "tab" : "dialog";
+    }
+
+    private managerRoot(): HTMLElement | null {
+        return (this.managerTab?.element ?? this.managerDialog?.element)?.querySelector<HTMLElement>(".bfm-manager") ?? null;
+    }
+
+    private mountManagerTab(custom: Custom): void {
+        this.managerTab = custom;
+        custom.element.innerHTML = `<div class="bfm-manager bfm-manager--tab"></div>`;
+        this.renderManager();
+    }
+
+    private unmountManagerTab(custom: Custom): void {
+        if (this.managerTab !== custom) return;
+        this.disconnectFontPreviewObservers();
+        this.managerTab = undefined;
+    }
+
+    private async switchManagerMode(): Promise<void> {
+        this.state.layout.managerMode = this.managerMode() === "tab" ? "dialog" : "tab";
+        await this.persist();
+        // Close the current host first so only one settings page exists.
+        if (this.state.layout.managerMode === "tab") this.managerDialog?.destroy();
+        else this.managerTab?.tab?.close();
+        this.openManager();
+    }
+
     private renderManager(): void {
-        const root = this.managerDialog?.element.querySelector<HTMLElement>(".bfm-manager");
+        const root = this.managerRoot();
         if (!root) return;
         this.disconnectFontPreviewObservers();
         root.style.setProperty("--bfm-library-preview-width", `${this.state.layout.libraryPreviewWidth}px`);
@@ -566,7 +620,7 @@ export default class SiYuanFontStudio extends Plugin {
     <button type="button" class="b3-button b3-button--text sfs-preset-bar__example" data-action="download-example-preset" title="${escapeHtml(this.i18n.downloadPresetCatalogDescription)}">${this.i18n.downloadPresetCatalog}</button>
     <input class="fn__none" type="file" data-role="preset-input" accept=".json,.zip,application/json,application/zip" multiple>
   </div>
-  <div class="bfm-manager-tabs" role="tablist" aria-label="${escapeHtml(this.i18n.managerTitle)}">${(["fonts", "spacing"] as const).map((tab) => `<button type="button" role="tab" data-manager-tab="${tab}" class="${tab === this.activeManagerTab ? "bfm-manager-tabs--active" : ""}" aria-selected="${tab === this.activeManagerTab}">${tab === "fonts" ? this.i18n.fontTab : this.i18n.spacingTab}</button>`).join("")}</div>
+  <div class="bfm-manager-tabs" role="tablist" aria-label="${escapeHtml(this.i18n.managerTitle)}">${(["fonts", "spacing"] as const).map((tab) => `<button type="button" role="tab" data-manager-tab="${tab}" class="${tab === this.activeManagerTab ? "bfm-manager-tabs--active" : ""}" aria-selected="${tab === this.activeManagerTab}">${tab === "fonts" ? this.i18n.fontTab : this.i18n.spacingTab}</button>`).join("")}${getFrontend().includes("mobile") ? "" : `<button type="button" class="bfm-manager-tabs__mode" data-action="switch-manager-mode" title="${escapeHtml(this.managerTab ? this.i18n.openAsDialogHint : this.i18n.openAsTabHint)}">${this.managerTab ? this.i18n.openAsDialog : this.i18n.openAsTab}</button>`}</div>
   ${this.activeManagerTab === "fonts" ? this.fontSectionsHtml() : this.spacingSectionsHtml()}
 </section>
 ${this.activeManagerTab === "fonts" ? `<section class="bfm-section">
@@ -603,6 +657,7 @@ ${this.activeManagerTab === "fonts" ? `<section class="bfm-section">
                 }
             });
         });
+        root.querySelector<HTMLButtonElement>("button[data-action='switch-manager-mode']")?.addEventListener("click", () => void this.switchManagerMode());
         root.querySelectorAll<HTMLButtonElement>("button[data-manager-tab]").forEach((button) => {
             button.addEventListener("click", () => {
                 const tab = button.dataset.managerTab as ManagerTab;
@@ -1423,7 +1478,7 @@ ${this.activeManagerTab === "fonts" ? `<section class="bfm-section">
     }
 
     private refreshDefaultSizes(): void {
-        const root = this.managerDialog?.element.querySelector<HTMLElement>(".bfm-manager");
+        const root = this.managerRoot();
         root?.querySelectorAll<HTMLInputElement>('input[data-role="size"][data-target="mono"], input[data-role="size"][data-target="math"]').forEach((input) => {
             const target = input.dataset.target as "mono" | "math";
             const secondary = input.dataset.secondary === "true";

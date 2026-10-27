@@ -36,6 +36,12 @@ describe("state parsing", () => {
         expect(parseState({version: 3, fonts: [], targets: {}}).targets.graph).toEqual({fonts: [], size: null});
     });
 
+    it("remembers how the settings page opens", () => {
+        expect(parseState(null).layout.managerMode).toBe("dialog");
+        expect(parseState({version: 3, layout: {managerMode: "tab"}}).layout.managerMode).toBe("tab");
+        expect(parseState({version: 3, layout: {managerMode: "window"}}).layout.managerMode).toBe("dialog");
+    });
+
     it("drops dangling imported assignments", () => {
         const state = parseState({version: 3, fonts: [], targets: {ui: {fonts: [{kind: "imported", id: "missing"}], size: 15}}});
         expect(state.targets.ui.fonts).toEqual([]);

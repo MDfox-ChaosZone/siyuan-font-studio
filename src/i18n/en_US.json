@@ -173,5 +173,9 @@
   "uiSpacing": "Interface",
   "contentSpacing": "Documents",
   "inlineCodeSpacingDescription": "When unset, document letter spacing is not inherited so code stays aligned",
-  "codeBlockSpacingDescription": "When unset, letter spacing is 0 and line height is SiYuan's default 1.625"
+  "codeBlockSpacingDescription": "When unset, letter spacing is 0 and line height is SiYuan's default 1.625",
+  "openAsTab": "Open in a tab",
+  "openAsTabHint": "Open the settings page as a SiYuan tab and remember this choice",
+  "openAsDialog": "Open as a dialog",
+  "openAsDialogHint": "Open the settings page as a floating dialog again and remember this choice"
 }

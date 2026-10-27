@@ -11,7 +11,7 @@ Typography playground:
 
 ## Features
 
-The settings window has two tabs, “Fonts” and “Spacing & layout”. Switch between them at any time; settings on one tab do not affect the other. Customize the typography of the following elements:
+The settings window has two tabs, “Fonts” and “Spacing & layout”. Switch between them at any time; settings on one tab do not affect the other. Click “Open in a tab” at the top right to open the settings page as a regular SiYuan tab instead of a dialog; the plugin remembers this choice (mobile always uses the dialog). Customize the typography of the following elements:
 
 | Element | Font | Size | Letter spacing | Line height | Scope |
 | --- | :---: | :---: | :---: | :---: | --- |
@@ -54,7 +54,7 @@ The settings window has two tabs, “Fonts” and “Spacing & layout”. Switch
 ## Changelog
 
 - **v1.3.0**:
-  - Renamed to “SiYuan Typography Studio”. Added a “Spacing & layout” tab for letter spacing, line height, first-line indent and CJK–Latin spacing; added bold weight and no faux bold/italic options to the document font; added a keyboard key font.
+  - Renamed to “SiYuan Typography Studio”. Added a “Spacing & layout” tab for letter spacing, line height, first-line indent and CJK–Latin spacing; added bold weight and no faux bold/italic options to the document font; added a keyboard key font; the settings page can open as a tab.
   - Bold and italic text uses the real faces of the same font when those files are imported.
   - The document font size now sets SiYuan's editor font size, fixing conflicts with SiYuan's font-size shortcuts and broken code-block line heights when line numbers are shown.
   - Adapted to SiYuan's newer global fonts, emoji corrections and custom fonts (Docker and mobile); the plugin refreshes when SiYuan's own font settings change.

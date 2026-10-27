@@ -18,6 +18,7 @@ export function parseState(value: unknown): PluginState {
         ? source.fonts.filter(isImportedFont).map((font) => ({...font}))
         : [];
     fallback.layout.libraryPreviewWidth = clampLibraryPreviewWidth(source.layout?.libraryPreviewWidth);
+    fallback.layout.managerMode = source.layout?.managerMode === "tab" ? "tab" : "dialog";
 
     for (const target of TARGETS) {
         fallback.targets[target] = parseTargetSettings(source.targets?.[target], target);

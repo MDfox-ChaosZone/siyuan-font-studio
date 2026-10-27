@@ -173,5 +173,9 @@
   "uiSpacing": "界面",
   "contentSpacing": "文档",
   "inlineCodeSpacingDescription": "未设置时不继承文档字间距，以保持对齐",
-  "codeBlockSpacingDescription": "未设置时字间距为 0，行距为思源默认的 1.625"
+  "codeBlockSpacingDescription": "未设置时字间距为 0，行距为思源默认的 1.625",
+  "openAsTab": "在页签中打开",
+  "openAsTabHint": "以独立页签打开设置页，并记住此选择",
+  "openAsDialog": "以弹窗打开",
+  "openAsDialogHint": "改回悬浮弹窗打开设置页，并记住此选择"
 }
