@@ -10,6 +10,12 @@
   }
 }
 
+// The settings page as the only tab of its own window.
+.bfm-manager--window {
+  height: 100%;
+  padding: 20px max(20px, calc((100% - 1100px) / 2));
+}
+
 .bfm-section {
   & + & {
     border-top: 1px solid var(--b3-border-color);
@@ -76,14 +82,14 @@
     }
   }
 
-  &__example.b3-button {
+  &__example.b3-button,
+  &__mode.b3-button {
     background: transparent;
     box-shadow: none;
     color: var(--b3-theme-on-surface-light);
     flex: none;
     font-size: 12px !important;
     font-weight: 400;
-    margin-left: auto;
     padding: 4px 2px;
 
     &:hover,
@@ -91,6 +97,22 @@
       background: transparent;
       box-shadow: none;
       color: var(--b3-theme-on-surface);
+    }
+  }
+
+  &__example.b3-button {
+    margin-left: auto;
+  }
+
+  &__mode.b3-button {
+    align-items: center;
+    display: inline-flex;
+    gap: 4px;
+
+    svg {
+      height: 12px;
+      margin: 0;
+      width: 12px;
     }
   }
 }

@@ -1,5 +1,5 @@
 import * as SiyuanAPI from "siyuan";
-import {confirm, Dialog, getAllModels, Menu, Plugin, Setting, showMessage} from "siyuan";
+import {confirm, Custom, Dialog, getAllModels, getFrontend, Menu, openTab, openWindow, Plugin, Setting, showMessage} from "siyuan";
 import "./index.scss";
 import {
     companionFonts,
@@ -45,10 +45,15 @@ import {
 import {deleteFontFile, deletePluginStorage, ensureFontDirectory, FONT_STORAGE_ROOT, readFontFile, storedFontFileName, writeFontFile} from "./storage";
 import {StyleManager} from "./style-manager";
 import {FontLoader, selectedFontRequests} from "./font-loader";
-import {ADVANCED_TARGETS, HEADING_TARGETS, FontChoice, FontPreset, FontTarget, ImportedFont, PluginState, SIMPLE_TARGETS, SystemFont} from "./types";
+import {ADVANCED_TARGETS, HEADING_TARGETS, FontChoice, FontPreset, FontTarget, ImportedFont, ManagerMode, PluginState, SIMPLE_TARGETS, SystemFont} from "./types";
 import {supportsAssignedWeight} from "./weight-controls";
 
 const STATE_FILE = "font-manager.json";
+// The settings page opens in its own window as this custom tab.
+const MANAGER_TAB_TYPE = "manager";
+// Windows of the same SiYuan app share this channel to stay in sync.
+const WINDOW_CHANNEL = "siyuan-font-studio";
+const MANAGER_WINDOW_SIZE = {width: 960, height: 820};
 // petal: saveData may never settle when the request fails, which would block the save chain.
 const SAVE_TIMEOUT = 15000;
 const CUSTOM_FONT_CONTAINERS = ["docker", "android", "ios", "harmony"];
@@ -89,6 +94,10 @@ export default class SiYuanFontStudio extends Plugin {
     private fontLoader!: FontLoader;
     private systemFonts: SystemFont[] = [];
     private managerDialog?: Dialog;
+    private managerTab?: Custom;
+    private windowChannel?: BroadcastChannel;
+    // The last state this window sent or received, so updates are not echoed back.
+    private sharedState = "";
     private renameDialog?: Dialog;
     private presetTransferDialog?: Dialog;
     private presetCatalogDialog?: Dialog;
@@ -126,11 +135,25 @@ export default class SiYuanFontStudio extends Plugin {
   <rect x="19" y="21" width="12" height="2" rx="1"></rect>
   <circle cx="27" cy="22" r="3"></circle>
 </symbol>`);
+        const plugin = this;
+        this.addTab({
+            type: MANAGER_TAB_TYPE,
+            init() {
+                plugin.mountManagerTab(this as unknown as Custom);
+            },
+            destroy() {
+                plugin.unmountManagerTab(this as unknown as Custom);
+            },
+        });
         this.styleManager = new StyleManager();
         this.headingLayout = new HeadingLayout();
         this.state = parseState(await this.loadData(STATE_FILE));
+        this.sharedState = JSON.stringify(this.state);
+        this.openWindowChannel();
         void this.removeLegacyCatalogCache();
         if (this.disposed) return;
+        // A tab restored with the window renders once the saved state has loaded.
+        this.renderManager();
         this.observeMermaidRuntime();
         await this.ensureSelectedFonts();
         if (this.disposed) return;
@@ -150,7 +173,7 @@ export default class SiYuanFontStudio extends Plugin {
             this.styleManager?.refreshBaselines();
             this.applySettings();
             this.headingLayout?.schedule();
-            if (this.managerDialog) this.renderManager();
+            if (this.managerRoot()) this.renderManager();
         });
         this.themeObserver.observe(document.documentElement, {
             attributes: true,
@@ -177,7 +200,7 @@ export default class SiYuanFontStudio extends Plugin {
         if (this.disposed || !this.styleManager?.refreshBaselines()) return;
         this.applySettings();
         this.headingLayout?.schedule();
-        if (this.managerDialog) this.renderManager();
+        if (this.managerRoot()) this.renderManager();
     }
 
     async onDataChanged(): Promise<void> {
@@ -189,9 +212,10 @@ export default class SiYuanFontStudio extends Plugin {
         // Font files may arrive after the settings that reference them.
         this.fontLoader.clearFailures();
         this.state = next;
+        this.sharedState = JSON.stringify(next);
         this.activeSecondaryTab = {};
         this.applySettings();
-        if (this.managerDialog) this.renderManager();
+        if (this.managerRoot()) this.renderManager();
     }
 
     onLayoutReady(): void {
@@ -234,6 +258,7 @@ export default class SiYuanFontStudio extends Plugin {
         this.exampleDownloadAbort?.abort();
         this.exampleDownloadDialog?.destroy();
         this.managerDialog?.destroy();
+        this.windowChannel?.close();
         this.styleManager?.destroy();
         this.headingLayout?.destroy();
         this.refreshMindmapLayouts();
@@ -264,13 +289,14 @@ export default class SiYuanFontStudio extends Plugin {
     private async ensureFont(font: ImportedFont, emoji = false): Promise<void> {
         if (!await this.fontLoader.ensure(font, emoji) || this.disposed) return;
         this.applySettings();
-        this.managerDialog?.element.querySelectorAll<HTMLElement>(`[data-library-group="${font.id}"]`).forEach(row => {
+        this.managerRoot()?.querySelectorAll<HTMLElement>(`[data-library-group="${font.id}"]`).forEach(row => {
             row.classList.toggle("bfm-font--error", Boolean(this.fontLoader.statuses.get(font.id)?.error));
         });
     }
 
     private applySettings(): void {
         if (this.disposed) return;
+        this.shareState();
         void this.ensureSelectedFonts();
         const loadedIds = new Set(this.fontLoader.faces.keys());
         const emojiLoadedIds = new Set(this.fontLoader.emojiFaces.keys());
@@ -467,7 +493,7 @@ export default class SiYuanFontStudio extends Plugin {
         const unique = new Map<string, SystemFont>();
         for (const font of [...custom, ...system]) unique.set(`${font.family}\u0000${font.weight}`, font);
         this.systemFonts = Array.from(unique.values()).sort((a, b) => a.displayName.localeCompare(b.displayName));
-        if (this.managerDialog) this.renderManager();
+        if (this.managerRoot()) this.renderManager();
     }
 
     private async requestSystemFonts(container: string): Promise<SystemFont[]> {
@@ -504,6 +530,15 @@ export default class SiYuanFontStudio extends Plugin {
             void this.persist();
         }
         this.applySettings();
+        if (this.managerTab) {
+            this.focusManagerWindow();
+            return;
+        }
+        if (this.managerMode() === "window") {
+            this.managerDialog?.destroy();
+            void this.openManagerWindow();
+            return;
+        }
         if (this.managerDialog) {
             this.managerDialog.destroy();
         }
@@ -523,8 +558,126 @@ export default class SiYuanFontStudio extends Plugin {
         this.renderManager();
     }
 
+    private managerMode(): ManagerMode {
+        // Only the desktop app can open windows.
+        return this.state.layout.managerMode === "window" && getFrontend() === "desktop" ? "window" : "dialog";
+    }
+
+    private managerRoot(): HTMLElement | null {
+        return (this.managerTab?.element ?? this.managerDialog?.element)?.querySelector<HTMLElement>(".bfm-manager") ?? null;
+    }
+
+    private mountManagerTab(custom: Custom): void {
+        this.managerTab = custom;
+        custom.element.innerHTML = `<div class="bfm-manager bfm-manager--window"></div>`;
+        this.renderManager();
+    }
+
+    private unmountManagerTab(custom: Custom): void {
+        if (this.managerTab !== custom) return;
+        this.disconnectFontPreviewObservers();
+        this.managerTab = undefined;
+    }
+
+    private async openManagerWindow(): Promise<void> {
+        // A window that already shows the settings answers and comes to the front.
+        if (await this.askWindows("focus-manager")) return;
+        const tab = await openTab({
+            app: this.app,
+            custom: {id: this.name + MANAGER_TAB_TYPE, icon: "iconSiYuanFontStudio", title: this.i18n.managerTitle},
+        });
+        if (!tab) return;
+        openWindow({
+            tab,
+            ...MANAGER_WINDOW_SIZE,
+            position: {
+                x: Math.max(0, Math.round(window.screenX + (window.outerWidth - MANAGER_WINDOW_SIZE.width) / 2)),
+                y: Math.max(0, Math.round(window.screenY + (window.outerHeight - MANAGER_WINDOW_SIZE.height) / 2)),
+            },
+        });
+    }
+
+    private async switchManagerMode(): Promise<void> {
+        const toWindow = !this.managerTab;
+        this.state.layout.managerMode = toWindow ? "window" : "dialog";
+        this.shareState();
+        await this.persist();
+        if (toWindow) {
+            this.managerDialog?.destroy();
+            void this.openManagerWindow();
+            return;
+        }
+        // The main window opens the dialog; this window closes with its last tab.
+        this.windowChannel?.postMessage({type: "open-dialog"});
+        this.managerTab?.tab?.close();
+    }
+
+    private focusManagerWindow(): void {
+        electronCommand("show");
+        electronCommand("focus");
+    }
+
+    private openWindowChannel(): void {
+        if (typeof BroadcastChannel === "undefined") return;
+        this.windowChannel = new BroadcastChannel(WINDOW_CHANNEL);
+        this.windowChannel.addEventListener("message", (event: MessageEvent) => {
+            if (this.disposed) return;
+            const message = event.data as {type?: string; id?: string; state?: string};
+            if (message.type === "state" && typeof message.state === "string") this.receiveState(message.state);
+            else if (message.type === "focus-manager" && this.managerTab) {
+                this.windowChannel?.postMessage({type: "reply", id: message.id});
+                this.focusManagerWindow();
+            } else if (message.type === "open-dialog" && getFrontend() === "desktop") {
+                this.openManager();
+                this.focusManagerWindow();
+            }
+        });
+    }
+
+    // Resolves true when another window handles the request.
+    private askWindows(type: string): Promise<boolean> {
+        const channel = this.windowChannel;
+        if (!channel) return Promise.resolve(false);
+        const id = Math.random().toString(36).slice(2);
+        return new Promise((resolve) => {
+            const listener = (event: MessageEvent) => {
+                const message = event.data as {type?: string; id?: string};
+                if (message.type === "reply" && message.id === id) finish(true);
+            };
+            const finish = (handled: boolean) => {
+                window.clearTimeout(timer);
+                channel.removeEventListener("message", listener);
+                resolve(handled);
+            };
+            const timer = window.setTimeout(() => finish(false), 300);
+            channel.addEventListener("message", listener);
+            channel.postMessage({type, id});
+        });
+    }
+
+    // Changes made in one window apply live in the others before they are saved.
+    private shareState(): void {
+        if (!this.windowChannel) return;
+        const state = JSON.stringify(this.state);
+        if (state === this.sharedState) return;
+        this.sharedState = state;
+        this.windowChannel.postMessage({type: "state", state});
+    }
+
+    private receiveState(serialized: string): void {
+        if (serialized === this.sharedState) return;
+        const next = parseState(JSON.parse(serialized));
+        this.sharedState = serialized;
+        const ids = new Set(next.fonts.map((font) => font.id));
+        for (const font of this.state.fonts) if (!ids.has(font.id)) this.fontLoader.remove(font.id);
+        this.fontLoader.clearFailures();
+        this.state = next;
+        this.applySettings();
+        if (this.managerRoot()) this.renderManager();
+    }
+
     private renderManager(): void {
-        const root = this.managerDialog?.element.querySelector<HTMLElement>(".bfm-manager");
+        const root = this.managerRoot();
         if (!root) return;
         this.disconnectFontPreviewObservers();
         root.style.setProperty("--bfm-library-preview-width", `${this.state.layout.libraryPreviewWidth}px`);
@@ -550,6 +703,7 @@ export default class SiYuanFontStudio extends Plugin {
       <button type="button" class="b3-button b3-button--cancel" data-action="delete-preset" ${this.state.presets.length <= 1 ? "disabled" : ""}>${this.i18n.delete}</button>
     </div>
     <button type="button" class="b3-button b3-button--text sfs-preset-bar__example" data-action="download-example-preset" title="${escapeHtml(this.i18n.downloadPresetCatalogDescription)}">${this.i18n.downloadPresetCatalog}</button>
+    ${this.managerTab || getFrontend() === "desktop" ? `<button type="button" class="b3-button b3-button--text sfs-preset-bar__mode" data-action="switch-manager-mode" title="${escapeHtml(this.managerTab ? this.i18n.openAsDialogHint : this.i18n.openInWindowHint)}"><svg><use xlink:href="#${this.managerTab ? "iconMin" : "iconOpenWindow"}"></use></svg>${this.managerTab ? this.i18n.openAsDialog : this.i18n.openInWindow}</button>` : ""}
     <input class="fn__none" type="file" data-role="preset-input" accept=".json,.zip,application/json,application/zip" multiple>
   </div>
   <details class="bfm-advanced bfm-primary" ${primaryOpen ? "open" : ""}>
@@ -604,6 +758,7 @@ export default class SiYuanFontStudio extends Plugin {
         });
         root.querySelector<HTMLButtonElement>("button[data-action='new-preset']")?.addEventListener("click", () => this.openPresetNameDialog());
         root.querySelector<HTMLButtonElement>("button[data-action='import-preset']")?.addEventListener("click", () => root.querySelector<HTMLInputElement>("input[data-role='preset-input']")?.click());
+        root.querySelector<HTMLButtonElement>("button[data-action='switch-manager-mode']")?.addEventListener("click", () => void this.switchManagerMode());
         root.querySelector<HTMLButtonElement>("button[data-action='download-example-preset']")?.addEventListener("click", () => this.openPresetCatalog());
         root.querySelector<HTMLButtonElement>("button[data-action='export-preset']")?.addEventListener("click", () => this.openPresetExportDialog());
         root.querySelector<HTMLButtonElement>("button[data-action='rename-preset']")?.addEventListener("click", () => this.openPresetNameDialog(this.state.activePresetId));
@@ -1292,7 +1447,7 @@ export default class SiYuanFontStudio extends Plugin {
     }
 
     private refreshDefaultSizes(): void {
-        const root = this.managerDialog?.element.querySelector<HTMLElement>(".bfm-manager");
+        const root = this.managerRoot();
         root?.querySelectorAll<HTMLInputElement>('input[data-role="size"][data-target="mono"], input[data-role="size"][data-target="math"]').forEach((input) => {
             const target = input.dataset.target as "mono" | "math";
             const secondary = input.dataset.secondary === "true";
@@ -1939,4 +2094,14 @@ function downloadFile(blob: Blob, filename: string): void {
     anchor.click();
     anchor.remove();
     window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+// petal has no API to raise a window; SiYuan's main process handles these commands.
+function electronCommand(cmd: string): void {
+    try {
+        (window as unknown as {require?: (name: string) => {ipcRenderer?: {send(channel: string, data: unknown): void}}})
+            .require?.("electron")?.ipcRenderer?.send("siyuan-cmd", cmd);
+    } catch {
+        // Browser frontends have no Electron.
+    }
 }

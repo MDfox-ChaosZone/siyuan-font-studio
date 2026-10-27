@@ -222,6 +222,12 @@ describe("preset transfer", () => {
 });
 
 describe("saved settings", () => {
+    it("remembers how the settings page opens", () => {
+        expect(parseState(null).layout.managerMode).toBe("dialog");
+        expect(parseState({version: 3, fonts: [], layout: {managerMode: "window"}}).layout.managerMode).toBe("window");
+        expect(parseState({version: 3, fonts: [], layout: {managerMode: "tab"}}).layout.managerMode).toBe("dialog");
+    });
+
     it("drops settings from removed features", () => {
         const state = parseState({version: 3, fonts: [], targets: {
             ui: {fonts: [], size: null, letterSpacing: 0.1, lineHeight: 2},

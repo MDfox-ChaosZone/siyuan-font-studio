@@ -65,6 +65,8 @@ export interface FontPreset {
     targets: Record<FontTarget, TargetSettings>;
 }
 
+export type ManagerMode = "dialog" | "window";
+
 export interface PluginState {
     version: 3;
     fonts: ImportedFont[];
@@ -73,6 +75,8 @@ export interface PluginState {
     activePresetId: string;
     layout: {
         libraryPreviewWidth: number;
+        /** Whether the settings page opens as a floating dialog or in its own window. */
+        managerMode: ManagerMode;
     };
 }
 
@@ -92,6 +96,7 @@ export const DEFAULT_STATE: PluginState = {
     activePresetId: "",
     layout: {
         libraryPreviewWidth: 250,
+        managerMode: "dialog",
     },
     targets: {
         ui: {fonts: [], size: null},
