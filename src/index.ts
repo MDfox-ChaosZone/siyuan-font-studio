@@ -508,12 +508,14 @@ export default class SiYuanFontStudio extends Plugin {
         if (this.managerDialog) {
             this.managerDialog.destroy();
         }
-        this.managerDialog = new Dialog({
+        const dialog: Dialog = this.managerDialog = new Dialog({
             title: this.i18n.managerTitle,
             width: "900px",
             height: "80vh",
             content: `<div class="b3-dialog__content bfm-manager"></div><div class="b3-dialog__action"><button class="b3-button b3-button--text">${this.i18n.close}</button></div>`,
             destroyCallback: () => {
+                // SiYuan runs this after the close animation, possibly after a new dialog has opened.
+                if (this.managerDialog !== dialog) return;
                 this.disconnectFontPreviewObservers();
                 this.managerDialog = undefined;
             },
@@ -1586,11 +1588,11 @@ export default class SiYuanFontStudio extends Plugin {
                 }).join("")}</select>`;
             return `<article class="bfm-font ${status?.error ? "bfm-font--error" : ""}" draggable="false" data-library-group="${selectedFont.id}">
   <span class="bfm-drag bfm-font__handle" draggable="true" title="${this.i18n.dragToSort}">⠿</span>
-  <div class="bfm-font__name" data-preview-font-id="${escapeHtml(selectedFont.id)}" data-preview-weight="${previewWeight}"><strong>${escapeHtml(group.familyName)}</strong>${selector}</div>
+  <div class="bfm-font__name"><strong data-preview-font-id="${escapeHtml(selectedFont.id)}" data-preview-weight="${previewWeight}">${escapeHtml(group.familyName)}</strong>${selector}</div>
   <div class="bfm-font__column-resizer" data-library-column-resizer draggable="false" role="separator" aria-orientation="vertical" aria-label="${escapeHtml(this.i18n.resizeFontColumns)}" title="${escapeHtml(this.i18n.resizeFontColumns)}"></div>
   <div class="bfm-font__info">
     <div class="bfm-font__header">
-      <div class="bfm-font__selected"><strong data-preview-font-id="${escapeHtml(selectedFont.id)}" data-preview-weight="${previewWeight}">${escapeHtml(selectedFont.displayName)}</strong><span title="${escapeHtml(metadata)}">${escapeHtml(metadata)}</span></div>
+      <div class="bfm-font__selected"><strong>${escapeHtml(selectedFont.displayName)}</strong><span title="${escapeHtml(metadata)}">${escapeHtml(metadata)}</span></div>
       <div class="bfm-font__actions"><button class="b3-button b3-button--outline" data-rename="${selectedFont.id}">${this.i18n.rename}</button><button class="b3-button b3-button--cancel" data-delete="${selectedFont.id}">${this.i18n.delete}</button></div>
     </div>
     ${coverageTags ? `<div class="bfm-font__tags">${coverageTags}</div>` : ""}
