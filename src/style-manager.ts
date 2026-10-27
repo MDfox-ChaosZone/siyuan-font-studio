@@ -58,7 +58,6 @@ export class StyleManager {
             math: computed.getPropertyValue("--b3-font-family-math").trim() || "KaTeX_Math",
             mermaid: "sans-serif",
             mindmap: baselineEditor,
-            kbd: resolveReferences(computed.getPropertyValue("--b3-font-family-kbd"), baselineProtyle, {"--b3-font-family-protyle": baselineProtyle}),
         };
     }
 
@@ -87,7 +86,6 @@ export class StyleManager {
         const content = familyForChoices(effectiveChoices(state.targets.content.fonts), state.fonts, loadedIds, runtimeFamily, this.baselineFamilies.content);
         const mono = familyForChoices(effectiveChoices(state.targets.mono.fonts), state.fonts, loadedIds, runtimeFamily, this.baselineFamilies.mono);
         const graph = familyForChoices(effectiveChoices(state.targets.graph.fonts), state.fonts, loadedIds, runtimeFamily, this.baselineFamilies.graph);
-        const kbd = familyForChoices(effectiveChoices(state.targets.kbd.fonts), state.fonts, loadedIds, runtimeFamily, this.baselineFamilies.kbd);
         const restrictedEmoji = restrictedEmojiFamilies(effectiveChoices(state.targets.emoji.fonts), state.fonts, emojiLoadedIds, this.baselineFamilies.emoji);
         const emoji = restrictedEmoji.family;
         const mathChoices = effectiveMathChoices(state.targets.math.fonts);
@@ -120,7 +118,6 @@ export class StyleManager {
             if (weights.graph !== null) vars.push(["--bfm-font-weight-graph", String(weights.graph)]);
         }
         if (emoji) vars.push(["--b3-font-family-emoji", `${emoji}, ${this.baselineFamilies.emoji}`]);
-        if (kbd) vars.push(["--b3-font-family-kbd", `${kbd}, var(--b3-font-family-protyle)`]);
         if (state.targets.ui.size !== null) vars.push(["--b3-font-size", `${state.targets.ui.size}px`]);
         if (options.cssEditorFontSize && state.targets.content.size !== null) vars.push(["--b3-font-size-editor", `${state.targets.content.size}px`]);
 
@@ -159,7 +156,7 @@ export class StyleManager {
             rootRule,
             ...restrictedEmoji.faceRules,
             ...mindmapRules,
-            this.buildRules(state, {ui, content, mono, graph, emoji, math, mermaid: null, mindmap: null, kbd}, {monoBlock, mathBlock}, weights, monoBlockWeight, mathBlockWeight, mathVariableWeight, mathBlockVariableWeight, options),
+            this.buildRules(state, {ui, content, mono, graph, emoji, math, mermaid: null, mindmap: null}, {monoBlock, mathBlock}, weights, monoBlockWeight, mathBlockWeight, mathVariableWeight, mathBlockVariableWeight, options),
             ...HEADING_TARGETS.map((target) => {
                 const settings = state.targets[target];
                 const choices = effectiveChoices(settings.fonts);

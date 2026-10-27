@@ -105,9 +105,9 @@ function sanitizeTargets(targets: Record<FontTarget, TargetSettings>, ids: Set<s
     for (const target of TARGETS) {
         targets[target].fonts = uniqueChoices(targets[target].fonts.filter((choice) => choice.kind !== "imported" || ids.has(choice.id)));
         targets[target].size = clampSize(target, targets[target].size);
-        // Raw emoji share text nodes with document content, SiYuan 3.8+ does
-        // not expose an independent graph font-size API, and kbd uses 75% text.
-        if (target === "emoji" || target === "graph" || target === "kbd") targets[target].size = null;
+        // Raw emoji share text nodes with document content, and SiYuan 3.8+ does
+        // not expose an independent graph font-size API.
+        if (target === "emoji" || target === "graph") targets[target].size = null;
         if (target === "content") targets[target].options = parseContentOptions(targets[target].options);
         if (targets[target].secondary) {
             targets[target].secondary!.fonts = uniqueChoices(targets[target].secondary!.fonts.filter((choice) => choice.kind !== "imported" || ids.has(choice.id)));

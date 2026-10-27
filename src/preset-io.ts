@@ -189,8 +189,8 @@ export function parsePresetConfig(value: unknown, fonts: ImportedFont[]): Import
     const targets = {} as Record<FontTarget, TargetSettings>;
     for (const target of TARGETS) {
         const settings = source.targets[target];
-        // Older v1 presets have no per-heading, mind map or keyboard settings.
-        if (settings === undefined && (HEADING_TARGETS.includes(target as typeof HEADING_TARGETS[number]) || target === "mindmap" || target === "kbd")) {
+        // Older v1 presets have no per-heading or mind map settings.
+        if (settings === undefined && (HEADING_TARGETS.includes(target as typeof HEADING_TARGETS[number]) || target === "mindmap")) {
             targets[target] = {fonts: [], size: null};
             continue;
         }

@@ -9,7 +9,7 @@ describe("assigned font weight controls", () => {
         },
     );
 
-    it.each(["emoji", "kbd"] as const)("does not offer a weight control for %s fonts", (target) => {
-        expect(supportsAssignedWeight(target)).toBe(false);
+    it("does not offer a weight control for emoji fonts", () => {
+        expect(supportsAssignedWeight("emoji")).toBe(false);
     });
 });

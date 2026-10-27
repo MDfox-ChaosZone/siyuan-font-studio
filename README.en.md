@@ -16,17 +16,16 @@ Customize the fonts and sizes of the following elements:
 | Element | Font | Size | Scope |
 | --- | :---: | :---: | --- |
 | Interface | ✅ | ✅ | Menus, settings, the document tree, tab bars, sidebars, and other SiYuan UI elements |
-| Documents | ✅ | ✅ | Body text, headings, lists, blockquotes, tables, and other document content |
-| Headings | ✅ | ✅ | Independent H1–H6 settings; unset values follow the document |
+| Editor | ✅ | ✅ | Body text, headings, lists, blockquotes, tables, and other document content in the editor |
+| Headings | ✅ | ✅ | Independent H1–H6 settings; unset fonts follow the editor font and unset sizes follow SiYuan or the theme |
 | Code | ✅ | ✅ | Inline code and code blocks; each can be configured separately |
 | Formulas | ✅ | ✅ | Inline formulas and formula blocks; each can be configured separately |
 | Graphs | ✅ | ❌ | Document graphs and the global graph |
 | Mind maps | ✅ | ✅ | Independent node fonts, weights and sizes under Other font settings |
 | Mermaid | ✅ | Partial | Some Mermaid elements use independent fixed font sizes that cannot be overridden consistently |
-| Emoji | ✅ | ❌ | Emoji displayed in the document tree, document content, and similar locations |
-| Keyboard keys | ✅ | ❌ | Keyboard keys and shortcuts in documents, menus and settings |
+| Emoji | ✅ | ❌ | Emoji displayed in the document tree, the editor, and similar locations |
 
-- Documents also offer a bold weight and “No faux bold/italic”. These options only change how text is displayed; document content is never modified.
+- The editor also offers a bold weight and “No faux bold/italic”. These options only change how text is displayed; document content is never modified.
 - After you import the Bold, Italic and similar files of the same font, bold and italic text uses those real faces instead of browser-simulated ones.
 - Save your settings as presets and switch between them easily. Import and export presets to use them across devices.
 - Select multiple fonts to provide fallbacks for missing characters.
@@ -34,10 +33,10 @@ Customize the fonts and sizes of the following elements:
 
 ### Font size settings
 
-- The document font size is SiYuan's editor font size: changes in the plugin are saved to SiYuan's settings, and after zooming with SiYuan's shortcuts the current preset picks up the new size the next time the plugin window opens.
-- Monospace text and formulas using default sizes scale with the document font size at the default ratios defined by SiYuan or the theme. Manually set sizes stay fixed; click “Reset size” to follow the document size again.
+- The editor font's size is SiYuan's editor font size: changes in the plugin are saved to SiYuan's settings, and after you change the editor font size with SiYuan's shortcuts, the current preset picks up the new size the next time the plugin window opens.
+- Monospace text and formulas using default sizes scale with the editor font size at the default ratios defined by SiYuan or the theme. Manually set sizes stay fixed; click “Reset size” to follow the editor font size again.
 - With “Set separately” enabled, inline code and code blocks, as well as inline formulas and formula blocks, use independent sizes without affecting each other.
-- Default sizes display their computed values and may include decimals; manual adjustments still use whole pixels. Hover over the information icon next to “Document font” for an explanation of how sizes follow the document.
+- Default sizes display their computed values and may include decimals; manual adjustments still use whole pixels. Hover over the information icon next to “Editor font” for an explanation of how sizes follow the editor font size.
 
 ## Additional notes
 
@@ -47,9 +46,10 @@ Customize the fonts and sizes of the following elements:
 ## Changelog
 
 - **v1.3.0**:
-  - Added document options for bold weight and no faux bold/italic, and a keyboard key font.
+  - Added editor options for bold weight and no faux bold/italic.
+  - Settings wording now matches SiYuan, for example “Document font” is now “Editor font”.
   - Bold and italic text uses the real faces of the same font when those files are imported.
-  - The document font size now sets SiYuan's editor font size, fixing conflicts with SiYuan's font-size shortcuts and broken code-block line heights when line numbers are shown.
+  - The editor font's size now sets SiYuan's editor font size, fixing conflicts with SiYuan's font-size shortcuts and broken code-block line heights when line numbers are shown.
   - Adapted to SiYuan's newer global fonts, emoji corrections and custom fonts (Docker and mobile); the plugin refreshes when SiYuan's own font settings change.
   - Fixed a security issue where preset import messages could inject HTML, fixed the emoji font overriding SiYuan's editor font, and applied synced settings without reloading the plugin.
   - Removed community preset submission and downloads; only the author's example preset remains.

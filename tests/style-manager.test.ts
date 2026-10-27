@@ -25,7 +25,6 @@ describe("font target isolation", () => {
         expect(manager.getBaselineFamily("math")).toBe("KaTeX_Math");
         expect(manager.getBaselineFamily("mermaid")).toBe("sans-serif");
         expect(manager.getBaselineFamily("mindmap")).toBe(manager.getBaselineFamily("content"));
-        expect(manager.getBaselineFamily("kbd")).toBe(manager.getBaselineFamily("content"));
     });
 
     it("writes its rules to a style element that SiYuan's export copies", () => {
@@ -74,7 +73,6 @@ describe("font target isolation", () => {
             ["mono", ["--b3-font-family-code", "--b3-font-family-editor-code", "--b3-font-weight-editor-code"]],
             ["graph", ["--b3-font-family-graph", "--bfm-font-weight-graph"]],
             ["emoji", ["--b3-font-family-emoji"]],
-            ["kbd", ["--b3-font-family-kbd"]],
         ] as const;
 
         for (const [target, expectedProperties] of cases) {
@@ -91,15 +89,6 @@ describe("font target isolation", () => {
 
             expect(Array.from(rootVars(style.textContent).keys())).toEqual(expectedProperties);
         }
-    });
-
-    it("keeps the keyboard font following the live document font", () => {
-        const style = stubStyleDocument(ORIGINAL_STACKS);
-        const state = structuredClone(DEFAULT_STATE);
-        state.targets.kbd.fonts = [{kind: "system", family: "Keys", displayName: "Keys", weight: 400}];
-        new StyleManager().apply(state, new Set());
-
-        expect(rootVars(style.textContent).get("--b3-font-family-kbd")).toBe('"Keys", var(--b3-font-family-protyle)');
     });
 
     it("uses and overrides SiYuan 3.8.2 editor and monospace variables", () => {

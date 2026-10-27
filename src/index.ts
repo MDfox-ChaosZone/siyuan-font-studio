@@ -1293,7 +1293,7 @@ export default class SiYuanFontStudio extends Plugin {
         const size = config.size ?? (relativeSize ? this.defaultSize(target, secondary) : bounds.fallback);
         const min = relativeSize ? Math.min(bounds.min, size) : bounds.min;
         const max = relativeSize ? Math.max(bounds.max, size) : bounds.max;
-        const supportsSize = target !== "emoji" && target !== "graph" && target !== "kbd";
+        const supportsSize = target !== "emoji" && target !== "graph";
         const sizeControls = supportsSize ? `<div class="bfm-size"><input type="range" aria-label="${escapeHtml(this.i18n[`${target}Font`])}" data-role="size" data-target="${target}" data-secondary="${secondary}" min="${min}" max="${max}" step="${relativeSize ? "any" : "1"}" value="${size}"><output data-size-output="${target}-${secondary}">${size}px</output></div>` : "";
         const resetSize = supportsSize ? `<button class="b3-button bfm-reset ${config.size === null ? "" : "bfm-reset--active"}" data-reset-size="${target}" data-secondary="${secondary}">${this.i18n.resetSize}</button>` : "";
         const options = target === "content" && !secondary ? this.contentOptionsHtml() : "";
