@@ -302,14 +302,11 @@
     visibility: visible;
   }
 
-  &--start &__content,
   &--wide &__content {
     left: 0;
     transform: translate(0, 4px);
   }
 
-  &--start:hover &__content,
-  &--start:focus-within &__content,
   &--wide:hover &__content,
   &--wide:focus-within &__content {
     transform: translate(0, 0);

@@ -936,14 +936,9 @@ export default class SiYuanFontStudio extends Plugin {
   <button type="button" role="tab" class="${secondaryActive ? "bfm-setting-tabs--active" : ""}" data-setting-tab data-target="${target}" data-secondary="true" aria-selected="${secondaryActive}">${secondaryLabel}</button>
 </div>${this.settingControlsHtml(target, secondaryActive, bounds)}`
             : this.settingControlsHtml(target, false, bounds);
-        const hint = target === "content" ? this.i18n.contentSizeHint
-            : target === "graph" ? this.i18n.graphFontHint
-            : target === "mermaid" ? this.i18n.mermaidSizeHint
-                : target === "mindmap" ? this.i18n.mindmapFontHint
-                : "";
-        const hintPositionClass = target === "content" ? " bfm-info-tip--start" : "";
+        const hint = target === "mermaid" ? this.i18n.mermaidSizeHint : "";
         const titleHint = hint
-            ? `<span class="bfm-info-tip${hintPositionClass}" tabindex="0" aria-label="${escapeHtml(hint)}"><span aria-hidden="true">i</span><span class="bfm-info-tip__content" role="tooltip">${escapeHtml(hint)}</span></span>`
+            ? `<span class="bfm-info-tip" tabindex="0" aria-label="${escapeHtml(hint)}"><span aria-hidden="true">i</span><span class="bfm-info-tip__content" role="tooltip">${escapeHtml(hint)}</span></span>`
             : "";
         return `<article class="bfm-target">
   <div class="bfm-target__title"><div class="bfm-target__label"><strong>${label}</strong>${titleHint}${description ? `<span class="bfm-target__description">${description}</span>` : ""}</div>${decouple}</div>

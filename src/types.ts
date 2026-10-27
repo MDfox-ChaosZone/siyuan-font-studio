@@ -86,7 +86,7 @@ export interface FontRuntimeStatus {
 }
 
 export const SIMPLE_TARGETS: FontTarget[] = ["ui", "content", "mono", "math"];
-export const ADVANCED_TARGETS: FontTarget[] = ["graph", "emoji", "mermaid", "mindmap"];
+export const ADVANCED_TARGETS: FontTarget[] = ["emoji", "graph", "mermaid", "mindmap"];
 export const TARGETS: FontTarget[] = [...SIMPLE_TARGETS, ...HEADING_TARGETS, ...ADVANCED_TARGETS];
 
 export const DEFAULT_STATE: PluginState = {

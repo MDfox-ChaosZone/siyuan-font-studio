@@ -21,7 +21,7 @@ Customize the fonts and sizes of the following elements:
 | Code | ✅ | ✅ | Inline code and code blocks; each can be configured separately |
 | Formulas | ✅ | ✅ | Inline formulas and formula blocks; each can be configured separately |
 | Graphs | ✅ | ❌ | Document graphs and the global graph |
-| Mind maps | ✅ | ✅ | Independent node fonts, weights and sizes under Other fonts |
+| Mind maps | ✅ | ✅ | Independent node fonts, weights and sizes under Other font settings |
 | Mermaid | ✅ | Partial | Some Mermaid elements use independent fixed font sizes that cannot be overridden consistently |
 | Emoji | ✅ | ❌ | Emoji displayed in the document tree, the editor, and similar locations |
 
@@ -35,7 +35,7 @@ Customize the fonts and sizes of the following elements:
 - The editor font's size is SiYuan's editor font size: changes in the plugin are saved to SiYuan's settings, and after you change the editor font size with SiYuan's shortcuts, the current preset picks up the new size the next time the plugin window opens.
 - Monospace text and formulas using default sizes scale with the editor font size at the default ratios defined by SiYuan or the theme. Manually set sizes stay fixed; click “Reset size” to follow the editor font size again.
 - With “Set separately” enabled, inline code and code blocks, as well as inline formulas and formula blocks, use independent sizes without affecting each other.
-- Default sizes display their computed values and may include decimals; manual adjustments still use whole pixels. Hover over the information icon next to “Editor font” for an explanation of how sizes follow the editor font size.
+- Default sizes display their computed values and may include decimals; manual adjustments still use whole pixels.
 
 ## Additional notes
 
