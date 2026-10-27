@@ -85,7 +85,7 @@
   "mathFont": "公式字体",
   "mathDescription": "应用于行级公式和公式块",
   "mindmapFont": "思维导图字体",
-  "mindmapDescription": "应用于思维导图块，以及以思维导图显示的列表中的节点文字",
+  "mindmapDescription": "应用于思维导图块",
   "mermaidFont": "Mermaid 字体",
   "mermaidDescription": "应用于 Mermaid 图表中的文字",
   "mermaidSizeHint": "修改字号只调整 Mermaid 的主要文字大小，部分图表字体元素使用独立字号，不受插件影响。",

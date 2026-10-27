@@ -85,7 +85,7 @@
   "mathFont": "Formula font",
   "mathDescription": "Used by inline and block formulas",
   "mindmapFont": "Mind map font",
-  "mindmapDescription": "Used by node text in mind map blocks and lists shown as mind maps",
+  "mindmapDescription": "Used by mind map blocks",
   "mermaidFont": "Mermaid font",
   "mermaidDescription": "Used by text in Mermaid diagrams",
   "mermaidSizeHint": "Changing the font size only adjusts the main text in Mermaid diagrams. Some diagram elements use independent font sizes and are not affected by the plugin.",
