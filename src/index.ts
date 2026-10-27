@@ -109,7 +109,6 @@ export default class SiYuanFontStudio extends Plugin {
     private saveChain: Promise<void> = Promise.resolve();
     private activeSecondaryTab: Partial<Record<FontTarget, boolean>> = {};
     private selectedLibraryVariants = new Map<string, string>();
-    private selectedLibraryWeights = new Map<string, number>();
     private fontPreviewObservers = new Map<HTMLElement, IntersectionObserver>();
     private mermaidRuntime?: MermaidRuntime;
     private mermaidOriginalInitialize?: MermaidRuntime["initialize"];
@@ -727,7 +726,7 @@ export default class SiYuanFontStudio extends Plugin {
         <span class="bfm-info-tip__content" role="tooltip">${this.i18n.fontFormatHintPrefix}<a href="https://cloudconvert.com/ttf-to-woff2" target="_blank" rel="noopener noreferrer">CloudConvert</a>${this.i18n.fontFormatHintMiddle}<a href="https://github.com/MDfox-ChaosZone/Font-Converter" target="_blank" rel="noopener noreferrer">FontConvert</a>${this.i18n.fontFormatHintSuffix}</span>
       </span>
     </div>
-    <div class="bfm-section__actions"><button class="b3-button b3-button--outline" data-action="open-folder">${this.i18n.openFontFolder}</button><button class="b3-button b3-button--outline" data-action="import">${this.i18n.importFonts}</button></div>
+    <div class="bfm-section__actions"><button class="b3-button b3-button--outline" data-action="open-folder">${this.i18n.openFontFolder}</button><button class="b3-button b3-button--outline" data-action="import">${this.i18n.importFonts}</button><button class="b3-button b3-button--remove" data-action="delete-all-fonts" ${this.state.fonts.length ? "" : "disabled"}>${this.i18n.deleteAllFonts}</button></div>
   </div>
   <input class="fn__none" type="file" data-role="font-input" accept=".woff2,.woff,.ttf,.otf" multiple>
   <div class="bfm-library">${this.libraryHtml()}</div>
@@ -856,6 +855,7 @@ export default class SiYuanFontStudio extends Plugin {
         root.querySelectorAll<HTMLButtonElement>("button[data-delete]").forEach((button) => {
             button.addEventListener("click", () => this.confirmDelete(button.dataset.delete!));
         });
+        root.querySelector<HTMLButtonElement>("button[data-action='delete-all-fonts']")?.addEventListener("click", () => this.confirmDeleteAll());
         root.querySelectorAll<HTMLSelectElement>("select[data-library-variant]").forEach((select) => {
             select.addEventListener("change", () => {
                 this.selectedLibraryVariants.set(select.dataset.libraryVariant!, select.value);
@@ -863,10 +863,11 @@ export default class SiYuanFontStudio extends Plugin {
             });
         });
         root.querySelectorAll<HTMLInputElement>("input[data-library-variable-weight]").forEach((input) => {
-            input.addEventListener("input", () => this.setLibraryPreviewWeight(root, input.dataset.libraryVariableWeight!, Number(input.value)));
+            input.addEventListener("input", () => this.setLibraryDefaultWeight(root, input.dataset.libraryVariableWeight!, Number(input.value), false));
+            input.addEventListener("change", () => this.setLibraryDefaultWeight(root, input.dataset.libraryVariableWeight!, Number(input.value), true));
         });
         root.querySelectorAll<HTMLInputElement>("input[data-library-variable-weight-number]").forEach((input) => {
-            input.addEventListener("change", () => this.setLibraryPreviewWeight(root, input.dataset.libraryVariableWeightNumber!, Number(input.value)));
+            input.addEventListener("change", () => this.setLibraryDefaultWeight(root, input.dataset.libraryVariableWeightNumber!, Number(input.value), true));
         });
         for (const input of root.querySelectorAll<HTMLInputElement>("input[data-role='font-search']")) {
             const value = searchValues.get(`${input.dataset.target}-${input.dataset.secondary}`);
@@ -1549,7 +1550,7 @@ export default class SiYuanFontStudio extends Plugin {
         const followLabel = HEADING_TARGETS.includes(target as typeof HEADING_TARGETS[number]) ? this.i18n.followDocument : `${this.i18n.followSiyuan}（${this.baselineDisplayName(target)}）`;
         const imported = groupImportedFonts(this.state.fonts).map((group) => {
             const font = this.preferredImportedFont(group.fonts);
-            return this.fontOptionHtml(target, secondary, selected, `imported:${font.id}`, group.familyName, {importedId: font.id, weight: font.variationAxes?.wght?.default ?? font.fontWeight, weightCount: group.fonts.length, variableWeight: Boolean(font.variationAxes?.wght)});
+            return this.fontOptionHtml(target, secondary, selected, `imported:${font.id}`, group.familyName, {importedId: font.id, weight: startingWeight(font),weightCount: group.fonts.length, variableWeight: Boolean(font.variationAxes?.wght)});
         }).join("");
         const system = this.systemFontOptionsHtml(target, secondary, selected, 0, initialSystemCount);
         const siyuanDefault = this.fontOptionHtml(target, secondary, selected, "default", followLabel);
@@ -1647,12 +1648,13 @@ export default class SiYuanFontStudio extends Plugin {
         return candidates.find((item) => item && !/^Emojis (Additional|Reset)$/i.test(item) && !item.startsWith("var(")) || candidates[0] || this.i18n.defaultFontName;
     }
 
-    private setLibraryPreviewWeight(root: HTMLElement, fontId: string, rawWeight: number): void {
+    private setLibraryDefaultWeight(root: HTMLElement, fontId: string, rawWeight: number, save: boolean): void {
         const font = this.state.fonts.find((item) => item.id === fontId);
         const axis = font?.variationAxes?.wght;
-        if (!axis) return;
+        if (!font || !axis) return;
         const weight = Math.round(Math.min(axis.max, Math.max(axis.min, Number.isFinite(rawWeight) ? rawWeight : axis.default)));
-        this.selectedLibraryWeights.set(fontId, weight);
+        font.defaultWeight = weight;
+        if (save) void this.persist().catch((error) => showMessage(`${this.i18n.saveFailed}: ${escapeHtml(errorMessage(error))}`, 5000, "error"));
         root.querySelectorAll<HTMLInputElement>(`[data-library-variable-weight="${fontId}"], [data-library-variable-weight-number="${fontId}"]`).forEach((input) => {
             input.value = String(weight);
         });
@@ -1677,9 +1679,7 @@ export default class SiYuanFontStudio extends Plugin {
             ].filter(Boolean).map((label) => `<span class="bfm-font__tag">${escapeHtml(label)}</span>`).join("");
             const metadata = `${selectedFont.fontVersion || "—"} · ${selectedFont.extension.toLocaleUpperCase()} · ${formatFileSize(selectedFont.size)}`;
             const variableAxis = selectedFont.variationAxes?.wght;
-            const previewWeight = variableAxis
-                ? Math.min(variableAxis.max, Math.max(variableAxis.min, this.selectedLibraryWeights.get(selectedFont.id) ?? variableAxis.default))
-                : selectedFont.fontWeight ?? 400;
+            const previewWeight = startingWeight(selectedFont) ?? 400;
             const selector = variableAxis
                 ? `<div class="bfm-stack__weight bfm-stack__weight--variable bfm-font__variable-weight"><input type="range" min="${variableAxis.min}" max="${variableAxis.max}" step="1" value="${previewWeight}" data-library-variable-weight="${escapeHtml(selectedFont.id)}" aria-label="${escapeHtml(variableAxis.name)}"><input class="b3-text-field" type="number" min="${variableAxis.min}" max="${variableAxis.max}" step="1" value="${previewWeight}" data-library-variable-weight-number="${escapeHtml(selectedFont.id)}" aria-label="${escapeHtml(variableAxis.name)}"></div>`
                 : `<select class="b3-select bfm-font__variant-picker" data-library-variant="${escapeHtml(group.key)}" aria-label="${escapeHtml(this.i18n.fontWeightsCount.replace("${count}", String(group.fonts.length)))}" ${group.fonts.length === 1 ? "disabled" : ""}>${group.fonts.map((font) => {
@@ -1729,7 +1729,7 @@ export default class SiYuanFontStudio extends Plugin {
         if (value.startsWith("imported:")) {
             const id = value.slice(9);
             const font = this.state.fonts.find((item) => item.id === id);
-            if (font) choice = {kind: "imported", id, weight: font.variationAxes?.wght?.default ?? font.fontWeight};
+            if (font) choice = {kind: "imported", id, weight: startingWeight(font)};
         }
         if (value.startsWith("system:")) {
             const font = this.systemFonts[Number(value.slice(7))];
@@ -1761,7 +1761,7 @@ export default class SiYuanFontStudio extends Plugin {
         const font = this.state.fonts.find((item) => item.id === fontId);
         if (choice?.kind !== "imported" || !font) return;
         choice.id = font.id;
-        choice.weight = font.variationAxes?.wght?.default ?? font.fontWeight;
+        choice.weight = startingWeight(font);
         this.applySettings();
         await this.persist();
         this.renderManager();
@@ -1991,17 +1991,23 @@ export default class SiYuanFontStudio extends Plugin {
     private confirmDelete(id: string): void {
         const font = this.state.fonts.find((item) => item.id === id);
         if (!font) return;
-        confirm(this.i18n.delete, this.i18n.confirmDelete.replace("${name}", font.displayName), () => void this.deleteFont(font));
+        confirm(this.i18n.delete, this.i18n.confirmDelete.replace("${name}", font.displayName), () => void this.deleteFonts([font]));
     }
 
-    private async deleteFont(font: ImportedFont): Promise<void> {
+    private confirmDeleteAll(): void {
+        const fonts = [...this.state.fonts];
+        if (!fonts.length) return;
+        confirm(this.i18n.deleteAllFonts, this.i18n.confirmDeleteAllFonts.replace("${count}", String(fonts.length)), () => void this.deleteFonts(fonts));
+    }
+
+    private async deleteFonts(fonts: ImportedFont[]): Promise<void> {
         const previous = this.state;
-        this.state = removeFontFromState(this.state, font.id);
+        this.state = fonts.reduce((state, font) => removeFontFromState(state, font.id), this.state);
         // Invalidate in-flight loads before awaiting storage operations.
-        this.fontLoader.remove(font.id);
+        fonts.forEach((font) => this.fontLoader.remove(font.id));
         try {
             await this.persist();
-            await deleteFontFile(font, this.app.appId).catch((error) => console.warn(`[${this.name}] orphaned font file`, error));
+            await Promise.all(fonts.map((font) => deleteFontFile(font, this.app.appId).catch((error) => console.warn(`[${this.name}] orphaned font file`, error))));
             this.applySettings();
             this.renderManager();
         } catch (error) {
@@ -2066,6 +2072,12 @@ function downloadFile(blob: Blob, filename: string): void {
     anchor.click();
     anchor.remove();
     window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function startingWeight(font: ImportedFont): number | undefined {
+    const axis = font.variationAxes?.wght;
+    if (!axis) return font.fontWeight;
+    return Math.min(axis.max, Math.max(axis.min, font.defaultWeight ?? axis.default));
 }
 
 // petal has no API to raise a window; SiYuan's main process handles these commands.

@@ -18,6 +18,8 @@ export interface ImportedFont {
     fontStyle?: string;
     fontWeight?: number;
     variationAxes?: Record<string, FontVariationAxis>;
+    /** Weight a variable font starts at when it is added to a setting, chosen in the library. */
+    defaultWeight?: number;
     fontVersion?: string;
     coverage?: FontCoverage;
 }

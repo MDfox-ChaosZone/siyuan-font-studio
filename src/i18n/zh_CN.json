@@ -113,6 +113,8 @@
   "duplicateSkipped": "已跳过重复字体",
   "invalidFont": "不是受支持或有效的字体文件",
   "confirmDelete": "删除字体“${name}”？它也会从所有已配置的字体栈中移除。",
+  "deleteAllFonts": "全部删除",
+  "confirmDeleteAllFonts": "删除字体库中的全部 ${count} 个字体？它们也会从所有已配置的字体栈中移除，预设方案本身会保留。",
   "missing": "文件缺失或无法加载",
   "loaded": "可用",
   "systemFonts": "系统字体",

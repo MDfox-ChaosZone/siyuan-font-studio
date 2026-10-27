@@ -50,6 +50,11 @@ describe("state parsing", () => {
         expect(stacked.targets.ui.fonts.map((choice) => choice.kind)).toEqual(["system", "default", "imported"]);
     });
 
+    it("keeps the default weight chosen in the font library", () => {
+        const variable = {...font, variationAxes: {wght: {name: "Weight", min: 150, default: 330, max: 700}}, defaultWeight: 400};
+        expect(parseState(JSON.parse(JSON.stringify({version: 3, fonts: [variable], targets: {}}))).fonts[0].defaultWeight).toBe(400);
+    });
+
     it("resets categories when a font is removed", () => {
         const state = parseState({
             version: 3,

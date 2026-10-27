@@ -113,6 +113,8 @@
   "duplicateSkipped": "Duplicate font skipped",
   "invalidFont": "Unsupported or invalid font file",
   "confirmDelete": "Delete “${name}”? It will also be removed from every configured font stack.",
+  "deleteAllFonts": "Delete all",
+  "confirmDeleteAllFonts": "Delete all ${count} fonts in the library? They will also be removed from every configured font stack; the presets themselves are kept.",
   "missing": "File missing or failed to load",
   "loaded": "Available",
   "systemFonts": "System fonts",
