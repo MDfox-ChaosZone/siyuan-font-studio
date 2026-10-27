@@ -78,7 +78,7 @@
   "uiDescription": "Used by SiYuan interfaces",
   "contentDescription": "Used by document content",
   "contentSizeHint": "The document font size is SiYuan's editor font size: changes here are saved to SiYuan's settings, and zooming with SiYuan's shortcuts is synced back to the current preset the next time this window opens. Reset font size restores the editor to 16px. Monospace text and formulas at their default sizes scale proportionally; manually set sizes stay fixed.",
-  "monoDescription": "Used by inline code and code blocks; line height applies to code blocks",
+  "monoDescription": "Used by inline code and code blocks",
   "graphFont": "Graph font",
   "graphDescription": "Used by local and global graphs",
   "graphFontHint": "Applies to the newer graph renderer in SiYuan v3.8.0 and later. Older versions can still run the plugin, but graph font settings have no effect.",
