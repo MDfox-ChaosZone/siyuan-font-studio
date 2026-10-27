@@ -9,13 +9,12 @@ export interface PresetCatalogRow {
     target: FontTarget;
     /** Fonts in fallback order; null stands for SiYuan's own font. */
     fonts: Array<string | null>;
-    size?: number;
+    /** Pixels added to SiYuan's default size, e.g. 2 for a 16px interface (default 14px). */
+    sizeChange?: number;
 }
 
 export interface PresetCatalogItem {
     id: string;
-    author: string;
-    authorUrl: string;
     assetName: string;
     releaseUrl: string;
     releaseApiUrl: string;
@@ -25,13 +24,11 @@ export interface PresetCatalogItem {
 export const PRESET_CATALOG: PresetCatalogItem[] = [
     {
         id: "example",
-        author: "MDfox",
-        authorUrl: "https://github.com/MDfox-ChaosZone",
         assetName: EXAMPLE_PRESET_ASSET_NAME,
         releaseUrl: EXAMPLE_PRESET_RELEASE_URL,
         releaseApiUrl: "https://api.github.com/repos/MDfox-ChaosZone/siyuan-font-studio/releases/tags/%E7%A4%BA%E4%BE%8B%E5%AD%97%E4%BD%93%E6%96%B9%E6%A1%88",
         rows: [
-            {target: "ui", fonts: ["LXGWZhenKaiGB-Regular"], size: 16},
+            {target: "ui", fonts: ["LXGWZhenKaiGB-Regular"], sizeChange: 2},
             {target: "content", fonts: ["AlibabaPuHuiTi-3-55-Regular"]},
             {target: "mono", fonts: ["MapleMonoNormal-Regular"]},
             {target: "math", fonts: [null, "MiSansVF"]},

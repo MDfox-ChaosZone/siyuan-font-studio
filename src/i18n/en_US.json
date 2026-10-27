@@ -29,7 +29,6 @@
   "presetCatalogIntro": "The example preset and its fonts are imported automatically after the download. Downloading requires access to GitHub.",
   "presetCatalogDefaultNote": "Font elements that are not listed keep SiYuan's defaults.",
   "examplePresetName": "Author's example preset",
-  "presetAuthor": "Author",
   "downloadAndImportPreset": "Download and import",
   "downloadPresetConfirm": "Download “${name}” from GitHub and automatically import its settings and fonts?",
   "downloadPresetConfirmWithSize": "Download “${name}” (${size}) from GitHub and automatically import its settings and fonts?",

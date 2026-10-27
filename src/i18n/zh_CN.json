@@ -29,7 +29,6 @@
   "presetCatalogIntro": "下载完成后会自动导入示例方案及其字体。下载需要能正常访问 GitHub。",
   "presetCatalogDefaultNote": "未列出的字体元素保持思源默认。",
   "examplePresetName": "作者示例方案",
-  "presetAuthor": "作者",
   "downloadAndImportPreset": "下载并导入",
   "downloadPresetConfirm": "将从 GitHub 下载“${name}”，完成后自动导入方案及字体。是否继续？",
   "downloadPresetConfirmWithSize": "将从 GitHub 下载“${name}”（${size}），完成后自动导入方案及字体。是否继续？",

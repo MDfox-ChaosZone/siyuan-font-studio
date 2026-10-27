@@ -958,33 +958,11 @@
   }
 
   &__heading {
+    font-size: 16px;
+    font-weight: 600;
+    line-height: 1.4;
+    margin: 0;
     min-width: 0;
-
-    h3,
-    p {
-      margin: 0;
-    }
-
-    h3 {
-      font-size: 16px;
-      font-weight: 600;
-      line-height: 1.4;
-    }
-
-    p {
-      color: var(--b3-theme-on-surface-light);
-      font-size: 12px;
-      margin-top: 2px;
-    }
-
-    a {
-      color: var(--b3-theme-primary);
-      text-decoration: none;
-
-      &:hover {
-        text-decoration: underline;
-      }
-    }
   }
 
   &__fonts {

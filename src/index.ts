@@ -1033,12 +1033,12 @@ export default class SiYuanFontStudio extends Plugin {
             const fonts = row.fonts.map((font) => font === null
                 ? `<span class="sfs-preset-catalog__font sfs-preset-catalog__font--default">${escapeHtml(this.i18n.followSiyuan)}</span>`
                 : `<span class="sfs-preset-catalog__font">${escapeHtml(font)}</span>`).join("");
-            const size = row.size ? `<span class="sfs-preset-catalog__size">${escapeHtml(this.i18n.fontSize)} ${row.size}px</span>` : "";
+            const size = row.sizeChange ? `<span class="sfs-preset-catalog__size">${escapeHtml(this.i18n.fontSize)}${row.sizeChange > 0 ? "+" : ""}${row.sizeChange}px</span>` : "";
             return `<div><dt>${escapeHtml(this.i18n[`${row.target}Font`])}</dt><dd>${fonts}${size}</dd></div>`;
         }).join("");
         return `<article class="sfs-preset-catalog__card">
   <header>
-    <div class="sfs-preset-catalog__heading"><h3>${escapeHtml(name)}</h3><p>${escapeHtml(this.i18n.presetAuthor)}：<a href="${escapeHtml(item.authorUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(item.author)}</a></p></div>
+    <h3 class="sfs-preset-catalog__heading">${escapeHtml(name)}</h3>
     <button class="b3-button" type="button" data-preset-catalog-download="${item.id}">${this.i18n.downloadAndImportPreset}</button>
   </header>
   <dl class="sfs-preset-catalog__fonts">${rows}</dl>
