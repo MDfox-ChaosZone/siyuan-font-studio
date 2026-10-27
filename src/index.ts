@@ -782,12 +782,11 @@ export default class SiYuanFontStudio extends Plugin {
 </div>${this.settingControlsHtml(target, secondaryActive, bounds)}`
             : this.settingControlsHtml(target, false, bounds);
         const hint = target === "content" ? this.i18n.contentSizeHint
-            : target === "math" ? this.i18n.mathFontHint
             : target === "graph" ? this.i18n.graphFontHint
             : target === "mermaid" ? this.i18n.mermaidSizeHint
                 : target === "mindmap" ? this.i18n.mindmapFontHint
                 : "";
-        const hintPositionClass = target === "content" || target === "math" ? " bfm-info-tip--start" : "";
+        const hintPositionClass = target === "content" ? " bfm-info-tip--start" : "";
         const titleHint = hint
             ? `<span class="bfm-info-tip${hintPositionClass}" tabindex="0" aria-label="${escapeHtml(hint)}"><span aria-hidden="true">i</span><span class="bfm-info-tip__content" role="tooltip">${escapeHtml(hint)}</span></span>`
             : "";
