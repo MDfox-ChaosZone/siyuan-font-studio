@@ -151,4 +151,31 @@ describe("on-demand font loading", () => {
         expect(loader.faces.size).toBe(0);
         expect(loader.statuses.size).toBe(0);
     });
+
+    it("registers real bold and italic faces under the selected font's family", async () => {
+        const regular = font("regular");
+        const bold = {...font("bold"), fontStyle: "Bold", fontWeight: 700};
+        const italic = {...font("italic"), fontStyle: "Italic"};
+        await loader.ensureCompanions(regular, [bold, italic]);
+        expect(faces.map(({family, descriptors}) => [family, descriptors.weight, descriptors.style])).toEqual([
+            ["BFM_regular", "700", "normal"],
+            ["BFM_regular", "400", "italic"],
+        ]);
+        expect(registered.size).toBe(2);
+        await loader.ensureCompanions(regular, [bold]);
+        expect(faces).toHaveLength(2);
+        loader.remove("bold");
+        expect(registered.size).toBe(1);
+    });
+
+    it("retries failed fonts after a sync clears failures", async () => {
+        vi.mocked(readFontFile).mockRejectedValueOnce(new Error("missing"));
+        const synced = font("synced");
+        expect(await loader.ensure(synced)).toBe(true);
+        expect(loader.statuses.get("synced")?.loaded).toBe(false);
+        expect(await loader.ensure(synced)).toBe(false);
+        loader.clearFailures();
+        expect(await loader.ensure(synced)).toBe(true);
+        expect(loader.statuses.get("synced")?.loaded).toBe(true);
+    });
 });

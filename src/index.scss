@@ -642,6 +642,76 @@
     white-space: nowrap;
   }
 
+  &--labeled {
+    grid-template-columns: 4em minmax(0, 1fr) auto 22px;
+    margin-top: 8px;
+
+    &:first-of-type {
+      margin-top: 14px;
+    }
+
+    output {
+      min-width: 52px;
+    }
+  }
+
+  &__label {
+    color: var(--b3-theme-on-surface-light);
+    font-size: 12px;
+    white-space: nowrap;
+  }
+
+  &__reset {
+    align-items: center;
+    background: transparent;
+    border: 0;
+    border-radius: var(--b3-border-radius);
+    color: var(--b3-theme-on-surface-light);
+    cursor: pointer;
+    display: flex;
+    font-size: 14px;
+    height: 22px;
+    justify-content: center;
+    opacity: .45;
+    padding: 0;
+    width: 22px;
+
+    &:hover {
+      background: var(--b3-list-hover);
+    }
+
+    &--active {
+      color: var(--b3-theme-primary);
+      opacity: 1;
+    }
+  }
+}
+
+.bfm-options {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 12px;
+  gap: 8px 14px;
+  margin-top: 12px;
+
+  label {
+    align-items: center;
+    color: var(--b3-theme-on-surface);
+    cursor: pointer;
+    display: flex;
+    gap: 5px;
+  }
+
+  input[type="checkbox"] {
+    accent-color: var(--b3-theme-primary);
+    margin: 0;
+  }
+
+  .b3-select {
+    height: 26px;
+    min-width: 96px;
+  }
 }
 
 .bfm-library {
@@ -897,22 +967,6 @@
 
   > .b3-dialog__action {
     flex: none;
-  }
-
-  &__status,
-  &__description,
-  &__package {
-    color: var(--b3-theme-on-surface-light);
-    font-size: 12px;
-    margin: 0 16px 12px;
-  }
-
-  &__preview {
-    display: block;
-    max-height: 220px;
-    max-width: calc(100% - 32px);
-    margin: 0 16px 12px;
-    object-fit: contain;
   }
 
   &__intro {

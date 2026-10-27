@@ -2,19 +2,19 @@
   "name": "siyuan-font-studio",
   "author": "MDfox",
   "url": "https://github.com/MDfox-ChaosZone/siyuan-font-studio",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "preview": "preview.webp",
   "minAppVersion": "3.8.0",
   "backends": ["all"],
   "frontends": ["all"],
   "disabledInPublish": true,
   "displayName": {
-    "default": "SiYuan Font Studio",
-    "zh-CN": "思源字体工坊"
+    "default": "SiYuan Typography Studio",
+    "zh-CN": "思源排版工坊"
   },
   "description": {
-    "default": "Customize every font element in SiYuan!",
-    "zh-CN": "轻松自定义思源中的所有字体元素！"
+    "default": "Customize fonts, sizes, spacing and line height across SiYuan!",
+    "zh-CN": "轻松自定义思源中的字体、字号、字间距与行距！"
   },
   "readme": {
     "default": "README.md",
@@ -22,5 +22,5 @@
     "en": "README.en.md"
   },
   "funding": {"custom": ["https://github.com/MDfox-ChaosZone/siyuan-font-studio/blob/main/README.md#支持与赞助"]},
-  "keywords": ["字体", "字体管理", "自定义", "字号", "font", "font manager", "typography", "customize", "font size"]
+  "keywords": ["字体", "字体管理", "排版", "自定义", "字号", "字间距", "行距", "font", "font manager", "typography", "customize", "font size", "letter spacing", "line height"]
 }

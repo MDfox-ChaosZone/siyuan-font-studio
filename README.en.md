@@ -1,39 +1,49 @@
-# SiYuan Font Studio
+# SiYuan Typography Studio
 
 [简体中文](https://github.com/MDfox-ChaosZone/siyuan-font-studio/blob/main/README.md)
 
-Font playground:
+Typography playground:
 
-- Easily customize a wide range of font elements in SiYuan!
-- Freely combine fonts and switch between your font presets!
+- Easily customize fonts, sizes, letter spacing and line height across SiYuan!
+- Freely combine settings and switch between your typography presets!
 
-<img src="assets/screenshots/font-studio-settings.png" alt="SiYuan Font Studio settings" width="480">
+<img src="assets/screenshots/font-studio-settings.png" alt="SiYuan Typography Studio settings" width="480">
 
 ## Features
 
-Customize the font family and size of the following elements:
+Customize the typography of the following elements:
 
-| Font element | Font family | Font size | Scope |
-| --- | :---: | :---: | --- |
-| Interface | ✅ | ✅ | Menus, settings, the document tree, tab bars, sidebars, and other SiYuan UI elements |
-| Documents | ✅ | ✅ | Body text, headings, lists, blockquotes, tables, and other document content |
-| Headings | ✅ | ✅ | Independent H1–H6 fonts and sizes; inherits document fonts and SiYuan/theme sizes by default |
-| Code | ✅ | ✅ | Inline code and code blocks; each can be configured separately |
-| Formulas | ✅ | ✅ | Inline formulas and formula blocks; each can be configured separately |
-| Graphs | ✅ | ❌ | Document graphs and the global graph |
-| Mind maps | ✅ | ✅ | Independent node fonts, weights and sizes under Other font settings |
-| Mermaid | ✅ | Partial | Some Mermaid elements use independent fixed font sizes that cannot be overridden consistently |
-| Emoji | ✅ | ❌ | Emoji displayed in the document tree, document content, and similar locations |
+| Element | Font | Size | Letter spacing | Line height | Scope |
+| --- | :---: | :---: | :---: | :---: | --- |
+| Interface | ✅ | ✅ | ✅ | ❌ | Menus, settings, the document tree, tab bars, sidebars, and other SiYuan UI elements |
+| Documents | ✅ | ✅ | ✅ | ✅ | Body text, headings, lists, blockquotes, tables, and other document content |
+| Headings | ✅ | ✅ | ✅ | ✅ | Independent H1–H6 settings; unset values follow the document |
+| Code | ✅ | ✅ | ✅ | ✅ | Inline code and code blocks, each configurable separately; line height applies to code blocks |
+| Formulas | ✅ | ✅ | ❌ | ❌ | Inline formulas and formula blocks; each can be configured separately |
+| Graphs | ✅ | ❌ | ❌ | ❌ | Document graphs and the global graph |
+| Mind maps | ✅ | ✅ | ❌ | ❌ | Independent node fonts, weights and sizes under Other font settings |
+| Mermaid | ✅ | Partial | ❌ | ❌ | Some Mermaid elements use independent fixed font sizes that cannot be overridden consistently |
+| Emoji | ✅ | ❌ | ❌ | ❌ | Emoji displayed in the document tree, document content, and similar locations |
+| Keyboard keys | ✅ | ❌ | ❌ | ❌ | Keyboard keys and shortcuts in documents, menus and settings |
 
-- Save font combinations as presets and switch between them easily. Import and export presets for sharing and use across devices.
+- Documents also offer a bold weight, first-line indent, CJK–Latin spacing and “No faux bold/italic”. These options only change how text is displayed; document content is never modified.
+- After you import the Bold, Italic and similar files of the same font, bold and italic text uses those real faces instead of browser-simulated ones.
+- Save your settings as presets and switch between them easily. Import and export presets to use them across devices.
 - Select multiple fonts to provide fallbacks for missing characters.
 - Fonts load on demand: startup loads only fonts used by the current preset; other fonts load when previewed or selected.
 
 ### Font size settings
 
+- The document font size is SiYuan's editor font size: changes in the plugin are saved to SiYuan's settings, and after zooming with SiYuan's shortcuts the current preset picks up the new size the next time the plugin window opens.
 - Monospace text and formulas using default sizes scale with the document font size at the default ratios defined by SiYuan or the theme. Manually set sizes stay fixed; click “Reset size” to follow the document size again.
 - With “Set separately” enabled, inline code and code blocks, as well as inline formulas and formula blocks, use independent sizes without affecting each other.
 - Default sizes display their computed values and may include decimals; manual adjustments still use whole pixels. Hover over the information icon next to “Document font” for an explanation of how sizes follow the document.
+
+### Letter spacing and line height
+
+- Unset values follow SiYuan: letter spacing 0 and SiYuan's default line height of 1.625. Unset headings follow the document.
+- Letter spacing is measured in em and scales with each element's size. Unset code does not inherit interface or document letter spacing, so columns stay aligned.
+- Click ↺ next to a slider to reset it.
 
 ## Additional notes
 
@@ -42,6 +52,13 @@ Customize the font family and size of the following elements:
 
 ## Changelog
 
+- **v1.3.0**:
+  - Renamed to “SiYuan Typography Studio”. Added letter spacing and line height, plus document options for bold weight, first-line indent, CJK–Latin spacing and no faux bold/italic; added a keyboard key font.
+  - Bold and italic text uses the real faces of the same font when those files are imported.
+  - The document font size now sets SiYuan's editor font size, fixing conflicts with SiYuan's font-size shortcuts and broken code-block line heights when line numbers are shown.
+  - Adapted to SiYuan's newer global fonts, emoji corrections and custom fonts (Docker and mobile); the plugin refreshes when SiYuan's own font settings change.
+  - Fixed a security issue where preset import messages could inject HTML, fixed the emoji font overriding SiYuan's editor font, and applied synced settings without reloading the plugin.
+  - Removed community preset submission and downloads; only the author's example preset remains.
 - **v1.2.0**: Improved font loading: startup loads only fonts used by the current preset, and previews load as you scroll. Font metadata is cached, and Emoji faces load only when used.
 - **v1.1.2**:
   - Monospace default sizes now display their computed values. Default monospace and formula size values update immediately when the document font size changes.
@@ -58,14 +75,6 @@ Customize the font family and size of the following elements:
 - **v0.1.6**: Added font weight display and selection, with compatibility for SiYuan 3.8.2.
 - **v0.1.5**: Added on-demand download and automatic import for the example font preset, and refined the preset toolbar layout.
 - **v0.1.4 and earlier**: Completed the plugin's core functionality.
-
-## Share a font preset
-
-1. Save and export your preset in the plugin. If a ZIP containing fonts exceeds 25 MB, select the GitHub Issue split option and save every ZIP part.
-2. Open “Download font presets → Share my preset” or the [submission form](https://github.com/MDfox-ChaosZone/siyuan-font-studio/issues/new?template=share-font-preset.yml). Keep the title prefix, enter a custom name, and upload the preset file; a description and screenshots are optional. Attach all ZIP parts to the same Issue.
-3. Submit the Issue for automatic validation and maintainer review. Once approved, the preset appears in the plugin's download list. Only share fonts that permit redistribution.
-
-To withdraw a published preset, the original author can close its submission Issue. See the [community preset guide](docs/community-presets.md) for details.
 
 ## Support and sponsorship
 

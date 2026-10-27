@@ -2,11 +2,8 @@ import {sha256} from "./font-utils";
 
 export const EXAMPLE_PRESET_ASSET_NAME = "siyuan-font-studio-preset.zip";
 export const EXAMPLE_PRESET_RELEASE_URL = "https://github.com/MDfox-ChaosZone/siyuan-font-studio/releases/tag/%E7%A4%BA%E4%BE%8B%E5%AD%97%E4%BD%93%E6%96%B9%E6%A1%88";
-export const COMMUNITY_PRESET_ASSET_NAME = "sungas444-community-font-preset.siyuan-font-studio-preset.zip";
-export const COMMUNITY_PRESET_RELEASE_URL = "https://github.com/MDfox-ChaosZone/siyuan-font-studio/releases/tag/%E7%A4%BE%E5%8C%BA%E5%AD%97%E4%BD%93%E6%96%B9%E6%A1%88";
 export const MAX_EXAMPLE_PRESET_BYTES = 100 * 1024 * 1024;
 
-export type PresetCatalogId = string;
 export type PresetCatalogTarget = "h1" | "h2" | "h3" | "h4" | "h5" | "h6" | "ui" | "content" | "mono" | "inlineCode" | "codeBlock" | "math" | "inlineFormula" | "formulaBlock" | "graph" | "emoji" | "mermaid" | "mindmap";
 
 export interface PresetCatalogRow {
@@ -17,15 +14,7 @@ export interface PresetCatalogRow {
 }
 
 export interface PresetCatalogItem {
-    id: PresetCatalogId;
-    name?: string;
-    description?: string;
-    previewUrl?: string;
-    packageUrl?: string;
-    packageSize?: number;
-    packageSha256?: string;
-    includesFonts?: boolean;
-    issueUrl?: string;
+    id: string;
     author: string;
     authorUrl: string;
     assetName: string;
@@ -52,24 +41,6 @@ export const PRESET_CATALOG: PresetCatalogItem[] = [
             {target: "mermaid", fonts: ["MiSansVF"], size: null, weights: [{value: 400, variable: true}]},
         ],
     },
-    {
-        id: "community",
-        author: "sungas444",
-        authorUrl: "https://github.com/sungas444",
-        issueUrl: "https://github.com/MDfox-ChaosZone/siyuan-font-studio/issues/8",
-        assetName: COMMUNITY_PRESET_ASSET_NAME,
-        releaseUrl: COMMUNITY_PRESET_RELEASE_URL,
-        releaseApiUrl: "https://api.github.com/repos/MDfox-ChaosZone/siyuan-font-studio/releases/tags/%E7%A4%BE%E5%8C%BA%E5%AD%97%E4%BD%93%E6%96%B9%E6%A1%88",
-        rows: [
-            {target: "ui", fonts: ["HarmonyOS_SansSC_Regular"], size: 14, weights: [{value: 400}]},
-            {target: "content", fonts: ["MapleFakeMono-NF-CN-Medium"], size: null, weights: [{value: 500}]},
-            {target: "mono", fonts: ["MapleMono-NF-CN-Medium"], size: null, weights: [{value: 500}]},
-            {target: "math", fonts: ["SiYuan", "SourceHanSerifCN-Medium"], size: null, weights: [{value: null}, {value: 500}]},
-            {target: "graph", fonts: ["HarmonyOS_SansSC_Regular"], size: null, weights: [{value: 400}]},
-            {target: "emoji", fonts: ["twemoji-colr0-17.0.3"], size: null, weights: [{value: 400}]},
-            {target: "mermaid", fonts: ["SourceHanSerifCN-Medium"], size: null, weights: [{value: 500}]},
-        ],
-    },
 ];
 
 export interface ExamplePresetAsset {
@@ -90,11 +61,6 @@ export async function resolveExamplePresetAsset(fetcher: Fetcher = fetch): Promi
 }
 
 export async function resolvePresetAsset(item: PresetCatalogItem, fetcher: Fetcher = fetch): Promise<ExamplePresetAsset> {
-    if (item.packageUrl) return {
-        downloadUrl: item.packageUrl,
-        size: item.packageSize ?? null,
-        sha256: item.packageSha256 ?? null,
-    };
     try {
         const response = await fetcher(item.releaseApiUrl, {
             headers: {

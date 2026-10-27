@@ -9,3 +9,10 @@ coverage/
 *.tsbuildinfo
 .dev-watch*.log
 icon-options/
+
+# Local design, promo and browser-test output
+output/
+tmp/
+.image-backups/
+.playwright-cli/
+design-qa*

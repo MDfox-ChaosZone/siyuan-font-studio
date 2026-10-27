@@ -3,6 +3,9 @@ import {DEFAULT_STATE, HEADING_TARGETS} from "../src/types";
 import {activatePreset, parseState, syncActivePreset} from "../src/state";
 import {parsePresetConfig, serializePreset} from "../src/preset-io";
 import {StyleManager} from "../src/style-manager";
+import {EDITOR_FAMILY, stubStyleDocument} from "./style-helpers";
+
+const UNSET_HEADING = {fonts: [], size: null, letterSpacing: null, lineHeight: null};
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -13,8 +16,8 @@ describe("heading settings", () => {
         for (const target of HEADING_TARGETS) delete portable.targets[target];
         const imported = parsePresetConfig(portable, []);
         for (const target of HEADING_TARGETS) {
-            expect(state.targets[target]).toEqual({fonts: [], size: null});
-            expect(imported.targets[target]).toEqual({fonts: [], size: null});
+            expect(state.targets[target]).toEqual(UNSET_HEADING);
+            expect(imported.targets[target]).toEqual(UNSET_HEADING);
         }
         expect(state.targets.content.size).toBe(20);
     });
@@ -23,7 +26,7 @@ describe("heading settings", () => {
         const state = parseState(null);
         state.presets[0].name = "Headings";
         for (const [index, target] of HEADING_TARGETS.entries()) {
-            state.targets[target] = {fonts: [{kind: "system", family: `Heading ${index}`, displayName: `Heading ${index}`, weight: 600}], size: 40 - index * 4};
+            state.targets[target] = {fonts: [{kind: "system", family: `Heading ${index}`, displayName: `Heading ${index}`, weight: 600}], size: 40 - index * 4, letterSpacing: index / 100, lineHeight: 1 + index / 10};
         }
         syncActivePreset(state);
         const imported = parsePresetConfig(JSON.parse(serializePreset(state.presets[0], [])), []);
@@ -34,12 +37,7 @@ describe("heading settings", () => {
     });
 
     it("isolates each level and removes overrides on reset", () => {
-        const style = {textContent: "", remove: vi.fn()};
-        vi.stubGlobal("document", {
-            documentElement: {style: {getPropertyValue: () => "", getPropertyPriority: () => "", setProperty: vi.fn(), removeProperty: vi.fn()}},
-            getElementById: () => style,
-        });
-        vi.stubGlobal("getComputedStyle", () => ({getPropertyValue: () => ""}));
+        const style = stubStyleDocument();
         const manager = new StyleManager();
         const state = structuredClone(DEFAULT_STATE);
         manager.apply(state, new Set());
@@ -49,7 +47,7 @@ describe("heading settings", () => {
             manager.apply(state, new Set());
             expect(style.textContent).toContain(`[data-type="NodeHeading"][data-subtype="${target}"]`);
             expect(style.textContent).toContain(`.b3-typography:not(.b3-typography--default) ${target}`);
-            expect(style.textContent).toContain('font-family: "Heading Font", var(--b3-font-family-protyle) !important;');
+            expect(style.textContent).toContain(`font-family: "Heading Font", ${EDITOR_FAMILY} !important;`);
             expect(style.textContent).toContain("font-size: 32px !important;");
             expect(style.textContent).not.toContain(".protyle-title");
             for (const other of HEADING_TARGETS.filter((item) => item !== target)) expect(style.textContent).not.toContain(`[data-subtype="${other}"]`);

@@ -2,40 +2,47 @@ import {EMOJI_UNICODE_RANGE, emojiRuntimeFamily, familyForChoices, quoteFamily, 
 import {BaseFontTarget, FontChoice, FontTarget, HEADING_TARGETS, ImportedFont, PluginState} from "./types";
 import {mindmapOverrides} from "./mindmap";
 import {supportsGraphFonts, supportsMindmapFonts} from "./compatibility";
+import {formatLetterSpacing, formatLineHeight, SIYUAN_LINE_HEIGHT} from "./typography";
 
-const STYLE_ID = "siyuan-font-studio-overrides";
+// SiYuan's PDF/HTML export copies every `style[id^="snippetCSS"]` from the
+// main window, so this id carries the plugin's rules into exports. The snippet
+// manager only removes the style elements it created itself.
+export const STYLE_ID = "snippetCSS-siyuan-font-studio";
+const LEGACY_STYLE_ID = "siyuan-font-studio-overrides";
 const SIYUAN_UI_FALLBACK = '"Emojis Additional", "Emojis Reset", BlinkMacSystemFont, Helvetica, "Luxi Sans", "DejaVu Sans", arial, sans-serif, emojis';
-const SIYUAN_MONO_FALLBACK = '"Emojis Additional", "Emojis Reset", "JetBrainsMono-Regular", mononoki, Consolas, "Liberation Mono", var(--b3-font-family)';
+const SIYUAN_MONO_FALLBACK = '"Emojis Additional", "Emojis Reset", "JetBrainsMono-Regular", mononoki, Consolas, "Liberation Mono", var(--b3-font-family), monospace';
 const SIYUAN_EMOJI_FALLBACK = '"Emojis Additional", emojis';
-const ROOT_PROPERTIES = [
-    "--b3-font-family",
-    "--b3-font-family-protyle",
-    "--b3-font-family-editor",
-    "--b3-font-family-code",
-    "--b3-font-family-editor-code",
-    "--b3-font-weight-editor-code",
-    "--b3-font-family-graph",
-    "--bfm-font-weight-graph",
-    "--b3-font-family-emoji",
-    "--b3-font-family-math",
-    "--b3-font-size",
-    "--b3-font-size-editor",
-];
+// SiYuan 3.8.4+ puts its emoji corrections ahead of text fonts; older themes lack the variable.
+const EMOJI_RESET = 'var(--b3-font-family-emoji-reset, "Emojis Additional", "Emojis Reset")';
+const EDITOR_FAMILY = "var(--b3-font-family-editor, var(--b3-font-family-protyle))";
+// Higher than SiYuan's `:root:root` global font rule and theme `:root` rules.
+const ROOT_SELECTOR = ":root:root:root";
+const CONTENT_CONTAINERS = ".b3-typography:not(.b3-typography--default), .protyle-wysiwyg, .protyle-title";
+const INLINE_CODE_SELECTORS = '.b3-typography code:not(.hljs), .protyle-wysiwyg span[data-type~="code"]';
 const MONO_BLOCK_SELECTORS = '.b3-typography .hljs, .protyle-wysiwyg .hljs, .protyle-linenumber__rows, textarea[style*="--b3-font-family-code"], textarea[style*="--b3-font-family-editor-code"]';
+const CODE_BLOCK_SELECTORS = ".b3-typography .code-block, .protyle-wysiwyg .code-block";
+// Mirrors SiYuan's line-height rule; code blocks and databases keep their own metrics.
+const CONTENT_BLOCK_SELECTORS = [
+    '.protyle-wysiwyg [data-node-id]:not([data-type="NodeCodeBlock"]):not([data-type="NodeAttributeView"])',
+    ".b3-typography:not(.b3-typography--default) > p",
+    ".b3-typography:not(.b3-typography--default) li > p",
+    ".b3-typography:not(.b3-typography--default) blockquote > p",
+    '.b3-typography:not(.b3-typography--default) [data-node-id]:not([data-type="NodeCodeBlock"]):not([data-type="NodeAttributeView"])',
+].join(", ");
+const BOLD_SELECTORS = '.protyle-wysiwyg strong, .protyle-wysiwyg b, .protyle-wysiwyg span[data-type~="strong"], .b3-typography:not(.b3-typography--default) strong, .b3-typography:not(.b3-typography--default) b';
+const INDENT_SELECTORS = '.protyle-wysiwyg [data-type="NodeParagraph"]:not(.li > [data-type="NodeParagraph"]) > [contenteditable], .b3-typography:not(.b3-typography--default) > p';
+
+export interface ApplyOptions {
+    /** Fallback for SiYuan builds without the editor font-size plugin API. */
+    cssEditorFontSize?: boolean;
+}
 
 export class StyleManager {
-    private originalProperties = new Map<string, {value: string; priority: string}>();
     private baselineFamilies: Record<BaseFontTarget, string>;
 
     constructor() {
+        document.getElementById(LEGACY_STYLE_ID)?.remove();
         this.baselineFamilies = this.readBaselineFamilies();
-        const rootStyle = document.documentElement.style;
-        for (const name of ROOT_PROPERTIES) {
-            this.originalProperties.set(name, {
-                value: rootStyle.getPropertyValue(name),
-                priority: rootStyle.getPropertyPriority(name),
-            });
-        }
     }
 
     private readBaselineFamilies(): Record<BaseFontTarget, string> {
@@ -60,26 +67,36 @@ export class StyleManager {
             math: computed.getPropertyValue("--b3-font-family-math").trim() || "KaTeX_Math",
             mermaid: "sans-serif",
             mindmap: baselineEditor,
+            kbd: resolveReferences(computed.getPropertyValue("--b3-font-family-kbd"), baselineProtyle, {"--b3-font-family-protyle": baselineProtyle}),
         };
     }
 
-    refreshBaselines(): void {
-        this.restoreRoot();
-        this.baselineFamilies = this.readBaselineFamilies();
+    /** Returns whether SiYuan's or the theme's font stacks changed. */
+    refreshBaselines(): boolean {
+        const style = document.getElementById(STYLE_ID) as HTMLStyleElement | null;
+        const previous = JSON.stringify(this.baselineFamilies);
+        // Read SiYuan's and the theme's values without the plugin's overrides.
+        if (style) style.disabled = true;
+        try {
+            this.baselineFamilies = this.readBaselineFamilies();
+        } finally {
+            if (style) style.disabled = false;
+        }
+        return JSON.stringify(this.baselineFamilies) !== previous;
     }
 
     getBaselineFamily(target: FontTarget): string {
         return this.baselineFamilies[HEADING_TARGETS.includes(target as typeof HEADING_TARGETS[number]) ? "content" : target as BaseFontTarget];
     }
 
-    apply(state: PluginState, loadedIds: Set<string>, emojiLoadedIds = loadedIds): void {
-        this.restoreRoot();
-        const root = document.documentElement.style;
+    apply(state: PluginState, loadedIds: Set<string>, emojiLoadedIds = loadedIds, options: ApplyOptions = {}): void {
+        const vars: Array<[string, string]> = [];
         const effectiveChoices = (choices: FontChoice[]) => isOnlySiyuanDefault(choices) ? [] : choices;
         const ui = familyForChoices(effectiveChoices(state.targets.ui.fonts), state.fonts, loadedIds, runtimeFamily, this.baselineFamilies.ui);
         const content = familyForChoices(effectiveChoices(state.targets.content.fonts), state.fonts, loadedIds, runtimeFamily, this.baselineFamilies.content);
         const mono = familyForChoices(effectiveChoices(state.targets.mono.fonts), state.fonts, loadedIds, runtimeFamily, this.baselineFamilies.mono);
         const graph = familyForChoices(effectiveChoices(state.targets.graph.fonts), state.fonts, loadedIds, runtimeFamily, this.baselineFamilies.graph);
+        const kbd = familyForChoices(effectiveChoices(state.targets.kbd.fonts), state.fonts, loadedIds, runtimeFamily, this.baselineFamilies.kbd);
         const restrictedEmoji = restrictedEmojiFamilies(effectiveChoices(state.targets.emoji.fonts), state.fonts, emojiLoadedIds, this.baselineFamilies.emoji);
         const emoji = restrictedEmoji.family;
         const mathChoices = effectiveMathChoices(state.targets.math.fonts);
@@ -94,27 +111,27 @@ export class StyleManager {
         };
         const mathVariableWeight = variableWeightForChoices(mathChoices, state.fonts);
 
-        if (ui) root.setProperty("--b3-font-family", `${ui}, "Emojis Additional", "Emojis Reset", system-ui, sans-serif`, "important");
+        if (ui) vars.push(["--b3-font-family", `${EMOJI_RESET}, ${ui}, ${this.baselineFamilies.ui}`]);
         if (content) {
-            const contentStack = `${content}, ${this.baselineFamilies.content}`;
-            root.setProperty("--b3-font-family-protyle", contentStack, "important");
-            root.setProperty("--b3-font-family-editor", contentStack, "important");
+            const contentStack = `${EMOJI_RESET}, ${content}, ${this.baselineFamilies.content}`;
+            vars.push(["--b3-font-family-protyle", contentStack], ["--b3-font-family-editor", contentStack]);
         }
-        else if (ui) root.setProperty("--b3-font-family-protyle", this.baselineFamilies.content, "important");
+        // Keep documents and code on their original fonts when only the interface changes.
+        else if (ui) vars.push(["--b3-font-family-protyle", this.baselineFamilies.content]);
         if (mono) {
-            const monoStack = `${mono}, ui-monospace, Consolas, monospace`;
-            root.setProperty("--b3-font-family-code", monoStack, "important");
-            root.setProperty("--b3-font-family-editor-code", monoStack, "important");
+            const monoStack = `${EMOJI_RESET}, ${mono}, ${this.baselineFamilies.mono}`;
+            vars.push(["--b3-font-family-code", monoStack], ["--b3-font-family-editor-code", monoStack]);
         }
-        else if (ui) root.setProperty("--b3-font-family-code", this.baselineFamilies.mono, "important");
-        if (weights.mono !== null) root.setProperty("--b3-font-weight-editor-code", String(weights.mono), "important");
+        else if (ui) vars.push(["--b3-font-family-code", this.baselineFamilies.mono]);
+        if (weights.mono !== null) vars.push(["--b3-font-weight-editor-code", String(weights.mono)]);
         if (supportsGraphFonts()) {
-            if (graph) root.setProperty("--b3-font-family-graph", `${graph}, ${this.baselineFamilies.graph}`, "important");
-            if (weights.graph !== null) root.setProperty("--bfm-font-weight-graph", String(weights.graph), "important");
+            if (graph) vars.push(["--b3-font-family-graph", `${graph}, ${this.baselineFamilies.graph}`]);
+            if (weights.graph !== null) vars.push(["--bfm-font-weight-graph", String(weights.graph)]);
         }
-        if (emoji) root.setProperty("--b3-font-family-emoji", `${emoji}, ${this.baselineFamilies.emoji}`, "important");
-        if (state.targets.ui.size !== null) root.setProperty("--b3-font-size", `${state.targets.ui.size}px`, "important");
-        if (state.targets.content.size !== null) root.setProperty("--b3-font-size-editor", `${state.targets.content.size}px`, "important");
+        if (emoji) vars.push(["--b3-font-family-emoji", `${emoji}, ${this.baselineFamilies.emoji}`]);
+        if (kbd) vars.push(["--b3-font-family-kbd", `${kbd}, var(--b3-font-family-protyle)`]);
+        if (state.targets.ui.size !== null) vars.push(["--b3-font-size", `${state.targets.ui.size}px`]);
+        if (options.cssEditorFontSize && state.targets.content.size !== null) vars.push(["--b3-font-size-editor", `${state.targets.content.size}px`]);
 
         let style = document.getElementById(STYLE_ID) as HTMLStyleElement | null;
         if (!style) {
@@ -139,55 +156,67 @@ export class StyleManager {
         const mindmap = mindmapOverrides(state, loadedIds);
         const mindmapDeclarations = [
             mindmap.fontFamily ? `font-family: ${mindmap.fontFamily} !important;` : "",
-            mindmap.fontWeight !== undefined ? `font-weight: ${mindmap.fontWeight} !important;` : "",
             mindmap.fontSize !== undefined ? `font-size: ${mindmap.fontSize}px !important;` : "",
         ].filter(Boolean).join(" ");
-        const mindmapRule = supportsMindmapFonts() && mindmapDeclarations
-            ? `.mindmap-view .mindmap-view__node, .mindmap-view .mindmap-view__content, .mindmap-view .mindmap-view__editor .protyle-wysiwyg { ${mindmapDeclarations} }` : "";
-        style.textContent = [mindmapRule, ...restrictedEmoji.faceRules, ...HEADING_TARGETS.map((target) => {
-            const settings = state.targets[target];
-            const choices = effectiveChoices(settings.fonts);
-            const family = familyForChoices(choices, state.fonts, loadedIds, runtimeFamily, "var(--b3-font-family-protyle)");
-            const weight = weightForChoices(choices, state.fonts);
-            const declarations = [
-                family ? `font-family: ${emoji ? `${emoji}, ` : ""}${family}, var(--b3-font-family-protyle) !important;` : "",
-                settings.size !== null ? `font-size: ${settings.size}px !important;` : "",
-                weight !== null ? `font-weight: ${weight} !important;` : "",
-            ].filter(Boolean).join(" ");
-            return declarations ? `.protyle-wysiwyg [data-type="NodeHeading"][data-subtype="${target}"], .b3-typography:not(.b3-typography--default) ${target} { ${declarations} }` : "";
-        }), this.buildRules(state, {ui, content, mono, graph, emoji, math, mermaid: null, mindmap: null}, {monoBlock, mathBlock}, weights, monoBlockWeight, mathBlockWeight, mathVariableWeight, mathBlockVariableWeight)].filter(Boolean).join("\n");
+        const mindmapRules = supportsMindmapFonts() ? [
+            mindmapDeclarations ? `.mindmap-view .mindmap-view__node, .mindmap-view .mindmap-view__content, .mindmap-view .mindmap-view__editor .protyle-wysiwyg { ${mindmapDeclarations} }` : "",
+            // Virtual root and summary nodes keep SiYuan's emphasis weight.
+            mindmap.fontWeight !== undefined ? `.mindmap-view .mindmap-view__node:not(.mindmap-view__node--virtual), .mindmap-view .mindmap-view__node:not(.mindmap-view__node--virtual) .mindmap-view__content, .mindmap-view .mindmap-view__editor .protyle-wysiwyg { font-weight: ${mindmap.fontWeight} !important; }` : "",
+        ] : [];
+        const rootRule = vars.length ? `${ROOT_SELECTOR} { ${vars.map(([name, value]) => `${name}: ${value} !important;`).join(" ")} }` : "";
+        style.textContent = [
+            rootRule,
+            ...restrictedEmoji.faceRules,
+            ...mindmapRules,
+            this.buildRules(state, {ui, content, mono, graph, emoji, math, mermaid: null, mindmap: null, kbd}, {monoBlock, mathBlock}, weights, monoBlockWeight, mathBlockWeight, mathVariableWeight, mathBlockVariableWeight, options),
+            ...HEADING_TARGETS.map((target) => {
+                const settings = state.targets[target];
+                const choices = effectiveChoices(settings.fonts);
+                const family = familyForChoices(choices, state.fonts, loadedIds, runtimeFamily, EDITOR_FAMILY);
+                const weight = weightForChoices(choices, state.fonts);
+                const declarations = [
+                    family ? `font-family: ${emoji ? `${emoji}, ` : ""}${family}, ${EDITOR_FAMILY} !important;` : "",
+                    settings.size !== null ? `font-size: ${settings.size}px !important;` : "",
+                    weight !== null ? `font-weight: ${weight} !important;` : "",
+                    settings.letterSpacing != null ? `letter-spacing: ${formatLetterSpacing(settings.letterSpacing)} !important;` : "",
+                    settings.lineHeight != null ? `line-height: ${formatLineHeight(settings.lineHeight)} !important;` : "",
+                ].filter(Boolean).join(" ");
+                // [data-node-id] matches the specificity of the document line-height rule, which comes first.
+                return declarations ? `.protyle-wysiwyg [data-node-id][data-type="NodeHeading"][data-subtype="${target}"], .b3-typography:not(.b3-typography--default) ${target} { ${declarations} }` : "";
+            }),
+        ].filter(Boolean).join("\n");
     }
 
     destroy(): void {
-        this.restoreRoot();
         document.getElementById(STYLE_ID)?.remove();
     }
 
-    private buildRules(state: PluginState, families: Record<BaseFontTarget, string | null>, separated: {monoBlock: string | null; mathBlock: string | null}, weights: {ui: number | null; content: number | null; mono: number | null; graph: number | null; math: number | null; mermaid: number | null}, monoBlockWeight: number | null, mathBlockWeight: number | null, mathVariableWeight: number | null, mathBlockVariableWeight: number | null): string {
+    private buildRules(state: PluginState, families: Record<BaseFontTarget, string | null>, separated: {monoBlock: string | null; mathBlock: string | null}, weights: {ui: number | null; content: number | null; mono: number | null; graph: number | null; math: number | null; mermaid: number | null}, monoBlockWeight: number | null, mathBlockWeight: number | null, mathVariableWeight: number | null, mathBlockVariableWeight: number | null, options: ApplyOptions): string {
         const rules: string[] = [];
-        if (weights.ui !== null) rules.push(`body { font-weight: ${weights.ui}; }`);
+        // Matches SiYuan's global font weight rule; form controls do not inherit it.
+        if (weights.ui !== null) rules.push(`body, button, input, select, textarea { font-weight: ${weights.ui}; }`);
         if (weights.content !== null) rules.push(`.b3-typography:not(.b3-typography--default), .protyle-wysiwyg, .protyle-title { font-weight: ${weights.content}; }`);
-        if (weights.mono !== null) rules.push(`.b3-typography code:not(.hljs), .protyle-wysiwyg span[data-type~="code"] { font-weight: ${weights.mono} !important; }`);
+        if (weights.mono !== null) rules.push(`${INLINE_CODE_SELECTORS} { font-weight: ${weights.mono} !important; }`);
         if (families.emoji) {
             rules.push(`.b3-typography:not(.b3-typography--default),
 .protyle-wysiwyg,
-.protyle-title { font-family: ${families.emoji}, var(--b3-font-family-protyle) !important; }`);
+.protyle-title { font-family: ${families.emoji}, ${EDITOR_FAMILY} !important; }`);
         }
         if (state.targets.mono.decoupled && separated.monoBlock) {
-            rules.push(`${MONO_BLOCK_SELECTORS} { font-family: ${separated.monoBlock}, ui-monospace, Consolas, monospace !important;${monoBlockWeight === null ? "" : ` font-weight: ${monoBlockWeight} !important;`} }`);
+            rules.push(`${MONO_BLOCK_SELECTORS} { font-family: ${EMOJI_RESET}, ${separated.monoBlock}, ${this.baselineFamilies.mono} !important;${monoBlockWeight === null ? "" : ` font-weight: ${monoBlockWeight} !important;`} }`);
         } else if (monoBlockWeight !== null) {
             rules.push(`${MONO_BLOCK_SELECTORS} { font-weight: ${monoBlockWeight} !important; }`);
         }
         if (families.math) {
             const fallbackOnly = hasLeadingSiyuanDefault(state.targets.math.fonts);
-            const mathFamily = fallbackOnly ? `${families.math}, var(--b3-font-family-protyle)` : `${families.math}, ${this.baselineFamilies.math}`;
+            const mathFamily = fallbackOnly ? `${families.math}, ${EDITOR_FAMILY}` : `${families.math}, ${this.baselineFamilies.math}`;
             const mathRoot = state.targets.math.decoupled ? ".katex:not(.katex-display .katex)" : ".katex";
             const selectors = fallbackOnly ? fallbackMathSelectors(mathRoot) : safeMathSelectors(mathRoot);
             rules.push(`${selectors} { font-family: ${mathFamily} !important;${weights.math === null ? "" : ` font-weight: ${weights.math} !important;`}${mathVariableWeight === null ? "" : ` font-variation-settings: "wght" ${mathVariableWeight} !important;`} }`);
         }
         if (separated.mathBlock) {
             const fallbackOnly = hasLeadingSiyuanDefault(state.targets.math.secondary?.fonts || []);
-            const mathBlockFamily = fallbackOnly ? `${separated.mathBlock}, var(--b3-font-family-protyle)` : `${separated.mathBlock}, ${this.baselineFamilies.math}`;
+            const mathBlockFamily = fallbackOnly ? `${separated.mathBlock}, ${EDITOR_FAMILY}` : `${separated.mathBlock}, ${this.baselineFamilies.math}`;
             const selectors = fallbackOnly ? fallbackMathSelectors(".katex-display .katex") : safeMathSelectors(".katex-display .katex");
             rules.push(`${selectors} { font-family: ${mathBlockFamily} !important;${mathBlockWeight === null ? "" : ` font-weight: ${mathBlockWeight} !important;`}${mathBlockVariableWeight === null ? "" : ` font-variation-settings: "wght" ${mathBlockVariableWeight} !important;`} }`);
         }
@@ -196,7 +225,7 @@ export class StyleManager {
             rules.push(`body > .fn__flex-1, .b3-menu, .b3-dialog, .b3-text-field, .b3-select, .b3-button, .layout-tab-bar { font-size: ${state.targets.ui.size}px !important; }`);
         }
         if (state.targets.mono.size !== null) {
-            rules.push(`.b3-typography code:not(.hljs), .protyle-wysiwyg span[data-type~="code"] { font-size: ${state.targets.mono.size}px !important; }`);
+            rules.push(`${INLINE_CODE_SELECTORS} { font-size: ${state.targets.mono.size}px !important; }`);
         }
         const monoBlockSize = state.targets.mono.decoupled ? state.targets.mono.secondary?.size : state.targets.mono.size;
         if (monoBlockSize !== null && monoBlockSize !== undefined) {
@@ -208,15 +237,40 @@ export class StyleManager {
         }
         const mathBlockSize = state.targets.math.decoupled ? state.targets.math.secondary?.size : null;
         if (mathBlockSize !== null && mathBlockSize !== undefined) rules.push(`.b3-typography .katex-display .katex, .protyle-wysiwyg .katex-display .katex { font-size: ${mathBlockSize}px !important; }`);
+        rules.push(...this.spacingRules(state, monoBlockSize ?? null, options));
         return rules.join("\n");
     }
 
-    private restoreRoot(): void {
-        const root = document.documentElement.style;
-        for (const [name, original] of this.originalProperties) {
-            if (original.value) root.setProperty(name, original.value, original.priority);
-            else root.removeProperty(name);
+    private spacingRules(state: PluginState, monoBlockSize: number | null, options: ApplyOptions): string[] {
+        const rules: string[] = [];
+        const {ui, content, mono} = state.targets;
+        const spacing = (value: number | null | undefined) => value == null ? "normal" : formatLetterSpacing(value);
+        if (ui.letterSpacing != null) rules.push(`body { letter-spacing: ${formatLetterSpacing(ui.letterSpacing)}; }`);
+        // letter-spacing inherits as an absolute length, so documents recompute it per block.
+        if (content.letterSpacing != null || ui.letterSpacing != null) {
+            rules.push(`${CONTENT_CONTAINERS}, ${CONTENT_BLOCK_SELECTORS} { letter-spacing: ${spacing(content.letterSpacing)}; }`);
         }
+        const inlineCodeSpacing = mono.letterSpacing;
+        const blockCodeSpacing = mono.decoupled ? mono.secondary?.letterSpacing : mono.letterSpacing;
+        const inheritsSpacing = content.letterSpacing != null || ui.letterSpacing != null;
+        if (inlineCodeSpacing != null || inheritsSpacing) rules.push(`${INLINE_CODE_SELECTORS} { letter-spacing: ${spacing(inlineCodeSpacing)} !important; }`);
+        if (blockCodeSpacing != null || inheritsSpacing) rules.push(`${MONO_BLOCK_SELECTORS} { letter-spacing: ${spacing(blockCodeSpacing)} !important; }`);
+        if (content.lineHeight != null) rules.push(`${CONTENT_BLOCK_SELECTORS} { line-height: ${formatLineHeight(content.lineHeight)} !important; }`);
+        // SiYuan writes code-block line heights in px from its own editor font size,
+        // so any plugin-controlled code size needs a relative line height.
+        const codeLineHeight = mono.decoupled ? mono.secondary?.lineHeight : mono.lineHeight;
+        if (codeLineHeight != null || monoBlockSize !== null || (options.cssEditorFontSize && content.size !== null)) {
+            rules.push(`${CODE_BLOCK_SELECTORS} { line-height: ${formatLineHeight(codeLineHeight ?? SIYUAN_LINE_HEIGHT)} !important; }`);
+        }
+        const contentOptions = content.options;
+        if (contentOptions?.boldWeight != null) rules.push(`${BOLD_SELECTORS} { font-weight: ${contentOptions.boldWeight}; }`);
+        if (contentOptions?.indent) rules.push(`${INDENT_SELECTORS} { text-indent: 2em; }`);
+        if (contentOptions?.autospace) {
+            rules.push(`${CONTENT_CONTAINERS} { text-autospace: normal; }`);
+            rules.push(`${INLINE_CODE_SELECTORS}, ${MONO_BLOCK_SELECTORS} { text-autospace: no-autospace; }`);
+        }
+        if (contentOptions?.noSynthesis) rules.push(`${CONTENT_CONTAINERS} { font-synthesis: none; }`);
+        return rules;
     }
 }
 

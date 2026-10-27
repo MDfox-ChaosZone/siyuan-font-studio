@@ -1,21 +1,21 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest";
-import {StyleManager} from "../src/style-manager";
+import {StyleManager, STYLE_ID} from "../src/style-manager";
+import {parseState} from "../src/state";
 import {DEFAULT_STATE, ImportedFont} from "../src/types";
+import {EDITOR_FAMILY, EMOJI_RESET, rootVars, rules, stubStyleDocument} from "./style-helpers";
 
 afterEach(() => vi.unstubAllGlobals());
 beforeEach(() => vi.stubGlobal("window", {siyuan: {config: {system: {kernelVersion: "3.8.6"}}}}));
 
+const ORIGINAL_STACKS = {
+    "--b3-font-family": "Original UI",
+    "--b3-font-family-protyle": "var(--b3-font-family)",
+    "--b3-font-family-code": '"Original Mono", var(--b3-font-family)',
+};
+
 describe("font target isolation", () => {
     it("uses SiYuan's official font stacks when theme variables are not ready yet", () => {
-        const rootStyle = {
-            getPropertyValue: () => "",
-            getPropertyPriority: () => "",
-            setProperty: vi.fn(),
-            removeProperty: vi.fn(),
-        };
-        vi.stubGlobal("document", {documentElement: {style: rootStyle}});
-        vi.stubGlobal("getComputedStyle", () => ({getPropertyValue: () => ""}));
-
+        stubStyleDocument();
         const manager = new StyleManager();
 
         expect(manager.getBaselineFamily("ui")).toContain("BlinkMacSystemFont");
@@ -25,78 +25,47 @@ describe("font target isolation", () => {
         expect(manager.getBaselineFamily("math")).toBe("KaTeX_Math");
         expect(manager.getBaselineFamily("mermaid")).toBe("sans-serif");
         expect(manager.getBaselineFamily("mindmap")).toBe(manager.getBaselineFamily("content"));
+        expect(manager.getBaselineFamily("kbd")).toBe(manager.getBaselineFamily("content"));
     });
 
-    it("freezes the original content and code stacks when only the interface font changes", () => {
-        const properties = new Map<string, string>();
-        const setProperty = vi.fn((name: string, value: string) => properties.set(name, value));
-        const rootStyle = {
-            getPropertyValue: (name: string) => properties.get(name) || "",
-            getPropertyPriority: () => "",
-            setProperty,
-            removeProperty: (name: string) => properties.delete(name),
-        };
-        const generatedStyle = {id: "", textContent: "", remove: vi.fn()};
-        vi.stubGlobal("document", {
-            documentElement: {style: rootStyle},
-            head: {appendChild: vi.fn()},
-            getElementById: vi.fn().mockReturnValue(null),
-            createElement: vi.fn().mockReturnValue(generatedStyle),
-        });
-        vi.stubGlobal("getComputedStyle", () => ({
-            getPropertyValue: (name: string) => ({
-                "--b3-font-family": "Original UI",
-                "--b3-font-family-protyle": "var(--b3-font-family)",
-                "--b3-font-family-code": '"Original Mono", var(--b3-font-family)',
-            }[name] || ""),
-        }));
-
+    it("writes its rules to a style element that SiYuan's export copies", () => {
+        const style = stubStyleDocument(ORIGINAL_STACKS);
         const state = structuredClone(DEFAULT_STATE);
         state.targets.ui.fonts = [{kind: "system", family: "Custom UI", displayName: "Custom UI", weight: 400}];
         new StyleManager().apply(state, new Set());
 
-        expect(setProperty).toHaveBeenCalledWith("--b3-font-family-protyle", "Original UI", "important");
-        expect(setProperty).toHaveBeenCalledWith("--b3-font-family-code", '"Original Mono", Original UI', "important");
-        expect(generatedStyle.textContent).not.toContain("font-family: \"Custom UI\"");
-        expect(generatedStyle.textContent).not.toContain(".protyle-wysiwyg");
+        expect(style.id).toBe(STYLE_ID);
+        expect(STYLE_ID.startsWith("snippetCSS")).toBe(true);
     });
 
-    it("uses the official editor variable and applies the selected base weight", () => {
-        const properties = new Map<string, string>();
-        const setProperty = vi.fn((name: string, value: string) => properties.set(name, value));
-        const rootStyle = {
-            getPropertyValue: (name: string) => properties.get(name) || "",
-            getPropertyPriority: () => "",
-            setProperty,
-            removeProperty: (name: string) => properties.delete(name),
-        };
-        const generatedStyle = {id: "", textContent: "", remove: vi.fn()};
-        vi.stubGlobal("document", {
-            documentElement: {style: rootStyle},
-            head: {appendChild: vi.fn()},
-            getElementById: vi.fn().mockReturnValue(null),
-            createElement: vi.fn().mockReturnValue(generatedStyle),
-        });
-        vi.stubGlobal("getComputedStyle", () => ({
-            getPropertyValue: (name: string) => ({
-                "--b3-font-family": "Original UI",
-                "--b3-font-family-protyle": "var(--b3-font-family)",
-                "--b3-font-family-code": '"Original Mono", var(--b3-font-family)',
-            }[name] || ""),
-        }));
+    it("freezes the original content and code stacks when only the interface font changes", () => {
+        const style = stubStyleDocument(ORIGINAL_STACKS);
+        const state = structuredClone(DEFAULT_STATE);
+        state.targets.ui.fonts = [{kind: "system", family: "Custom UI", displayName: "Custom UI", weight: 400}];
+        new StyleManager().apply(state, new Set());
+        const vars = rootVars(style.textContent);
 
+        expect(vars.get("--b3-font-family")).toBe(`${EMOJI_RESET}, "Custom UI", Original UI`);
+        expect(vars.get("--b3-font-family-protyle")).toBe("Original UI");
+        expect(vars.get("--b3-font-family-code")).toBe('"Original Mono", Original UI');
+        expect(rules(style.textContent)).not.toContain("font-family");
+        expect(rules(style.textContent)).not.toContain(".protyle-wysiwyg");
+    });
+
+    it("uses the official editor variable and applies the selected base weights", () => {
+        const style = stubStyleDocument(ORIGINAL_STACKS);
         const state = structuredClone(DEFAULT_STATE);
         state.targets.ui.fonts = [{kind: "system", family: "Custom UI", displayName: "Custom UI Bold", weight: 700}];
         state.targets.content.fonts = [{kind: "system", family: "Custom Content", displayName: "Custom Content Medium", weight: 500}];
         new StyleManager().apply(state, new Set());
+        const vars = rootVars(style.textContent);
 
-        expect(setProperty).toHaveBeenCalledWith("--b3-font-family-protyle", '"Custom Content", Original UI', "important");
-        expect(setProperty).toHaveBeenCalledWith("--b3-font-family-editor", '"Custom Content", Original UI', "important");
-        expect(setProperty).toHaveBeenCalledWith("--b3-font-family-code", '"Original Mono", Original UI', "important");
-        expect(generatedStyle.textContent).toContain('body { font-weight: 700; }');
-        expect(generatedStyle.textContent).toContain('.protyle-wysiwyg, .protyle-title { font-weight: 500; }');
-        expect(generatedStyle.textContent).not.toContain('font-family: "Custom Content"');
-        expect(generatedStyle.textContent).not.toContain('font-family: "Custom UI"');
+        expect(vars.get("--b3-font-family-protyle")).toBe(`${EMOJI_RESET}, "Custom Content", Original UI`);
+        expect(vars.get("--b3-font-family-editor")).toBe(`${EMOJI_RESET}, "Custom Content", Original UI`);
+        expect(vars.get("--b3-font-family-code")).toBe('"Original Mono", Original UI');
+        expect(style.textContent).toContain("body, button, input, select, textarea { font-weight: 700; }");
+        expect(style.textContent).toContain(".protyle-wysiwyg, .protyle-title { font-weight: 500; }");
+        expect(rules(style.textContent)).not.toContain('font-family: "Custom Content"');
     });
 
     it("writes each configured category only to its own SiYuan variable", () => {
@@ -105,68 +74,42 @@ describe("font target isolation", () => {
             ["mono", ["--b3-font-family-code", "--b3-font-family-editor-code", "--b3-font-weight-editor-code"]],
             ["graph", ["--b3-font-family-graph", "--bfm-font-weight-graph"]],
             ["emoji", ["--b3-font-family-emoji"]],
+            ["kbd", ["--b3-font-family-kbd"]],
         ] as const;
 
         for (const [target, expectedProperties] of cases) {
-            const properties = new Map<string, string>();
-            const setProperty = vi.fn((name: string, value: string) => properties.set(name, value));
-            const rootStyle = {
-                getPropertyValue: (name: string) => properties.get(name) || "",
-                getPropertyPriority: () => "",
-                setProperty,
-                removeProperty: (name: string) => properties.delete(name),
-            };
-            vi.stubGlobal("document", {
-                documentElement: {style: rootStyle},
-                head: {appendChild: vi.fn()},
-                getElementById: vi.fn().mockReturnValue(null),
-                createElement: vi.fn().mockReturnValue({id: "", textContent: "", remove: vi.fn()}),
+            const style = stubStyleDocument({
+                ...ORIGINAL_STACKS,
+                "--b3-font-family-graph": "Original Graph",
+                "--b3-font-family-emoji": "Original Emoji",
+                "--b3-font-family-math": "Original Math",
             });
-            vi.stubGlobal("getComputedStyle", () => ({
-                getPropertyValue: (name: string) => ({
-                    "--b3-font-family": "Original UI",
-                    "--b3-font-family-protyle": "var(--b3-font-family)",
-                    "--b3-font-family-code": '"Original Mono", var(--b3-font-family)',
-                    "--b3-font-family-graph": "Original Graph",
-                    "--b3-font-family-emoji": "Original Emoji",
-                    "--b3-font-family-math": "Original Math",
-                }[name] || ""),
-            }));
             const state = structuredClone(DEFAULT_STATE);
             state.targets[target].fonts = [{kind: "system", family: `Only ${target}`, displayName: `Only ${target}`, weight: 400}];
 
             new StyleManager().apply(state, new Set());
 
-            expect(Array.from(new Set(setProperty.mock.calls.map(([name]) => name)))).toEqual(expectedProperties);
+            expect(Array.from(rootVars(style.textContent).keys())).toEqual(expectedProperties);
         }
     });
 
-    it("uses and overrides SiYuan 3.8.2 editor and monospace variables", () => {
-        const properties = new Map<string, string>();
-        const setProperty = vi.fn((name: string, value: string) => properties.set(name, value));
-        const rootStyle = {
-            getPropertyValue: (name: string) => properties.get(name) || "",
-            getPropertyPriority: () => "",
-            setProperty,
-            removeProperty: (name: string) => properties.delete(name),
-        };
-        const generatedStyle = {id: "", textContent: "", remove: vi.fn()};
-        vi.stubGlobal("document", {
-            documentElement: {style: rootStyle},
-            head: {appendChild: vi.fn()},
-            getElementById: vi.fn().mockReturnValue(null),
-            createElement: vi.fn().mockReturnValue(generatedStyle),
-        });
-        vi.stubGlobal("getComputedStyle", () => ({
-            getPropertyValue: (name: string) => ({
-                "--b3-font-family": "Original UI",
-                "--b3-font-family-protyle": "Original Theme Content",
-                "--b3-font-family-editor": '"Native Content A", "Native Content B"',
-                "--b3-font-family-code": "Original Theme Mono",
-                "--b3-font-family-editor-code": '"Native Mono"',
-            }[name] || ""),
-        }));
+    it("keeps the keyboard font following the live document font", () => {
+        const style = stubStyleDocument(ORIGINAL_STACKS);
+        const state = structuredClone(DEFAULT_STATE);
+        state.targets.kbd.fonts = [{kind: "system", family: "Keys", displayName: "Keys", weight: 400}];
+        new StyleManager().apply(state, new Set());
 
+        expect(rootVars(style.textContent).get("--b3-font-family-kbd")).toBe('"Keys", var(--b3-font-family-protyle)');
+    });
+
+    it("uses and overrides SiYuan 3.8.2 editor and monospace variables", () => {
+        const style = stubStyleDocument({
+            "--b3-font-family": "Original UI",
+            "--b3-font-family-protyle": "Original Theme Content",
+            "--b3-font-family-editor": '"Native Content A", "Native Content B"',
+            "--b3-font-family-code": "Original Theme Mono",
+            "--b3-font-family-editor-code": '"Native Mono"',
+        });
         const state = structuredClone(DEFAULT_STATE);
         state.targets.content.fonts = [{kind: "system", family: "Plugin Content", displayName: "Plugin Content", weight: 500}];
         state.targets.mono.fonts = [{kind: "system", family: "Plugin Mono", displayName: "Plugin Mono", weight: 600}];
@@ -177,105 +120,76 @@ describe("font target isolation", () => {
         expect(manager.getBaselineFamily("content")).toBe('"Native Content A", "Native Content B"');
         expect(manager.getBaselineFamily("mono")).toBe('"Native Mono"');
         manager.apply(state, new Set());
+        const vars = rootVars(style.textContent);
 
-        expect(setProperty).toHaveBeenCalledWith("--b3-font-family-editor", '"Plugin Content", "Native Content A", "Native Content B"', "important");
-        expect(setProperty).toHaveBeenCalledWith("--b3-font-family-editor-code", '"Plugin Mono", ui-monospace, Consolas, monospace', "important");
-        expect(setProperty).toHaveBeenCalledWith("--b3-font-weight-editor-code", "600", "important");
-        expect(generatedStyle.textContent).toContain('textarea[style*="--b3-font-family-editor-code"]');
-        expect(generatedStyle.textContent).toContain('font-family: "Plugin Block Mono", ui-monospace');
+        expect(vars.get("--b3-font-family-editor")).toBe(`${EMOJI_RESET}, "Plugin Content", "Native Content A", "Native Content B"`);
+        expect(vars.get("--b3-font-family-editor-code")).toBe(`${EMOJI_RESET}, "Plugin Mono", "Native Mono"`);
+        expect(vars.get("--b3-font-weight-editor-code")).toBe("600");
+        expect(style.textContent).toContain('textarea[style*="--b3-font-family-editor-code"]');
+        expect(style.textContent).toContain(`font-family: ${EMOJI_RESET}, "Plugin Block Mono", "Native Mono" !important;`);
+    });
+
+    it("keeps SiYuan's native editor font behind emoji and heading fonts", () => {
+        const style = stubStyleDocument({"--b3-font-family-emoji": "Original Emoji"});
+        const state = structuredClone(DEFAULT_STATE);
+        state.targets.emoji.fonts = [{kind: "system", family: "Emoji Font", displayName: "Emoji Font", weight: 400}];
+        state.targets.h2.fonts = [{kind: "system", family: "Heading", displayName: "Heading", weight: 600}];
+        new StyleManager().apply(state, new Set());
+
+        expect(style.textContent).toContain(`.protyle-title { font-family: "BFM_EMOJI_SYSTEM_0", ${EDITOR_FAMILY} !important; }`);
+        expect(style.textContent).toContain(`font-family: "BFM_EMOJI_SYSTEM_0", "Heading", ${EDITOR_FAMILY} !important;`);
+        expect(style.textContent).not.toContain("var(--b3-font-family-protyle) !important");
     });
 
     it("isolates advanced categories and preserves KaTeX structural fonts", () => {
-        const properties = new Map<string, string>();
-        const setProperty = vi.fn((name: string, value: string) => properties.set(name, value));
-        const rootStyle = {
-            getPropertyValue: (name: string) => properties.get(name) || "",
-            getPropertyPriority: () => "",
-            setProperty,
-            removeProperty: (name: string) => properties.delete(name),
-        };
-        const generatedStyle = {id: "", textContent: "", remove: vi.fn()};
-        vi.stubGlobal("document", {
-            documentElement: {style: rootStyle},
-            head: {appendChild: vi.fn()},
-            getElementById: vi.fn().mockReturnValue(null),
-            createElement: vi.fn().mockReturnValue(generatedStyle),
+        const style = stubStyleDocument({
+            "--b3-font-family": "Original UI",
+            "--b3-font-family-graph": "Original Graph",
+            "--b3-font-family-emoji": "Original Emoji",
+            "--b3-font-family-math": "Original Math",
         });
-        vi.stubGlobal("getComputedStyle", () => ({
-            getPropertyValue: (name: string) => ({
-                "--b3-font-family": "Original UI",
-                "--b3-font-family-graph": "Original Graph",
-                "--b3-font-family-emoji": "Original Emoji",
-                "--b3-font-family-math": "Original Math",
-            }[name] || ""),
-        }));
-
         const state = structuredClone(DEFAULT_STATE);
         state.targets.graph.fonts = [{kind: "system", family: "Graph Font", displayName: "Graph Font", weight: 400}];
         state.targets.emoji.fonts = [{kind: "system", family: "Emoji Font", displayName: "Emoji Font", weight: 400}];
         state.targets.math.fonts = [{kind: "system", family: "Math Font", displayName: "Math Font", weight: 400}];
         state.targets.math.size = 20;
         new StyleManager().apply(state, new Set());
+        const vars = rootVars(style.textContent);
+        const css = rules(style.textContent);
 
-        expect(setProperty).toHaveBeenCalledWith("--b3-font-family-graph", '"Graph Font", Original Graph', "important");
-        expect(setProperty).toHaveBeenCalledWith("--b3-font-family-emoji", '"BFM_EMOJI_SYSTEM_0", Original Emoji', "important");
-        expect(setProperty).not.toHaveBeenCalledWith("--b3-font-family-math", expect.anything(), expect.anything());
-        expect(generatedStyle.textContent).toContain('@font-face { font-family: "BFM_EMOJI_SYSTEM_0"; src: local("Emoji Font")');
-        expect(generatedStyle.textContent).toContain('unicode-range: U+231A-231B');
-        expect(generatedStyle.textContent).toContain('U+2600-2604');
-        expect(generatedStyle.textContent).not.toContain('U+2600-27BF');
-        expect(generatedStyle.textContent).not.toContain('font-variant-emoji');
-        expect(generatedStyle.textContent).toContain('font-family: "BFM_EMOJI_SYSTEM_0", var(--b3-font-family-protyle) !important');
-        expect(generatedStyle.textContent).toContain('.protyle-wysiwyg .katex');
-        expect(generatedStyle.textContent).toContain('.protyle-wysiwyg .katex .mord:not(.sqrt):not(.delimsizing)');
-        expect(generatedStyle.textContent).toContain('.protyle-wysiwyg .katex .mop:not(.op-symbol)');
-        expect(generatedStyle.textContent).toContain('font-family: "Math Font", Original Math !important');
-        expect(generatedStyle.textContent).not.toContain('.katex-html *');
-        expect(generatedStyle.textContent).not.toContain('.op-symbol {');
-        expect(generatedStyle.textContent).not.toContain('.mopen');
-        expect(generatedStyle.textContent).not.toContain('.mclose');
-        expect(generatedStyle.textContent).not.toContain('font-family: "Graph Font"');
-        expect(generatedStyle.textContent).not.toContain('.emojis__item');
-        expect(generatedStyle.textContent).toContain('font-size: 20px !important');
+        expect(vars.get("--b3-font-family-graph")).toBe('"Graph Font", Original Graph');
+        expect(vars.get("--b3-font-family-emoji")).toBe('"BFM_EMOJI_SYSTEM_0", Original Emoji');
+        expect(vars.has("--b3-font-family-math")).toBe(false);
+        expect(css).toContain('@font-face { font-family: "BFM_EMOJI_SYSTEM_0"; src: local("Emoji Font")');
+        expect(css).toContain("unicode-range: U+231A-231B");
+        expect(css).toContain("U+2600-2604");
+        expect(css).not.toContain("U+2600-27BF");
+        expect(css).not.toContain("font-variant-emoji");
+        expect(css).toContain(".protyle-wysiwyg .katex");
+        expect(css).toContain(".protyle-wysiwyg .katex .mord:not(.sqrt):not(.delimsizing)");
+        expect(css).toContain(".protyle-wysiwyg .katex .mop:not(.op-symbol)");
+        expect(css).toContain('font-family: "Math Font", Original Math !important');
+        expect(css).not.toContain(".katex-html *");
+        expect(css).not.toContain(".op-symbol {");
+        expect(css).not.toContain(".mopen");
+        expect(css).not.toContain(".mclose");
+        expect(css).not.toContain('font-family: "Graph Font"');
+        expect(css).not.toContain(".emojis__item");
+        expect(css).toContain("font-size: 20px !important");
     });
 
     it("treats a sole SiYuan default choice as a true no-op for emoji and math", () => {
-        const rootStyle = {
-            getPropertyValue: () => "",
-            getPropertyPriority: () => "",
-            setProperty: vi.fn(),
-            removeProperty: vi.fn(),
-        };
-        const generatedStyle = {id: "", textContent: "", remove: vi.fn()};
-        vi.stubGlobal("document", {
-            documentElement: {style: rootStyle},
-            head: {appendChild: vi.fn()},
-            getElementById: vi.fn().mockReturnValue(null),
-            createElement: vi.fn().mockReturnValue(generatedStyle),
-        });
-        vi.stubGlobal("getComputedStyle", () => ({
-            getPropertyValue: (name: string) => ({
-                "--b3-font-family-emoji": "Original Emoji",
-                "--b3-font-family-math": "Original Math",
-            }[name] || ""),
-        }));
-
+        const style = stubStyleDocument({"--b3-font-family-emoji": "Original Emoji", "--b3-font-family-math": "Original Math"});
         const state = structuredClone(DEFAULT_STATE);
         state.targets.emoji.fonts = [{kind: "default"}];
         state.targets.math.fonts = [{kind: "default"}];
         new StyleManager().apply(state, new Set());
 
-        expect(rootStyle.setProperty).not.toHaveBeenCalled();
-        expect(generatedStyle.textContent).not.toContain("font-family");
-        expect(generatedStyle.textContent).not.toContain("@font-face");
+        expect(style.textContent).toBe("");
     });
 
     it("uses separate block font and size settings when enabled", () => {
-        const properties = new Map<string, string>();
-        const rootStyle = {getPropertyValue: (name: string) => properties.get(name) || "", getPropertyPriority: () => "", setProperty: vi.fn(), removeProperty: vi.fn()};
-        const generatedStyle = {id: "", textContent: "", remove: vi.fn()};
-        vi.stubGlobal("document", {documentElement: {style: rootStyle}, head: {appendChild: vi.fn()}, getElementById: vi.fn().mockReturnValue(null), createElement: vi.fn().mockReturnValue(generatedStyle)});
-        vi.stubGlobal("getComputedStyle", () => ({getPropertyValue: (name: string) => ({"--b3-font-family-code": "Original Mono", "--b3-font-family-math": "Original Math"}[name] || "")}));
+        const style = stubStyleDocument({"--b3-font-family-code": "Original Mono", "--b3-font-family-math": "Original Math"});
         const state = structuredClone(DEFAULT_STATE);
         state.targets.mono.fonts = [{kind: "system", family: "Inline Mono", displayName: "Inline Mono", weight: 400}];
         state.targets.mono.decoupled = true;
@@ -284,39 +198,26 @@ describe("font target isolation", () => {
         state.targets.math.decoupled = true;
         state.targets.math.secondary = {fonts: [{kind: "system", family: "Block Math", displayName: "Block Math", weight: 400}], size: 18};
         new StyleManager().apply(state, new Set());
-        expect(rootStyle.setProperty).toHaveBeenCalledWith("--b3-font-family-code", '"Inline Mono", ui-monospace, Consolas, monospace', "important");
-        expect(rootStyle.setProperty).toHaveBeenCalledWith("--b3-font-family-editor-code", '"Inline Mono", ui-monospace, Consolas, monospace', "important");
-        expect(rootStyle.setProperty).toHaveBeenCalledWith("--b3-font-weight-editor-code", "400", "important");
-        expect(generatedStyle.textContent).not.toContain('font-family: "Inline Mono"');
-        expect(generatedStyle.textContent).toContain('font-family: "Block Mono", ui-monospace');
-        expect(generatedStyle.textContent).toContain('textarea[style*="--b3-font-family-editor-code"]');
-        expect(generatedStyle.textContent).not.toContain('.b3-chip');
-        expect(generatedStyle.textContent).toContain('font-size: 15px');
-        expect(generatedStyle.textContent).toContain('.katex:not(.katex-display .katex) .mord:not(.sqrt):not(.delimsizing)');
-        expect(generatedStyle.textContent).toContain('.katex-display .katex .mord:not(.sqrt):not(.delimsizing)');
-        expect(generatedStyle.textContent).toContain('font-family: "Inline Math", Original Math !important');
-        expect(generatedStyle.textContent).toContain('font-family: "Block Math", Original Math !important');
-        expect(generatedStyle.textContent).not.toContain('.katex-html *');
-        expect(generatedStyle.textContent).not.toContain('.op-symbol {');
+        const vars = rootVars(style.textContent);
+        const css = rules(style.textContent);
+
+        expect(vars.get("--b3-font-family-code")).toBe(`${EMOJI_RESET}, "Inline Mono", Original Mono`);
+        expect(vars.get("--b3-font-family-editor-code")).toBe(`${EMOJI_RESET}, "Inline Mono", Original Mono`);
+        expect(vars.get("--b3-font-weight-editor-code")).toBe("400");
+        expect(css).not.toContain('"Inline Mono"');
+        expect(css).toContain(`font-family: ${EMOJI_RESET}, "Block Mono", Original Mono !important;`);
+        expect(css).toContain('textarea[style*="--b3-font-family-editor-code"]');
+        expect(css).toContain("font-size: 15px");
+        // SiYuan's px line height is derived from its own editor size, so a custom code size needs a relative one.
+        expect(css).toContain(".protyle-wysiwyg .code-block { line-height: 1.625 !important; }");
+        expect(css).toContain(".katex:not(.katex-display .katex) .mord:not(.sqrt):not(.delimsizing)");
+        expect(css).toContain(".katex-display .katex .mord:not(.sqrt):not(.delimsizing)");
+        expect(css).toContain('font-family: "Inline Math", Original Math !important');
+        expect(css).toContain('font-family: "Block Math", Original Math !important');
     });
 
     it("applies selected variable weights to monospace, math, graph and Mermaid renderers", () => {
-        const properties = new Map<string, string>();
-        const rootStyle = {
-            getPropertyValue: (name: string) => properties.get(name) || "",
-            getPropertyPriority: () => "",
-            setProperty: vi.fn((name: string, value: string) => properties.set(name, value)),
-            removeProperty: vi.fn((name: string) => properties.delete(name)),
-        };
-        const generatedStyle = {id: "", textContent: "", remove: vi.fn()};
-        vi.stubGlobal("document", {
-            documentElement: {style: rootStyle},
-            head: {appendChild: vi.fn()},
-            getElementById: vi.fn().mockReturnValue(null),
-            createElement: vi.fn().mockReturnValue(generatedStyle),
-        });
-        vi.stubGlobal("getComputedStyle", () => ({getPropertyValue: () => ""}));
-
+        const style = stubStyleDocument();
         const variableFont: ImportedFont = {
             id: "variable",
             displayName: "Variable",
@@ -337,31 +238,17 @@ describe("font target isolation", () => {
         state.targets.mermaid.fonts = [{kind: "imported", id: variableFont.id, weight: 640}];
 
         new StyleManager().apply(state, new Set([variableFont.id]));
+        const vars = rootVars(style.textContent);
 
-        expect(rootStyle.setProperty).toHaveBeenCalledWith("--b3-font-weight-editor-code", "610", "important");
-        expect(rootStyle.setProperty).toHaveBeenCalledWith("--bfm-font-weight-graph", "630", "important");
-        expect(generatedStyle.textContent).toContain('span[data-type~="code"] { font-weight: 610 !important; }');
-        expect(generatedStyle.textContent).toContain('[data-subtype="mermaid"] svg { font-weight: 640 !important; }');
-        expect(generatedStyle.textContent).toContain('font-weight: 620 !important;');
+        expect(vars.get("--b3-font-weight-editor-code")).toBe("610");
+        expect(vars.get("--bfm-font-weight-graph")).toBe("630");
+        expect(style.textContent).toContain('span[data-type~="code"] { font-weight: 610 !important; }');
+        expect(style.textContent).toContain('[data-subtype="mermaid"] svg { font-weight: 640 !important; }');
+        expect(style.textContent).toContain("font-weight: 620 !important;");
     });
 
     it("applies a variable axis when a variable math font follows the SiYuan default", () => {
-        const properties = new Map<string, string>();
-        const rootStyle = {
-            getPropertyValue: (name: string) => properties.get(name) || "",
-            getPropertyPriority: () => "",
-            setProperty: vi.fn((name: string, value: string) => properties.set(name, value)),
-            removeProperty: vi.fn((name: string) => properties.delete(name)),
-        };
-        const generatedStyle = {id: "", textContent: "", remove: vi.fn()};
-        vi.stubGlobal("document", {
-            documentElement: {style: rootStyle},
-            head: {appendChild: vi.fn()},
-            getElementById: vi.fn().mockReturnValue(null),
-            createElement: vi.fn().mockReturnValue(generatedStyle),
-        });
-        vi.stubGlobal("getComputedStyle", () => ({getPropertyValue: (name: string) => name === "--b3-font-family-math" ? "KaTeX_Math" : ""}));
-
+        const style = stubStyleDocument({"--b3-font-family-math": "KaTeX_Math"});
         const variableFont: ImportedFont = {
             id: "math-fallback",
             displayName: "Math Fallback",
@@ -383,10 +270,117 @@ describe("font target isolation", () => {
 
         new StyleManager().apply(state, new Set([variableFont.id]));
 
-        expect(generatedStyle.textContent).toContain('.protyle-wysiwyg .katex .cjk_fallback');
-        expect(generatedStyle.textContent).not.toContain('.protyle-wysiwyg .katex .mbin');
-        expect(generatedStyle.textContent).not.toContain('.protyle-wysiwyg .katex .mrel');
-        expect(generatedStyle.textContent).toContain('font-family: "BFM_math-fallback", var(--b3-font-family-protyle) !important;');
-        expect(generatedStyle.textContent).toContain('font-variation-settings: "wght" 615 !important;');
+        expect(style.textContent).toContain(".protyle-wysiwyg .katex .cjk_fallback");
+        expect(style.textContent).not.toContain(".protyle-wysiwyg .katex .mbin");
+        expect(style.textContent).not.toContain(".protyle-wysiwyg .katex .mrel");
+        expect(style.textContent).toContain(`font-family: "BFM_math-fallback", ${EDITOR_FAMILY} !important;`);
+        expect(style.textContent).toContain('font-variation-settings: "wght" 615 !important;');
+    });
+
+    it("reads baselines without its own overrides and reports changes", () => {
+        const style = stubStyleDocument(ORIGINAL_STACKS);
+        const manager = new StyleManager();
+        const state = structuredClone(DEFAULT_STATE);
+        state.targets.ui.fonts = [{kind: "system", family: "Custom UI", displayName: "Custom UI", weight: 400}];
+        manager.apply(state, new Set());
+        let disabledWhileReading = false;
+        vi.stubGlobal("getComputedStyle", () => ({
+            getPropertyValue: (name: string) => {
+                disabledWhileReading ||= style.disabled;
+                return ({...ORIGINAL_STACKS, "--b3-font-family": "Theme UI"} as Record<string, string>)[name] || "";
+            },
+        }));
+
+        expect(manager.refreshBaselines()).toBe(true);
+        expect(disabledWhileReading).toBe(true);
+        expect(style.disabled).toBe(false);
+        expect(manager.refreshBaselines()).toBe(false);
+        expect(manager.getBaselineFamily("ui")).toBe("Theme UI");
+    });
+
+    it("only overrides the editor font size through CSS when asked to", () => {
+        const style = stubStyleDocument();
+        const state = structuredClone(DEFAULT_STATE);
+        state.targets.content.size = 18;
+        const manager = new StyleManager();
+        manager.apply(state, new Set());
+        expect(rootVars(style.textContent).has("--b3-font-size-editor")).toBe(false);
+        manager.apply(state, new Set(), new Set(), {cssEditorFontSize: true});
+        expect(rootVars(style.textContent).get("--b3-font-size-editor")).toBe("18px");
+        expect(style.textContent).toContain(".code-block { line-height: 1.625 !important; }");
+    });
+});
+
+describe("typography settings", () => {
+    it("applies document spacing per block and keeps code aligned", () => {
+        const style = stubStyleDocument();
+        const state = parseState(null);
+        state.targets.content.letterSpacing = 0.05;
+        state.targets.content.lineHeight = 1.8;
+        new StyleManager().apply(state, new Set());
+        const css = style.textContent;
+
+        expect(css).toContain('.protyle-wysiwyg [data-node-id]:not([data-type="NodeCodeBlock"]):not([data-type="NodeAttributeView"])');
+        expect(css).toMatch(/\.protyle-title, \.protyle-wysiwyg \[data-node-id\][^{]+\{ letter-spacing: 0\.05em; \}/);
+        expect(css).toContain("{ line-height: 1.8 !important; }");
+        expect(css).toContain('span[data-type~="code"] { letter-spacing: normal !important; }');
+        expect(css).toContain('textarea[style*="--b3-font-family-editor-code"] { letter-spacing: normal !important; }');
+        expect(css).not.toContain(".code-block { line-height");
+    });
+
+    it("isolates interface letter spacing from documents", () => {
+        const style = stubStyleDocument();
+        const state = parseState(null);
+        state.targets.ui.letterSpacing = 0.02;
+        new StyleManager().apply(state, new Set());
+
+        expect(style.textContent).toContain("body { letter-spacing: 0.02em; }");
+        expect(style.textContent).toMatch(/\.protyle-title, [^{]+\{ letter-spacing: normal; \}/);
+    });
+
+    it("lets headings override the document line height and spacing", () => {
+        const style = stubStyleDocument();
+        const state = parseState(null);
+        state.targets.content.lineHeight = 2;
+        state.targets.h2.lineHeight = 1.3;
+        state.targets.h2.letterSpacing = -0.01;
+        new StyleManager().apply(state, new Set());
+        const css = style.textContent;
+        const heading = css.indexOf('[data-subtype="h2"]');
+
+        expect(heading).toBeGreaterThan(css.indexOf("{ line-height: 2 !important; }"));
+        expect(css).toContain('.protyle-wysiwyg [data-node-id][data-type="NodeHeading"][data-subtype="h2"], .b3-typography:not(.b3-typography--default) h2 { letter-spacing: -0.01em !important; line-height: 1.3 !important; }');
+        expect(css).not.toContain('[data-subtype="h1"]');
+    });
+
+    it("gives code blocks their own line height and spacing when separated", () => {
+        const style = stubStyleDocument();
+        const state = parseState(null);
+        state.targets.mono.decoupled = true;
+        state.targets.mono.letterSpacing = 0.01;
+        state.targets.mono.lineHeight = 3;
+        state.targets.mono.secondary = {fonts: [], size: null, letterSpacing: 0.02, lineHeight: 1.5};
+        new StyleManager().apply(state, new Set());
+        const css = style.textContent;
+
+        expect(css).toContain('span[data-type~="code"] { letter-spacing: 0.01em !important; }');
+        expect(css).toContain('textarea[style*="--b3-font-family-editor-code"] { letter-spacing: 0.02em !important; }');
+        expect(css).toContain(".protyle-wysiwyg .code-block { line-height: 1.5 !important; }");
+        expect(css).not.toContain("line-height: 3");
+    });
+
+    it("applies document options without touching code", () => {
+        const style = stubStyleDocument();
+        const state = parseState(null);
+        state.targets.content.options = {boldWeight: 600, indent: true, autospace: true, noSynthesis: true};
+        new StyleManager().apply(state, new Set());
+        const css = style.textContent;
+
+        expect(css).toContain('span[data-type~="strong"], .b3-typography:not(.b3-typography--default) strong, .b3-typography:not(.b3-typography--default) b { font-weight: 600; }');
+        expect(css).toContain('[data-type="NodeParagraph"]:not(.li > [data-type="NodeParagraph"]) > [contenteditable]');
+        expect(css).toContain("text-indent: 2em;");
+        expect(css).toContain(".protyle-title { text-autospace: normal; }");
+        expect(css).toContain("{ text-autospace: no-autospace; }");
+        expect(css).toContain(".protyle-title { font-synthesis: none; }");
     });
 });

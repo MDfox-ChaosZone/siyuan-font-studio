@@ -1,14 +1,13 @@
 import {describe, expect, it} from "vitest";
 import {strFromU8, unzipSync} from "fflate";
 import {activatePreset, clampLibraryPreviewWidth, clampSize, cloneTargets, parseState, removeFontFromState, syncActivePreset} from "../src/state";
-import {detectFontCoverage, emojiRuntimeFamily, extractFontMetadata, familyForChoice, familyForChoices, extensionOf, fontWeightName, groupImportedFonts, groupSystemFonts, hasDuplicateHash, localizedFamilyName, nameWithoutExtension, quoteFamily, runtimeFamily, weightForChoices} from "../src/font-utils";
+import {companionFonts, detectFontCoverage, emojiRuntimeFamily, extractFontMetadata, familyForChoice, familyForChoices, extensionOf, fontWeightName, groupImportedFonts, groupSystemFonts, hasDuplicateHash, localizedFamilyName, nameWithoutExtension, quoteFamily, runtimeFamily, weightForChoices} from "../src/font-utils";
 import {mergeMermaidConfig, mermaidOverrides} from "../src/mermaid";
 import {applyGraphCanvasFontWeight} from "../src/graph-font";
 import {
     createPresetPackage,
     importedFontIdsInTargets,
     parsePresetConfig,
-    PRESET_DETAILS_FILE_NAME,
     PRESET_FILE_FORMAT,
     PRESET_FILE_VERSION,
     readPresetContainer,
@@ -30,7 +29,8 @@ const font: ImportedFont = {
 describe("state parsing", () => {
     it("creates defaults for missing data", () => {
         const initial = parseState("");
-        expect(initial.targets.ui).toEqual({fonts: [], size: null});
+        expect(initial.targets.ui).toEqual({fonts: [], size: null, letterSpacing: null});
+        expect(initial.targets.content.options).toEqual({boldWeight: null, indent: false, autospace: false, noSynthesis: false});
         expect(initial.presets).toHaveLength(1);
         expect(initial.activePresetId).toBe("default");
         expect(parseState({version: 3, fonts: [], targets: {}}).targets.graph).toEqual({fonts: [], size: null});
@@ -182,7 +182,7 @@ describe("preset transfer", () => {
         expect(importedFontIdsInTargets(preset.targets)).toEqual(new Set([font.id]));
     });
 
-    it("preserves variable font weights and includes a shareable Markdown table", async () => {
+    it("preserves variable font weights in packages", async () => {
         const variable = {...font, variationAxes: {wght: {name: "Weight", min: 100, default: 400, max: 900}}};
         const state = parseState({version: 3, fonts: [variable], targets: {
             content: {fonts: [{kind: "imported", id: variable.id, weight: 675}], size: 17},
@@ -204,13 +204,9 @@ describe("preset transfer", () => {
             [{font: {...variable, size: 3}, data: new Uint8Array([1, 2, 3]).buffer}],
         );
         const entries = unzipSync(archive);
-        expect(entries[PRESET_DETAILS_FILE_NAME]).toBeDefined();
-        const details = strFromU8(entries[PRESET_DETAILS_FILE_NAME]);
-        expect(details).toContain("# Variable Reading");
-        expect(details).toContain("(Optional) Font preset name: Variable Reading    Author: xxx");
-        expect(details).toContain(
-            "| Documents | Example | 17 px | 675 (variable) |",
-        );
+        expect(Object.keys(entries).sort()).toEqual(["fonts/abc.woff2", "preset.json"]);
+        const manifest = JSON.parse(strFromU8(entries["preset.json"])) as {targets: {content: {fonts: Array<{weight?: number}>}}};
+        expect(manifest.targets.content.fonts[0].weight).toBe(675);
     });
 
     it("reports bundled fonts that are absent from the local library", () => {
@@ -226,6 +222,55 @@ describe("preset transfer", () => {
     });
 });
 
+describe("typography settings", () => {
+    it("clamps spacing and keeps it only where it applies", () => {
+        const state = parseState({version: 3, fonts: [], targets: {
+            ui: {fonts: [], size: null, letterSpacing: 5, lineHeight: 2},
+            content: {fonts: [], size: null, letterSpacing: 0.0333, lineHeight: 0.2, options: {boldWeight: 650, indent: true, autospace: "yes"}},
+            mono: {fonts: [], size: null, decoupled: true, secondary: {fonts: [], size: null, letterSpacing: -1, lineHeight: 1.5}},
+            math: {fonts: [], size: null, letterSpacing: 0.1},
+        }});
+        expect(state.targets.ui.letterSpacing).toBe(0.3);
+        expect(state.targets.ui).not.toHaveProperty("lineHeight");
+        expect(state.targets.content.letterSpacing).toBe(0.033);
+        expect(state.targets.content.lineHeight).toBe(1);
+        expect(state.targets.content.options).toEqual({boldWeight: null, indent: true, autospace: false, noSynthesis: false});
+        expect(state.targets.mono.secondary).toMatchObject({letterSpacing: -0.05, lineHeight: 1.5});
+        expect(state.targets.math).not.toHaveProperty("letterSpacing");
+        expect(state.targets.graph).toEqual({fonts: [], size: null});
+    });
+
+    it("carries spacing and document options through presets", () => {
+        const state = parseState(null);
+        state.targets.content.letterSpacing = 0.02;
+        state.targets.content.lineHeight = 1.9;
+        state.targets.content.options = {boldWeight: 600, indent: true, autospace: true, noSynthesis: false};
+        state.targets.h3.lineHeight = 1.4;
+        state.targets.mono.secondary = {fonts: [], size: null, letterSpacing: 0.01, lineHeight: 1.5};
+        syncActivePreset(state);
+        const imported = parsePresetConfig(JSON.parse(serializePreset(state.presets[0], [], "Spacing")), []);
+        expect(imported.targets).toEqual(state.targets);
+    });
+
+    it("pairs a regular face with the real bold and italic faces of its family", () => {
+        const face = (id: string, fontWeight: number, fontStyle: string): ImportedFont => ({...font, id, sha256: id, fontName: "Serif", fontWeight, fontStyle});
+        const regular = face("regular", 400, "Regular");
+        const medium = face("medium", 500, "Medium");
+        const bold = face("bold", 700, "Bold");
+        const italic = face("italic", 400, "Italic");
+        const boldItalic = face("bold-italic", 700, "Bold Italic");
+        const other = {...face("other", 700, "Bold"), fontName: "Sans"};
+        const fonts = [regular, medium, bold, italic, boldItalic, other];
+
+        expect(companionFonts(regular, fonts).map(({id}) => id)).toEqual(["bold", "italic", "bold-italic"]);
+        expect(companionFonts(bold, fonts).map(({id}) => id)).toEqual(["bold-italic"]);
+        expect(companionFonts(italic, fonts)).toEqual([]);
+        expect(companionFonts(other, fonts)).toEqual([]);
+        const variable = {...regular, variationAxes: {wght: {name: "Weight", min: 100, default: 400, max: 900}}};
+        expect(companionFonts(variable, [variable, bold, italic]).map(({id}) => id)).toEqual(["italic"]);
+    });
+});
+
 describe("font utilities", () => {
     it("normalizes file names", () => {
         expect(extensionOf("FONT.WOFF2")).toBe("woff2");
@@ -236,6 +281,7 @@ describe("font utilities", () => {
         expect(runtimeFamily("hello/world")).toBe("BFM_hello_world");
         expect(emojiRuntimeFamily("hello/world")).toBe("BFM_EMOJI_hello_world");
         expect(quoteFamily('A "Font"')).toBe('"A \\"Font\\""');
+        expect(quoteFamily("Broken\n} body { color: red")).toBe('"Broken } body { color: red"');
     });
 
     it("falls back when an imported font is unavailable", () => {

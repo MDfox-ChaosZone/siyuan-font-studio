@@ -193,11 +193,47 @@ function normalizeFontWeight(value: number | undefined, style: string): number {
     return 400;
 }
 
+function importedFamilyName(font: ImportedFont): string {
+    return (font.fontName || font.displayName).trim() || font.displayName;
+}
+
+function importedFamilyKey(font: ImportedFont): string {
+    return importedFamilyName(font).normalize("NFC").toLocaleLowerCase();
+}
+
+const isItalicFont = (font: ImportedFont) => /italic|oblique/i.test(font.fontStyle || "");
+
+// Picks the imported bold and italic faces that belong with `primary`. They are
+// registered under the primary's runtime family so that bold and italic text
+// uses real faces instead of synthesized ones.
+export function companionFonts(primary: ImportedFont, fonts: ImportedFont[]): ImportedFont[] {
+    if (isItalicFont(primary)) return [];
+    const key = importedFamilyKey(primary);
+    const siblings = fonts.filter((font) => font.id !== primary.id && importedFamilyKey(font) === key);
+    if (!siblings.length) return [];
+    const weightOf = (font: ImportedFont) => font.variationAxes?.wght?.default ?? font.fontWeight ?? 400;
+    const closest = (candidates: ImportedFont[], weight: number) => candidates
+        .slice().sort((a, b) => Math.abs(weightOf(a) - weight) - Math.abs(weightOf(b) - weight))[0];
+    const variable = Boolean(primary.variationAxes?.wght);
+    const primaryWeight = weightOf(primary);
+    const needsBold = !variable && primaryWeight < 600;
+    const uprights = siblings.filter((font) => !isItalicFont(font));
+    const italics = siblings.filter(isItalicFont);
+    const result: ImportedFont[] = [];
+    const bold = needsBold ? closest(uprights.filter((font) => weightOf(font) >= 600), 700) : undefined;
+    if (bold) result.push(bold);
+    const italic = closest(italics.filter((font) => !needsBold || weightOf(font) < 600), primaryWeight);
+    if (italic) result.push(italic);
+    const boldItalic = needsBold ? closest(italics.filter((font) => font !== italic && weightOf(font) >= 600), 700) : undefined;
+    if (boldItalic) result.push(boldItalic);
+    return result;
+}
+
 export function groupImportedFonts(fonts: ImportedFont[]): ImportedFontGroup[] {
     const groups = new Map<string, ImportedFontGroup>();
     for (const font of fonts) {
-        const familyName = (font.fontName || font.displayName).trim() || font.displayName;
-        const key = familyName.normalize("NFC").toLocaleLowerCase();
+        const familyName = importedFamilyName(font);
+        const key = importedFamilyKey(font);
         const group = groups.get(key);
         if (group) group.fonts.push(font);
         else groups.set(key, {key, familyName, fonts: [font]});
@@ -255,7 +291,8 @@ export function emojiRuntimeFamily(id: string): string {
 }
 
 export function quoteFamily(family: string): string {
-    return `"${family.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+    // Family names can come from imported preset files; a raw newline would end the CSS string.
+    return `"${family.replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
 }
 
 export function familyForChoice(choice: FontChoice, fonts: ImportedFont[], loadedIds: Set<string>, importedFamily = runtimeFamily, defaultFamily: string | null = null): string | null {

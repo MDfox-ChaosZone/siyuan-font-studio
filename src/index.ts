@@ -2,6 +2,7 @@ import * as SiyuanAPI from "siyuan";
 import {confirm, Dialog, getAllModels, Menu, Plugin, Setting, showMessage} from "siyuan";
 import "./index.scss";
 import {
+    companionFonts,
     createId,
     extractFontMetadata,
     extensionOf,
@@ -24,8 +25,6 @@ import {
     PresetCatalogTarget,
     resolvePresetAsset,
 } from "./example-preset";
-import {fetchCommunityCatalog, parseCommunityCatalog} from "./preset-catalog";
-import {SHARE_PART_BYTES, SHARE_PACKAGE_LIMIT_BYTES, splitPresetPackage} from "./preset-parts";
 import {activatePreset, clampLibraryPreviewWidth, cloneTargets, parseState, removeFontFromState, syncActivePreset} from "./state";
 import {mergeMermaidConfig, mermaidOverrides} from "./mermaid";
 import {applyGraphCanvasFontWeight} from "./graph-font";
@@ -46,12 +45,32 @@ import {
 import {deleteFontFile, deletePluginStorage, ensureFontDirectory, FONT_STORAGE_ROOT, readFontFile, storedFontFileName, writeFontFile} from "./storage";
 import {StyleManager} from "./style-manager";
 import {FontLoader, selectedFontRequests} from "./font-loader";
-import {ADVANCED_TARGETS, HEADING_TARGETS, FontChoice, FontPreset, FontTarget, ImportedFont, PluginState, SIMPLE_TARGETS, SystemFont} from "./types";
+import {ADVANCED_TARGETS, ContentOptions, DEFAULT_CONTENT_OPTIONS, HEADING_TARGETS, FontChoice, FontPreset, FontTarget, ImportedFont, PluginState, SIMPLE_TARGETS, SpacingSettings, SystemFont} from "./types";
+import {
+    BOLD_WEIGHTS,
+    clampLetterSpacing,
+    clampLineHeight,
+    formatLetterSpacing,
+    formatLineHeight,
+    LETTER_SPACING_RANGE,
+    LINE_HEIGHT_RANGE,
+    SIYUAN_LINE_HEIGHT,
+    supportsLetterSpacing,
+    supportsLineHeight,
+} from "./typography";
 import {supportsAssignedWeight} from "./weight-controls";
 
 const STATE_FILE = "font-manager.json";
-const CATALOG_CACHE_FILE = "community-catalog.json";
-const SHARE_PRESET_URL = "https://github.com/MDfox-ChaosZone/siyuan-font-studio/issues/new?template=share-font-preset.yml";
+// petal: saveData may never settle when the request fails, which would block the save chain.
+const SAVE_TIMEOUT = 15000;
+const CUSTOM_FONT_CONTAINERS = ["docker", "android", "ios", "harmony"];
+// SiYuan's Constants.EDITOR_FONT_SIZE_DEFAULT.
+const SIYUAN_EDITOR_FONT_SIZE = 16;
+
+type SpacingKind = "letterSpacing" | "lineHeight";
+type TargetPane = SpacingSettings & {fonts: FontChoice[]; size: number | null};
+// Written by versions that offered community presets; removed on load.
+const LEGACY_CATALOG_CACHE_FILE = "community-catalog.json";
 
 interface MermaidRuntime {
     initialize(options?: Record<string, unknown>): unknown;
@@ -60,7 +79,10 @@ interface MermaidRuntime {
 interface ProtyleRenderAPI {
     mermaidRender?(element: Element): void;
     mindmapRender?(element: Element): void;
+    highlightRender?(element: Element): void;
 }
+
+type EditorFontSizeAPI = (fontSize: number, options?: {notify?: boolean}) => number;
 
 class ManagerSetting extends Setting {
     constructor(private readonly openManager: () => void) {
@@ -83,10 +105,10 @@ export default class SiYuanFontStudio extends Plugin {
     private renameDialog?: Dialog;
     private presetTransferDialog?: Dialog;
     private presetCatalogDialog?: Dialog;
-    private communityCatalogCache: PresetCatalogItem[] = [];
     private exampleDownloadDialog?: Dialog;
     private exampleDownloadAbort?: AbortController;
     private themeObserver?: MutationObserver;
+    private siyuanStyleObserver?: MutationObserver;
     private graphObserver?: MutationObserver;
     private mermaidScriptObserver?: MutationObserver;
     private saveChain: Promise<void> = Promise.resolve();
@@ -101,6 +123,10 @@ export default class SiYuanFontStudio extends Plugin {
     private lastMermaidSignature = "";
     private mindmapRefreshTimer?: number;
     private lastMindmapSignature = "";
+    private lastGraphSignature = "";
+    private codeBlockRefreshTimer?: number;
+    private lastCodeBlockSignature = "";
+    private appliedEditorFontSize: number | null = null;
     private disposed = false;
 
     async onload(): Promise<void> {
@@ -116,11 +142,7 @@ export default class SiYuanFontStudio extends Plugin {
         this.styleManager = new StyleManager();
         this.headingLayout = new HeadingLayout();
         this.state = parseState(await this.loadData(STATE_FILE));
-        try {
-            this.communityCatalogCache = parseCommunityCatalog(await this.loadData(CATALOG_CACHE_FILE)).presets;
-        } catch {
-            this.communityCatalogCache = [];
-        }
+        void this.removeLegacyCatalogCache();
         if (this.disposed) return;
         this.observeMermaidRuntime();
         await this.ensureSelectedFonts();
@@ -147,6 +169,42 @@ export default class SiYuanFontStudio extends Plugin {
             attributes: true,
             attributeFilter: ["data-theme-mode", "data-light-theme", "data-dark-theme"],
         });
+        // SiYuan rewrites #siyuanStyle when its native font settings change.
+        this.siyuanStyleObserver = new MutationObserver((records) => {
+            if (this.disposed) return;
+            // Theme attributes change before the new theme stylesheet has loaded.
+            for (const record of records) {
+                record.addedNodes.forEach((node) => {
+                    if (node instanceof HTMLLinkElement && node.id.startsWith("theme")) {
+                        node.addEventListener("load", () => this.refreshSiyuanBaselines(), {once: true});
+                    }
+                });
+            }
+            if (records.some((record) => isSiyuanStyleMutation(record))) this.refreshSiyuanBaselines();
+        });
+        this.siyuanStyleObserver.observe(document.head, {childList: true, subtree: true, characterData: true});
+    }
+
+    private refreshSiyuanBaselines(): void {
+        // Editor font-size changes also rewrite #siyuanStyle; only font stack changes matter here.
+        if (this.disposed || !this.styleManager?.refreshBaselines()) return;
+        this.applySettings();
+        this.headingLayout?.schedule();
+        if (this.managerDialog) this.renderManager();
+    }
+
+    async onDataChanged(): Promise<void> {
+        if (this.disposed) return;
+        const next = parseState(await this.loadData(STATE_FILE));
+        if (this.disposed) return;
+        const ids = new Set(next.fonts.map((font) => font.id));
+        for (const font of this.state.fonts) if (!ids.has(font.id)) this.fontLoader.remove(font.id);
+        // Font files may arrive after the settings that reference them.
+        this.fontLoader.clearFailures();
+        this.state = next;
+        this.activeSecondaryTab = {};
+        this.applySettings();
+        if (this.managerDialog) this.renderManager();
     }
 
     onLayoutReady(): void {
@@ -176,10 +234,12 @@ export default class SiYuanFontStudio extends Plugin {
     onunload(): void {
         this.disposed = true;
         this.themeObserver?.disconnect();
+        this.siyuanStyleObserver?.disconnect();
         this.graphObserver?.disconnect();
         this.mermaidScriptObserver?.disconnect();
         if (this.mermaidRefreshTimer !== undefined) window.clearTimeout(this.mermaidRefreshTimer);
         if (this.mindmapRefreshTimer !== undefined) window.clearTimeout(this.mindmapRefreshTimer);
+        if (this.codeBlockRefreshTimer !== undefined) window.clearTimeout(this.codeBlockRefreshTimer);
         this.restoreMermaidRuntime();
         this.renameDialog?.destroy();
         this.presetTransferDialog?.destroy();
@@ -190,6 +250,7 @@ export default class SiYuanFontStudio extends Plugin {
         this.styleManager?.destroy();
         this.headingLayout?.destroy();
         this.refreshMindmapLayouts();
+        this.refreshCodeBlocks();
         document.querySelectorAll<HTMLCanvasElement>("canvas.graph__labels")
             .forEach((canvas) => applyGraphCanvasFontWeight(canvas, null));
         this.disconnectFontPreviewObservers();
@@ -207,7 +268,9 @@ export default class SiYuanFontStudio extends Plugin {
     private async ensureSelectedFonts(): Promise<void> {
         await Promise.all(selectedFontRequests(this.state).map(({id, emoji}) => {
             const font = this.state.fonts.find(font => font.id === id);
-            return font ? this.ensureFont(font, emoji) : undefined;
+            if (!font) return undefined;
+            if (!emoji) void this.fontLoader.ensureCompanions(font, companionFonts(font, this.state.fonts));
+            return this.ensureFont(font, emoji);
         }));
     }
 
@@ -224,7 +287,9 @@ export default class SiYuanFontStudio extends Plugin {
         void this.ensureSelectedFonts();
         const loadedIds = new Set(this.fontLoader.faces.keys());
         const emojiLoadedIds = new Set(this.fontLoader.emojiFaces.keys());
-        this.styleManager?.apply(this.state, loadedIds, emojiLoadedIds);
+        const editorFontSize = editorFontSizeAPI();
+        this.styleManager?.apply(this.state, loadedIds, emojiLoadedIds, {cssEditorFontSize: !editorFontSize});
+        this.applyEditorFontSize(editorFontSize);
         this.refreshDefaultSizes();
         const headingSignature = JSON.stringify([
             this.state.targets.ui.fonts, this.state.targets.content,
@@ -240,12 +305,58 @@ export default class SiYuanFontStudio extends Plugin {
             this.lastMindmapSignature = mindmapSignature;
             this.scheduleMindmapRefresh();
         }
-        this.updateGraphModels();
+        const graphSignature = JSON.stringify([this.state.targets.graph.fonts, Array.from(loadedIds)]);
+        if (graphSignature !== this.lastGraphSignature) {
+            this.lastGraphSignature = graphSignature;
+            this.updateGraphModels();
+        }
+        const {content, mono} = this.state.targets;
+        const codeBlockSignature = JSON.stringify([content.size, content.fonts, content.letterSpacing, mono, Array.from(loadedIds)]);
+        if (codeBlockSignature !== this.lastCodeBlockSignature) {
+            // The first signature describes the code blocks SiYuan already rendered.
+            if (this.lastCodeBlockSignature) this.scheduleCodeBlockRefresh();
+            this.lastCodeBlockSignature = codeBlockSignature;
+        }
         const mermaidSignature = JSON.stringify(mermaidOverrides(this.state, loadedIds));
         if (mermaidSignature !== this.lastMermaidSignature) {
             this.lastMermaidSignature = mermaidSignature;
             this.scheduleMermaidRefresh();
         }
+    }
+
+    // The document font size is SiYuan's own editor setting, so native zoom
+    // shortcuts and code-block line numbers keep working.
+    private applyEditorFontSize(setEditorFontSize: EditorFontSizeAPI | undefined): void {
+        const size = this.state.targets.content.size;
+        if (!setEditorFontSize || size === null || size === this.appliedEditorFontSize) return;
+        this.appliedEditorFontSize = size;
+        if (window.siyuan.config?.editor.fontSize !== size) setEditorFontSize(size, {notify: false});
+    }
+
+    private scheduleCodeBlockRefresh(): void {
+        if (this.codeBlockRefreshTimer !== undefined) window.clearTimeout(this.codeBlockRefreshTimer);
+        this.codeBlockRefreshTimer = window.setTimeout(() => {
+            this.codeBlockRefreshTimer = undefined;
+            void document.fonts.ready.then(() => {
+                if (!this.disposed) this.refreshCodeBlocks();
+            });
+        }, 240);
+    }
+
+    // SiYuan measures line-number rows (including wrapped lines) at render time.
+    private refreshCodeBlocks(): void {
+        const renderer = (SiyuanAPI as unknown as {ProtyleMethod?: ProtyleRenderAPI}).ProtyleMethod;
+        if (!renderer?.highlightRender) return;
+        document.querySelectorAll<HTMLElement>(".protyle-wysiwyg").forEach((root) => {
+            const blocks = root.querySelectorAll<HTMLElement>('.code-block .hljs[data-render="true"]');
+            let changed = false;
+            blocks.forEach((block) => {
+                if (!block.querySelector(".protyle-linenumber__rows")) return;
+                block.removeAttribute("data-render");
+                changed = true;
+            });
+            if (changed) renderer.highlightRender!(root);
+        });
     }
 
     private scheduleMindmapRefresh(): void {
@@ -277,12 +388,12 @@ export default class SiYuanFontStudio extends Plugin {
         document.querySelectorAll<HTMLCanvasElement>("canvas.graph__labels")
             .forEach((canvas) => applyGraphCanvasFontWeight(canvas, weight));
         type GraphModel = {
-            onGraph?: (highlight: boolean, resetLayout?: boolean) => void;
+            onGraph?: (selectedId?: string, resetLayout?: boolean) => void;
         };
         const models = typeof getAllModels === "function" ? getAllModels()?.graph : [];
         for (const model of (Array.isArray(models) ? models : []) as GraphModel[]) {
             try {
-                model.onGraph?.(false);
+                model.onGraph?.();
             } catch (error) {
                 console.warn(`[${this.name}] unable to refresh graph font`, error);
             }
@@ -359,23 +470,52 @@ export default class SiYuanFontStudio extends Plugin {
     }
 
     private async loadSystemFonts(): Promise<void> {
-        try {
-            const response = await fetch("/api/system/getSysFonts", {method: "POST", body: "{}"});
-            const payload = await response.json() as {code: number; data?: unknown};
-            if (this.disposed) return;
-            if (payload.code === 0 && Array.isArray(payload.data)) {
-                const unique = new Map<string, SystemFont>();
-                for (const font of currentSystemFonts(payload.data)) unique.set(`${font.family}\u0000${font.weight}`, font);
-                this.systemFonts = Array.from(unique.values()).sort((a, b) => a.displayName.localeCompare(b.displayName));
-                if (this.managerDialog) this.renderManager();
+        const container = window.siyuan.config?.system?.container || "";
+        const [system, custom] = await Promise.all([
+            this.requestSystemFonts(container),
+            // SiYuan registers its own imported fonts on Docker and mobile builds.
+            CUSTOM_FONT_CONTAINERS.includes(container) ? this.requestFontList("/api/system/getCustomFonts") : Promise.resolve([]),
+        ]);
+        if (this.disposed || !system.length && !custom.length) return;
+        const unique = new Map<string, SystemFont>();
+        for (const font of [...custom, ...system]) unique.set(`${font.family}\u0000${font.weight}`, font);
+        this.systemFonts = Array.from(unique.values()).sort((a, b) => a.displayName.localeCompare(b.displayName));
+        if (this.managerDialog) this.renderManager();
+    }
+
+    private async requestSystemFonts(container: string): Promise<SystemFont[]> {
+        const harmony = (window as typeof window & {JSHarmony?: {getSystemFonts?: () => Promise<string> | string}}).JSHarmony;
+        if (container === "harmony" && harmony?.getSystemFonts) {
+            try {
+                const fonts = currentSystemFonts(JSON.parse(await harmony.getSystemFonts()));
+                if (fonts.length) return fonts;
+            } catch (error) {
+                console.warn(`[${this.name}] unable to load HarmonyOS system fonts`, error);
             }
+        }
+        return this.requestFontList("/api/system/getSysFonts");
+    }
+
+    private async requestFontList(url: string): Promise<SystemFont[]> {
+        try {
+            const response = await fetch(url, {method: "POST", body: "{}"});
+            const payload = await response.json() as {code: number; data?: unknown};
+            return payload.code === 0 ? currentSystemFonts(payload.data) : [];
         } catch (error) {
-            console.warn(`[${this.name}] unable to load system fonts`, error);
+            console.warn(`[${this.name}] unable to load fonts from ${url}`, error);
+            return [];
         }
     }
 
     private openManager(): void {
         this.styleManager?.refreshBaselines();
+        const nativeSize = window.siyuan.config?.editor.fontSize;
+        const content = this.state.targets.content;
+        if (editorFontSizeAPI() && content.size !== null && content.size === this.appliedEditorFontSize && nativeSize && nativeSize !== content.size) {
+            content.size = nativeSize;
+            this.appliedEditorFontSize = nativeSize;
+            void this.persist();
+        }
         this.applySettings();
         if (this.managerDialog) {
             this.managerDialog.destroy();
@@ -556,6 +696,36 @@ export default class SiYuanFontStudio extends Plugin {
             });
             input.addEventListener("change", () => void this.commitSize(input.dataset.target as FontTarget, input.dataset.secondary === "true", Number(input.value)));
         });
+        root.querySelectorAll<HTMLInputElement>("input[data-role='spacing']").forEach((input) => {
+            const target = input.dataset.target as FontTarget;
+            const secondary = input.dataset.secondary === "true";
+            const kind = input.dataset.kind as SpacingKind;
+            const scope = `[data-target="${target}"][data-secondary="${secondary}"][data-kind="${kind}"]`;
+            input.addEventListener("input", () => {
+                const value = kind === "letterSpacing" ? clampLetterSpacing(Number(input.value)) : clampLineHeight(Number(input.value));
+                if (value === null) return;
+                this.settingsFor(target, secondary)[kind] = value;
+                const output = root.querySelector<HTMLElement>(`output[data-spacing-output]${scope}`);
+                if (output) output.textContent = this.formatSpacing(kind, value);
+                root.querySelector<HTMLButtonElement>(`button[data-reset-spacing]${scope}`)?.classList.add("bfm-size__reset--active");
+                this.applySettings();
+            });
+            input.addEventListener("change", () => {
+                void this.persist();
+                // Headings preview the document values they inherit.
+                if (target === "content") this.renderManager();
+            });
+        });
+        root.querySelectorAll<HTMLButtonElement>("button[data-reset-spacing]").forEach((button) => {
+            button.addEventListener("click", () => void this.resetSpacing(button.dataset.target as FontTarget, button.dataset.secondary === "true", button.dataset.kind as SpacingKind));
+        });
+        root.querySelector<HTMLSelectElement>("select[data-role='bold-weight']")?.addEventListener("change", (event) => {
+            const value = Number((event.currentTarget as HTMLSelectElement).value);
+            void this.setContentOption({boldWeight: BOLD_WEIGHTS.includes(value) ? value : null});
+        });
+        root.querySelectorAll<HTMLInputElement>("input[data-role='content-option']").forEach((input) => {
+            input.addEventListener("change", () => void this.setContentOption({[input.dataset.option as keyof ContentOptions]: input.checked}));
+        });
         root.querySelectorAll<HTMLButtonElement>("button[data-reset-font]").forEach((button) => {
             button.addEventListener("click", () => void this.resetFont(button.dataset.resetFont as FontTarget, button.dataset.secondary === "true"));
         });
@@ -719,19 +889,25 @@ export default class SiYuanFontStudio extends Plugin {
         this.renderManager();
     }
 
+    private async removeLegacyCatalogCache(): Promise<void> {
+        try {
+            if (await this.loadData(LEGACY_CATALOG_CACHE_FILE)) await this.removeData(LEGACY_CATALOG_CACHE_FILE);
+        } catch {
+            // The cache is unused; a failed cleanup is harmless.
+        }
+    }
+
     private openPresetCatalog(): void {
         this.presetCatalogDialog?.destroy();
-        const cards = [...PRESET_CATALOG, ...this.communityCatalogCache].map((item) => this.presetCatalogCard(item)).join("");
         const dialog = new Dialog({
             title: this.i18n.downloadPresetCatalog,
             width: "820px",
             content: `<div class="sfs-preset-catalog">
   <div class="b3-dialog__content">
     <p class="sfs-preset-catalog__intro">${this.i18n.presetCatalogIntro}</p>
-    <p class="sfs-preset-catalog__status" data-preset-catalog-status>${this.i18n.presetCatalogLoading}</p>
-    <div class="sfs-preset-catalog__list" data-preset-catalog-list>${cards}</div>
+    <div class="sfs-preset-catalog__list">${PRESET_CATALOG.map((item) => this.presetCatalogCard(item)).join("")}</div>
   </div>
-  <div class="b3-dialog__action"><button class="b3-button b3-button--outline" type="button" data-share-preset>${this.i18n.sharePreset}</button><div class="fn__space"></div><button class="b3-button b3-button--cancel" type="button" data-close-preset-catalog>${this.i18n.close}</button></div>
+  <div class="b3-dialog__action"><div class="fn__space fn__flex-1"></div><button class="b3-button b3-button--cancel" type="button" data-close-preset-catalog>${this.i18n.close}</button></div>
 </div>`,
             destroyCallback: () => {
                 if (this.presetCatalogDialog === dialog) this.presetCatalogDialog = undefined;
@@ -739,38 +915,9 @@ export default class SiYuanFontStudio extends Plugin {
         });
         this.presetCatalogDialog = dialog;
         dialog.element.querySelector<HTMLButtonElement>("[data-close-preset-catalog]")?.addEventListener("click", () => dialog.destroy());
-        dialog.element.querySelector<HTMLButtonElement>("[data-share-preset]")?.addEventListener("click", () => window.open(SHARE_PRESET_URL, "_blank", "noopener,noreferrer"));
-        this.bindPresetCatalogActions(dialog, [...PRESET_CATALOG, ...this.communityCatalogCache]);
-        void this.refreshPresetCatalog(dialog);
-    }
-
-    private async refreshPresetCatalog(dialog: Dialog): Promise<void> {
-        const status = dialog.element.querySelector<HTMLElement>("[data-preset-catalog-status]");
-        try {
-            let catalog;
-            try {
-                catalog = await fetchCommunityCatalog();
-            } catch (error) {
-                if (!(error instanceof TypeError)) throw error;
-                catalog = await fetchCommunityCatalog((input, init) => fetchExamplePresetViaSiyuanProxy(input, init));
-            }
-            if (this.presetCatalogDialog !== dialog) return;
-            this.communityCatalogCache = catalog.presets.filter((item) => !PRESET_CATALOG.some((builtin) => builtin.id === item.id));
-            void this.saveData(CATALOG_CACHE_FILE, catalog).catch(() => undefined);
-            const items = [...PRESET_CATALOG, ...this.communityCatalogCache];
-            const list = dialog.element.querySelector<HTMLElement>("[data-preset-catalog-list]");
-            if (list) list.innerHTML = items.map((item) => this.presetCatalogCard(item)).join("");
-            if (status) status.textContent = this.i18n.presetCatalogUpdated.replace("${count}", String(items.length));
-            this.bindPresetCatalogActions(dialog, items);
-        } catch {
-            if (this.presetCatalogDialog === dialog && status) status.textContent = this.i18n.presetCatalogOffline;
-        }
-    }
-
-    private bindPresetCatalogActions(dialog: Dialog, items: PresetCatalogItem[]): void {
         dialog.element.querySelectorAll<HTMLButtonElement>("[data-preset-catalog-download]").forEach((button) => {
             button.addEventListener("click", () => {
-                const item = items.find((candidate) => candidate.id === button.dataset.presetCatalogDownload);
+                const item = PRESET_CATALOG.find((candidate) => candidate.id === button.dataset.presetCatalogDownload);
                 if (item) void this.confirmPresetCatalogDownload(item);
             });
         });
@@ -778,11 +925,6 @@ export default class SiYuanFontStudio extends Plugin {
 
     private presetCatalogCard(item: PresetCatalogItem): string {
         const name = this.presetCatalogName(item);
-        const type = item.id === "example" ? this.i18n.examplePresetType : this.i18n.communityPresetType;
-        const description = item.description ? `<p class="sfs-preset-catalog__description">${escapeHtml(item.description)}</p>` : "";
-        const preview = item.previewUrl ? `<img class="sfs-preset-catalog__preview" src="${escapeHtml(item.previewUrl)}" alt="${escapeHtml(name)}" loading="lazy">` : "";
-        const packageNote = item.packageUrl ? `<p class="sfs-preset-catalog__package">${item.includesFonts ? this.i18n.presetIncludesFonts : this.i18n.presetNeedsFonts} · ${formatFileSize(item.packageSize || 0)}</p>` : "";
-        const issueLink = item.issueUrl ? `<a class="b3-button b3-button--outline" href="${escapeHtml(item.issueUrl)}" target="_blank" rel="noopener noreferrer">${this.i18n.openPresetIssue}</a>` : "";
         const rows = item.rows.map((row) => {
             const supportsSize = row.target !== "graph" && row.target !== "emoji";
             const fonts = row.fonts.map((font) => escapeHtml(font === "SiYuan" ? this.i18n.followSiyuan : font)).join("<br>");
@@ -793,14 +935,13 @@ export default class SiYuanFontStudio extends Plugin {
             return `<tr><th scope="row">${escapeHtml(this.presetCatalogTargetLabel(row.target))}</th><td>${fonts}</td><td>${escapeHtml(size)}</td><td>${weights}</td></tr>`;
         }).join("");
         return `<article class="sfs-preset-catalog__card">
-  <header><div class="sfs-preset-catalog__heading"><span class="b3-chip">${escapeHtml(type)}</span><h3>${escapeHtml(name)}</h3></div><div class="sfs-preset-catalog__actions"><p>${escapeHtml(this.i18n.presetAuthor)}：${escapeHtml(item.author)}</p>${issueLink}<button class="b3-button b3-button--text" type="button" data-preset-catalog-download="${item.id}">${this.i18n.downloadAndImportPreset}</button></div></header>
-  ${description}${preview}${packageNote}
+  <header><div class="sfs-preset-catalog__heading"><span class="b3-chip">${escapeHtml(this.i18n.examplePresetType)}</span><h3>${escapeHtml(name)}</h3></div><div class="sfs-preset-catalog__actions"><p>${escapeHtml(this.i18n.presetAuthor)}：${escapeHtml(item.author)}</p><button class="b3-button b3-button--text" type="button" data-preset-catalog-download="${item.id}">${this.i18n.downloadAndImportPreset}</button></div></header>
   <div class="sfs-preset-catalog__table-wrap"><table><thead><tr><th>${this.i18n.presetMarkdownFontElement}</th><th>${this.i18n.presetMarkdownFonts}</th><th>${this.i18n.fontSize}</th><th>${this.i18n.presetMarkdownFontWeight}</th></tr></thead><tbody>${rows}</tbody></table></div>
 </article>`;
     }
 
-    private presetCatalogName(item: PresetCatalogItem): string {
-        return item.name || (item.id === "example" ? this.i18n.examplePresetName : this.i18n.communityPresetName);
+    private presetCatalogName(_item: PresetCatalogItem): string {
+        return this.i18n.examplePresetName;
     }
 
     private presetCatalogTargetLabel(target: PresetCatalogTarget): string {
@@ -840,7 +981,7 @@ export default class SiYuanFontStudio extends Plugin {
                 void this.downloadAndImportPreset(item, asset);
             });
         } catch (error) {
-            showMessage(`${this.i18n.presetDownloadFailed}: ${this.examplePresetError(error)}`, 7000, "error");
+            showMessage(`${this.i18n.presetDownloadFailed}: ${escapeHtml(this.examplePresetError(error))}`, 7000, "error");
         }
     }
 
@@ -915,7 +1056,7 @@ export default class SiYuanFontStudio extends Plugin {
             if (controller.signal.aborted || error instanceof DOMException && error.name === "AbortError") return;
             completed = true;
             dialog.destroy();
-            showMessage(`${this.i18n.presetDownloadFailed}: ${this.examplePresetError(error)}`, 7000, "error");
+            showMessage(`${this.i18n.presetDownloadFailed}: ${escapeHtml(this.examplePresetError(error))}`, 7000, "error");
         } finally {
             if (this.exampleDownloadAbort === controller) this.exampleDownloadAbort = undefined;
         }
@@ -943,8 +1084,6 @@ export default class SiYuanFontStudio extends Plugin {
     <label class="sfs-preset-export__option"><input type="radio" name="export-mode" value="package" checked><span><strong>${this.i18n.exportWithFonts}</strong><small>${this.i18n.exportWithFontsDescription}</small></span></label>
     <label class="sfs-preset-export__option"><input type="radio" name="export-mode" value="config"><span><strong>${this.i18n.exportConfigOnly}</strong><small>${this.i18n.exportConfigOnlyDescription}</small></span></label>
     <label class="sfs-preset-export__unused"><input type="checkbox" data-role="include-unused-fonts"><span>${this.i18n.includeUnusedFonts}</span></label>
-    <label class="sfs-preset-export__unused"><input type="checkbox" data-role="split-for-issue"><span>${this.i18n.splitForIssue}</span></label>
-    <p class="sfs-preset-export__notice">${this.i18n.exportMarkdownNotice}</p>
     <p class="sfs-preset-export__notice">${this.i18n.exportFontExclusionNotice}</p>
   </div>
   <div class="b3-dialog__action"><button class="b3-button b3-button--cancel" type="button">${this.i18n.cancel}</button><div class="fn__space"></div><button class="b3-button b3-button--text" type="submit">${this.i18n.exportPreset}</button></div>
@@ -953,17 +1092,12 @@ export default class SiYuanFontStudio extends Plugin {
         });
         const form = this.presetTransferDialog.element.querySelector<HTMLFormElement>(".sfs-preset-export");
         const includeUnused = form?.querySelector<HTMLInputElement>("input[data-role='include-unused-fonts']");
-        const splitForIssue = form?.querySelector<HTMLInputElement>("input[data-role='split-for-issue']");
         form?.querySelectorAll<HTMLInputElement>("input[name='export-mode']").forEach((input) => {
             input.addEventListener("change", () => {
                 const disabled = input.value !== "package" || !input.checked;
                 if (includeUnused) {
                     includeUnused.disabled = disabled;
                     if (disabled) includeUnused.checked = false;
-                }
-                if (splitForIssue) {
-                    splitForIssue.disabled = disabled;
-                    if (disabled) splitForIssue.checked = false;
                 }
             });
         });
@@ -973,13 +1107,13 @@ export default class SiYuanFontStudio extends Plugin {
             const submit = form.querySelector<HTMLButtonElement>("button[type='submit']");
             const mode = form.querySelector<HTMLInputElement>("input[name='export-mode']:checked")?.value;
             if (submit) submit.disabled = true;
-            void this.exportActivePreset(mode === "package", Boolean(includeUnused?.checked), Boolean(splitForIssue?.checked)).finally(() => {
+            void this.exportActivePreset(mode === "package", Boolean(includeUnused?.checked)).finally(() => {
                 if (submit && this.presetTransferDialog) submit.disabled = false;
             });
         });
     }
 
-    private async exportActivePreset(withFonts: boolean, includeUnused: boolean, splitForIssue: boolean): Promise<void> {
+    private async exportActivePreset(withFonts: boolean, includeUnused: boolean): Promise<void> {
         const preset = this.state.presets.find((item) => item.id === this.state.activePresetId);
         if (!preset) return;
         try {
@@ -1000,64 +1134,15 @@ export default class SiYuanFontStudio extends Plugin {
                 const totalSize = includedFonts.reduce((sum, font) => sum + font.size, 0);
                 if (totalSize > MAX_PRESET_PACKAGE_BYTES) throw new Error(this.i18n.presetPackageTooLarge);
                 const files = await Promise.all(includedFonts.map(async (font) => ({font, data: await readFontFile(font)})));
-                const archive = await createPresetPackage(preset, this.state.fonts, files, displayName, {
-                    detailsLine: this.i18n.presetMarkdownDetailsLine,
-                    sharingNote: this.i18n.presetMarkdownSharingNote,
-                    fontElement: this.i18n.presetMarkdownFontElement,
-                    fonts: this.i18n.presetMarkdownFonts,
-                    fontSize: this.i18n.fontSize,
-                    fontWeight: this.i18n.presetMarkdownFontWeight,
-                    followSiyuan: this.i18n.followSiyuan,
-                    notApplicable: this.i18n.presetMarkdownNotApplicable,
-                    variableWeight: this.i18n.variableWeight,
-                    ui: this.i18n.uiFont,
-                    content: this.i18n.contentFont,
-                    mono: this.i18n.monoFont,
-                    inlineCode: this.i18n.inlineCode,
-                    codeBlock: this.i18n.codeBlock,
-                    math: this.i18n.mathFont,
-                    inlineFormula: this.i18n.inlineFormula,
-                    formulaBlock: this.i18n.formulaBlock,
-                    graph: this.i18n.graphFont,
-                    mermaid: this.i18n.mermaidFont,
-                    mindmap: this.i18n.mindmapFont,
-                    emoji: this.i18n.emojiFont,
-                });
+                const archive = await createPresetPackage(preset, this.state.fonts, files, displayName);
                 const baseName = `${safeFileName(displayName)}.${PRESET_FILE_FORMAT}`;
-                if (splitForIssue && archive.length > SHARE_PART_BYTES) {
-                    if (archive.length > SHARE_PACKAGE_LIMIT_BYTES) throw new Error(this.i18n.sharePackageTooLarge);
-                    const parts = await splitPresetPackage(archive, baseName);
-                    this.showSplitPresetParts(parts);
-                    showMessage(this.i18n.exportPresetSuccess, 3500, "info");
-                    return;
-                }
                 downloadFile(new Blob([archive], {type: "application/zip"}), `${baseName}.zip`);
             }
             this.presetTransferDialog?.destroy();
             showMessage(this.i18n.exportPresetSuccess, 3500, "info");
         } catch (error) {
-            showMessage(`${this.i18n.exportPresetFailed}: ${error instanceof Error ? error.message : error}`, 6000, "error");
+            showMessage(`${this.i18n.exportPresetFailed}: ${escapeHtml(errorMessage(error))}`, 6000, "error");
         }
-    }
-
-    private showSplitPresetParts(parts: Array<{name: string; bytes: Uint8Array<ArrayBuffer>}>): void {
-        this.presetTransferDialog?.destroy();
-        const downloadAll = () => {
-            for (const part of parts) downloadFile(new Blob([part.bytes], {type: "application/zip"}), part.name);
-        };
-        this.presetTransferDialog = new Dialog({
-            title: this.i18n.splitExportTitle,
-            width: "520px",
-            content: `<div class="b3-dialog__content sfs-preset-export">
-  <p>${this.i18n.splitExportNotice.replace("${count}", String(parts.length))}</p>
-  ${parts.map((part) => `<p>${escapeHtml(part.name)} (${formatFileSize(part.bytes.length)})</p>`).join("")}
-  </div>
-  <div class="b3-dialog__action"><button class="b3-button b3-button--outline" type="button" data-split-download-all>${this.i18n.splitDownloadAll}</button><div class="fn__space"></div><button class="b3-button b3-button--cancel" type="button" data-split-close>${this.i18n.splitExportDone}</button></div>`,
-            destroyCallback: () => { this.presetTransferDialog = undefined; },
-        });
-        this.presetTransferDialog.element.querySelector<HTMLButtonElement>("[data-split-download-all]")?.addEventListener("click", downloadAll);
-        this.presetTransferDialog.element.querySelector<HTMLButtonElement>("[data-split-close]")?.addEventListener("click", () => this.presetTransferDialog?.destroy());
-        downloadAll();
     }
 
     private async importPresetFiles(files: File[]): Promise<void> {
@@ -1084,7 +1169,7 @@ export default class SiYuanFontStudio extends Plugin {
                     try {
                         if (await this.installBundledFont(bundled.descriptor, bundled.data)) importedFonts++;
                     } catch (error) {
-                        notices.push(`${bundled.descriptor.displayName}: ${error instanceof Error ? error.message : error}`);
+                        notices.push(`${bundled.descriptor.displayName}: ${errorMessage(error)}`);
                     }
                 }
                 const parsed = parsePresetConfig(container.config, this.state.fonts);
@@ -1118,12 +1203,13 @@ export default class SiYuanFontStudio extends Plugin {
             await this.persist();
             this.renderManager();
         }
+        // Preset names, font names and file names come from the imported files.
         const summary = [
             importedPresets ? `${this.i18n.importPresetSuccess}: ${importedPresets}` : "",
             importedFonts ? `${this.i18n.importFontsSuccess}: ${importedFonts}` : "",
             ...notices,
             ...failures,
-        ].filter(Boolean).join("<br>");
+        ].filter(Boolean).map(escapeHtml).join("<br>");
         if (summary) showMessage(summary, failures.length || notices.length ? 8000 : 4000, failures.length ? "error" : "info");
     }
 
@@ -1242,12 +1328,57 @@ export default class SiYuanFontStudio extends Plugin {
         const size = config.size ?? (relativeSize ? this.defaultSize(target, secondary) : bounds.fallback);
         const min = relativeSize ? Math.min(bounds.min, size) : bounds.min;
         const max = relativeSize ? Math.max(bounds.max, size) : bounds.max;
-        const supportsSize = target !== "emoji" && target !== "graph";
-        const sizeControls = supportsSize ? `<div class="bfm-size"><input type="range" aria-label="${escapeHtml(this.i18n[`${target}Font`])}" data-role="size" data-target="${target}" data-secondary="${secondary}" min="${min}" max="${max}" step="${relativeSize ? "any" : "1"}" value="${size}"><output data-size-output="${target}-${secondary}">${size}px</output></div>` : "";
+        const supportsSize = target !== "emoji" && target !== "graph" && target !== "kbd";
+        const decoupled = Boolean(this.state.targets[target].decoupled);
+        const spacingKinds: SpacingKind[] = [
+            ...(supportsLetterSpacing(target) ? ["letterSpacing" as const] : []),
+            ...(supportsLineHeight(target, secondary, decoupled) ? ["lineHeight" as const] : []),
+        ];
+        const labeled = spacingKinds.length > 0;
+        const sizeLabel = labeled ? `<span class="bfm-size__label">${this.i18n.fontSize}</span>` : "";
+        const sizeControls = supportsSize ? `<div class="bfm-size${labeled ? " bfm-size--labeled" : ""}">${sizeLabel}<input type="range" aria-label="${escapeHtml(this.i18n[`${target}Font`])}" data-role="size" data-target="${target}" data-secondary="${secondary}" min="${min}" max="${max}" step="${relativeSize ? "any" : "1"}" value="${size}"><output data-size-output="${target}-${secondary}">${size}px</output>${labeled ? "<span></span>" : ""}</div>` : "";
         const resetSize = supportsSize ? `<button class="b3-button bfm-reset ${config.size === null ? "" : "bfm-reset--active"}" data-reset-size="${target}" data-secondary="${secondary}">${this.i18n.resetSize}</button>` : "";
+        const spacingControls = spacingKinds.map((kind) => this.spacingControlHtml(target, secondary, kind)).join("");
+        const options = target === "content" && !secondary ? this.contentOptionsHtml() : "";
         return `<div class="bfm-setting-pane">${this.fontPickerHtml(target, secondary, config.fonts)}
-  ${sizeControls}
+  ${sizeControls}${spacingControls}${options}
   <div class="bfm-target__actions"><button class="b3-button bfm-reset ${config.fonts.length ? "bfm-reset--active" : ""}" data-reset-font="${target}" data-secondary="${secondary}">${this.i18n.resetFont}</button>${resetSize}</div></div>`;
+    }
+
+    private spacingControlHtml(target: FontTarget, secondary: boolean, kind: SpacingKind): string {
+        const value = this.settingsFor(target, secondary)[kind] ?? null;
+        const display = value ?? this.inheritedSpacing(target, kind);
+        const range = kind === "letterSpacing" ? LETTER_SPACING_RANGE : LINE_HEIGHT_RANGE;
+        const label = kind === "letterSpacing" ? this.i18n.letterSpacing : this.i18n.lineHeight;
+        const scope = `data-target="${target}" data-secondary="${secondary}" data-kind="${kind}"`;
+        return `<div class="bfm-size bfm-size--labeled"><span class="bfm-size__label">${label}</span><input type="range" aria-label="${escapeHtml(label)}" data-role="spacing" ${scope} min="${range.min}" max="${range.max}" step="${range.step}" value="${display}"><output data-spacing-output ${scope}>${this.formatSpacing(kind, display)}</output><button type="button" class="bfm-size__reset ${value === null ? "" : "bfm-size__reset--active"}" data-reset-spacing ${scope} aria-label="${escapeHtml(this.i18n.resetSpacing)}" title="${escapeHtml(this.i18n.resetSpacing)}">↺</button></div>`;
+    }
+
+    // Unset values show what the target currently inherits.
+    private inheritedSpacing(target: FontTarget, kind: SpacingKind): number {
+        const heading = HEADING_TARGETS.includes(target as typeof HEADING_TARGETS[number]);
+        if (kind === "letterSpacing") return heading ? this.state.targets.content.letterSpacing ?? 0 : 0;
+        return heading ? this.state.targets.content.lineHeight ?? SIYUAN_LINE_HEIGHT : SIYUAN_LINE_HEIGHT;
+    }
+
+    private formatSpacing(kind: SpacingKind, value: number): string {
+        return kind === "letterSpacing" ? formatLetterSpacing(value) : formatLineHeight(value);
+    }
+
+    private contentOptionsHtml(): string {
+        const options = this.state.targets.content.options || DEFAULT_CONTENT_OPTIONS;
+        const toggle = (option: Exclude<keyof ContentOptions, "boldWeight">, label: string, hint: string) =>
+            `<label title="${escapeHtml(hint)}"><input type="checkbox" data-role="content-option" data-option="${option}" ${options[option] ? "checked" : ""}><span>${label}</span></label>`;
+        return `<div class="bfm-options">
+  <label>${this.i18n.boldWeight}<select class="b3-select" data-role="bold-weight"><option value="">${this.i18n.followSiyuan}</option>${BOLD_WEIGHTS.map((weight) => `<option value="${weight}" ${options.boldWeight === weight ? "selected" : ""}>${fontWeightName(weight)} · ${weight}</option>`).join("")}</select></label>
+  ${toggle("indent", this.i18n.firstLineIndent, this.i18n.firstLineIndentHint)}
+  ${toggle("autospace", this.i18n.autospace, this.i18n.autospaceHint)}
+  ${toggle("noSynthesis", this.i18n.noSynthesis, this.i18n.noSynthesisHint)}
+</div>`;
+    }
+
+    private contentOptions(): ContentOptions {
+        return this.state.targets.content.options ||= {...DEFAULT_CONTENT_OPTIONS};
     }
 
     private refreshDefaultSizes(): void {
@@ -1474,9 +1605,9 @@ export default class SiYuanFontStudio extends Plugin {
     }
 
     private baselineDisplayName(target: FontTarget): string {
-        const stack = this.styleManager?.getBaselineFamily(target) || "默认字体";
+        const stack = this.styleManager?.getBaselineFamily(target) || this.i18n.defaultFontName;
         const candidates = stack.split(",").map((item) => item.trim().replace(/^['"]|['"]$/g, ""));
-        return candidates.find((item) => item && !/^Emojis (Additional|Reset)$/i.test(item)) || candidates[0] || "默认字体";
+        return candidates.find((item) => item && !/^Emojis (Additional|Reset)$/i.test(item) && !item.startsWith("var(")) || candidates[0] || this.i18n.defaultFontName;
     }
 
     private setLibraryPreviewWeight(root: HTMLElement, fontId: string, rawWeight: number): void {
@@ -1550,7 +1681,7 @@ export default class SiYuanFontStudio extends Plugin {
         }
     }
 
-    private settingsFor(target: FontTarget, secondary: boolean): {fonts: FontChoice[]; size: number | null} {
+    private settingsFor(target: FontTarget, secondary: boolean): TargetPane {
         const targetSettings = this.state.targets[target];
         if (!secondary) return targetSettings;
         targetSettings.secondary ||= {fonts: [], size: null};
@@ -1636,9 +1767,26 @@ export default class SiYuanFontStudio extends Plugin {
 
     private async resetSize(target: FontTarget, secondary: boolean): Promise<void> {
         this.settingsFor(target, secondary).size = null;
+        if (target === "content") {
+            this.appliedEditorFontSize = null;
+            editorFontSizeAPI()?.(SIYUAN_EDITOR_FONT_SIZE, {notify: false});
+        }
         this.applySettings();
         await this.persist();
         this.renderManager();
+    }
+
+    private async resetSpacing(target: FontTarget, secondary: boolean, kind: SpacingKind): Promise<void> {
+        this.settingsFor(target, secondary)[kind] = null;
+        this.applySettings();
+        await this.persist();
+        this.renderManager();
+    }
+
+    private async setContentOption(update: Partial<ContentOptions>): Promise<void> {
+        Object.assign(this.contentOptions(), update);
+        this.applySettings();
+        await this.persist();
     }
 
     private async setDecoupled(target: FontTarget, value: boolean): Promise<void> {
@@ -1762,7 +1910,7 @@ export default class SiYuanFontStudio extends Plugin {
             if (!ipcRenderer) throw new Error(filePath);
             ipcRenderer.send("siyuan-cmd", {cmd: "openPath", filePath});
         } catch (error) {
-            showMessage(`${this.i18n.folderOpenFailed}: ${error instanceof Error ? error.message : error}`, 7000, "error");
+            showMessage(`${this.i18n.folderOpenFailed}: ${escapeHtml(errorMessage(error))}`, 7000, "error");
         }
     }
 
@@ -1814,7 +1962,7 @@ export default class SiYuanFontStudio extends Plugin {
         }
         this.applySettings();
         this.renderManager();
-        const summary = [imported ? `${this.i18n.importSuccess}: ${imported}` : "", duplicates ? `${this.i18n.duplicateSkipped}: ${duplicates}` : "", ...failures].filter(Boolean).join("<br>");
+        const summary = [imported ? `${this.i18n.importSuccess}: ${imported}` : "", duplicates ? `${this.i18n.duplicateSkipped}: ${duplicates}` : "", ...failures].filter(Boolean).map(escapeHtml).join("<br>");
         if (summary) showMessage(summary, failures.length ? 7000 : 4000, failures.length ? "error" : "info");
     }
 
@@ -1875,21 +2023,40 @@ export default class SiYuanFontStudio extends Plugin {
         } catch (error) {
             this.state = previous;
             this.applySettings();
-            showMessage(`${this.i18n.deleteFailed}: ${error instanceof Error ? error.message : error}`, 5000, "error");
+            showMessage(`${this.i18n.deleteFailed}: ${escapeHtml(errorMessage(error))}`, 5000, "error");
         }
     }
 
     private persist(): Promise<void> {
         syncActivePreset(this.state);
         const operation = this.saveChain.catch(() => undefined).then(async () => {
-            await this.saveData(STATE_FILE, this.state);
+            let timer: number | undefined;
+            try {
+                await Promise.race([
+                    this.saveData(STATE_FILE, this.state),
+                    new Promise((_, reject) => { timer = window.setTimeout(() => reject(new Error(this.i18n.saveTimeout)), SAVE_TIMEOUT); }),
+                ]);
+            } finally {
+                window.clearTimeout(timer);
+            }
         });
         this.saveChain = operation.catch((error) => {
             if (this.disposed || isSiyuanErrorCode(error, 410)) return;
-            showMessage(`${this.i18n.saveFailed}: ${errorMessage(error)}`, 5000, "error");
+            showMessage(`${this.i18n.saveFailed}: ${escapeHtml(errorMessage(error))}`, 5000, "error");
         });
         return operation;
     }
+}
+
+function editorFontSizeAPI(): EditorFontSizeAPI | undefined {
+    const api = (SiyuanAPI as unknown as {setEditorFontSize?: EditorFontSizeAPI}).setEditorFontSize;
+    return typeof api === "function" ? api : undefined;
+}
+
+function isSiyuanStyleMutation(record: MutationRecord): boolean {
+    const target = record.target instanceof Element ? record.target : record.target.parentElement;
+    if (target?.closest("#siyuanStyle")) return true;
+    return Array.from(record.addedNodes).some((node) => node instanceof Element && node.id === "siyuanStyle");
 }
 
 function escapeHtml(value: string): string {

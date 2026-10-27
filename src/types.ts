@@ -1,6 +1,6 @@
 export const HEADING_TARGETS = ["h1", "h2", "h3", "h4", "h5", "h6"] as const;
 export type HeadingTarget = typeof HEADING_TARGETS[number];
-export type BaseFontTarget = "ui" | "content" | "mono" | "graph" | "emoji" | "math" | "mermaid" | "mindmap";
+export type BaseFontTarget = "ui" | "content" | "mono" | "graph" | "emoji" | "math" | "mermaid" | "mindmap" | "kbd";
 
 export type FontTarget = BaseFontTarget | HeadingTarget;
 
@@ -49,14 +49,29 @@ export type FontChoice =
     | {kind: "imported"; id: string; weight?: number}
     | {kind: "system"; family: string; displayName: string; weight: number};
 
-export interface TargetSettings {
+export interface SpacingSettings {
+    /** Letter spacing in em; null follows SiYuan or the inherited target. */
+    letterSpacing?: number | null;
+    /** Unitless line height; null follows SiYuan or the inherited target. */
+    lineHeight?: number | null;
+}
+
+export interface ContentOptions {
+    boldWeight: number | null;
+    indent: boolean;
+    autospace: boolean;
+    noSynthesis: boolean;
+}
+
+export interface TargetSettings extends SpacingSettings {
     fonts: FontChoice[];
     size: number | null;
     decoupled?: boolean;
-    secondary?: {
+    secondary?: SpacingSettings & {
         fonts: FontChoice[];
         size: number | null;
     };
+    options?: ContentOptions;
 }
 
 export interface FontPreset {
@@ -82,7 +97,7 @@ export interface FontRuntimeStatus {
 }
 
 export const SIMPLE_TARGETS: FontTarget[] = ["ui", "content", "mono", "math"];
-export const ADVANCED_TARGETS: FontTarget[] = ["graph", "emoji", "mermaid", "mindmap"];
+export const ADVANCED_TARGETS: FontTarget[] = ["graph", "emoji", "mermaid", "mindmap", "kbd"];
 export const TARGETS: FontTarget[] = [...SIMPLE_TARGETS, ...HEADING_TARGETS, ...ADVANCED_TARGETS];
 
 export const DEFAULT_STATE: PluginState = {
@@ -108,5 +123,8 @@ export const DEFAULT_STATE: PluginState = {
         math: {fonts: [], size: null, decoupled: false, secondary: {fonts: [], size: null}},
         mermaid: {fonts: [], size: null},
         mindmap: {fonts: [], size: null},
+        kbd: {fonts: [], size: null},
     },
 };
+
+export const DEFAULT_CONTENT_OPTIONS: ContentOptions = {boldWeight: null, indent: false, autospace: false, noSynthesis: false};

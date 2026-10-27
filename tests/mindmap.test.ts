@@ -3,6 +3,7 @@ import {parseState, syncActivePreset} from "../src/state";
 import {parsePresetConfig, serializePreset} from "../src/preset-io";
 import {mindmapOverrides} from "../src/mindmap";
 import {StyleManager} from "../src/style-manager";
+import {stubStyleDocument} from "./style-helpers";
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -20,9 +21,7 @@ describe("mind map fonts", () => {
     });
 
     it("scopes DOM rules to mind map text and removes them on reset", () => {
-        const style = {textContent: "", remove: vi.fn()};
-        vi.stubGlobal("document", {documentElement: {style: {getPropertyValue: () => "", getPropertyPriority: () => "", setProperty: vi.fn(), removeProperty: vi.fn()}}, getElementById: () => style});
-        vi.stubGlobal("getComputedStyle", () => ({getPropertyValue: () => ""}));
+        const style = stubStyleDocument();
         vi.stubGlobal("window", {siyuan: {config: {system: {kernelVersion: "3.8.6"}}}});
         const manager = new StyleManager();
         const state = parseState(null);
@@ -32,6 +31,8 @@ describe("mind map fonts", () => {
         expect(style.textContent).toContain("font-size: 24px !important;");
         expect(style.textContent).not.toContain(".mindmap-view *");
         expect(style.textContent).not.toContain(".mindmap-view__toolbar");
+        // Virtual root and summary nodes keep SiYuan's emphasis weight.
+        expect(style.textContent).toContain(".mindmap-view__node:not(.mindmap-view__node--virtual)");
         state.targets.mindmap = {fonts: [], size: null};
         manager.apply(state, new Set());
         expect(style.textContent).toBe("");

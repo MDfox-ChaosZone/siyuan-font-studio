@@ -3,6 +3,7 @@ import {readFileSync} from "node:fs";
 import {currentSystemFonts, MIN_APP_VERSION, siyuanVersionAtLeast} from "../src/compatibility";
 import {StyleManager} from "../src/style-manager";
 import {parseState} from "../src/state";
+import {rootVars, stubStyleDocument} from "./style-helpers";
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -37,21 +38,19 @@ describe("optional font features", () => {
         ["3.8.0", true, false], ["3.8.4", true, false],
         ["3.8.5", true, true], ["3.8.6", true, true],
     ])("keeps core settings usable on %s and gates specialized renderers", (version, graph, mindmap) => {
-        const style = {textContent: ""};
-        const rootStyle = {getPropertyValue: () => "", getPropertyPriority: () => "", setProperty: vi.fn(), removeProperty: vi.fn()};
         vi.stubGlobal("window", {siyuan: {config: {system: {kernelVersion: version}}}});
-        vi.stubGlobal("document", {documentElement: {style: rootStyle}, getElementById: () => style});
-        vi.stubGlobal("getComputedStyle", () => ({getPropertyValue: () => ""}));
+        const style = stubStyleDocument();
         const state = parseState(null);
         for (const target of ["ui", "mono", "graph", "mindmap"] as const) {
             state.targets[target].fonts = [{kind: "system", family: "Arial", displayName: "Arial", weight: 700}];
         }
         state.targets.mindmap.size = 24;
         new StyleManager().apply(state, new Set());
-        expect(rootStyle.setProperty).toHaveBeenCalledWith("--b3-font-family", expect.stringContaining("Arial"), "important");
+        const vars = rootVars(style.textContent);
+        expect(vars.get("--b3-font-family")).toContain("Arial");
         expect(style.textContent).toContain('span[data-type~="code"] { font-weight: 700');
-        expect(rootStyle.setProperty.mock.calls.some(([name]) => name === "--b3-font-family-graph")).toBe(graph);
-        expect(rootStyle.setProperty.mock.calls.some(([name]) => name === "--bfm-font-weight-graph")).toBe(graph);
+        expect(vars.has("--b3-font-family-graph")).toBe(graph);
+        expect(vars.has("--bfm-font-weight-graph")).toBe(graph);
         expect(style.textContent.includes(".mindmap-view")).toBe(mindmap);
         expect(style.textContent).not.toContain('[data-subtype="mindmap"]');
     });
