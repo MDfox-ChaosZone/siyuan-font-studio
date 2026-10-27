@@ -1083,7 +1083,7 @@ export default class SiYuanFontStudio extends Plugin {
     <p data-example-download-status>${this.i18n.downloadingPreset.replace("${name}", name)}</p>
     <progress max="100" data-example-download-progress></progress>
   </div>
-  <div class="b3-dialog__action"><button class="b3-button b3-button--outline" type="button" data-open-example-release>${this.i18n.openExamplePresetRelease}</button><div class="fn__space"></div><button class="b3-button b3-button--cancel" type="button" data-cancel-example-download>${this.i18n.cancel}</button></div>
+  <div class="b3-dialog__action"><div class="fn__flex-1"></div><button class="b3-button b3-button--cancel" type="button" data-cancel-example-download>${this.i18n.cancel}</button></div>
 </div>`,
             destroyCallback: () => {
                 if (!completed) controller.abort();
@@ -1093,9 +1093,6 @@ export default class SiYuanFontStudio extends Plugin {
         });
         this.exampleDownloadDialog = dialog;
         dialog.element.querySelector<HTMLButtonElement>("[data-cancel-example-download]")?.addEventListener("click", () => dialog.destroy());
-        dialog.element.querySelector<HTMLButtonElement>("[data-open-example-release]")?.addEventListener("click", () => {
-            window.open(item.releaseUrl, "_blank", "noopener,noreferrer");
-        });
         const status = dialog.element.querySelector<HTMLElement>("[data-example-download-status]");
         const progress = dialog.element.querySelector<HTMLProgressElement>("[data-example-download-progress]");
 

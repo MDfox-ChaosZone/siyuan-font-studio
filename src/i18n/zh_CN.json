@@ -49,7 +49,6 @@
   "examplePresetIntegrityFailed": "下载文件大小或 SHA-256 校验不一致",
   "examplePresetNetworkFailed": "无法连接 GitHub",
   "examplePresetHttpFailed": "GitHub 下载请求失败（HTTP ${status}）",
-  "openExamplePresetRelease": "查看 Release",
   "exportPreset": "导出方案",
   "exportPresetAction": "导出",
   "exportConfigOnly": "仅导出配置",

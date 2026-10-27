@@ -49,7 +49,6 @@
   "examplePresetIntegrityFailed": "The downloaded size or SHA-256 digest does not match",
   "examplePresetNetworkFailed": "Unable to connect to GitHub",
   "examplePresetHttpFailed": "The GitHub download request failed (HTTP ${status})",
-  "openExamplePresetRelease": "View Release",
   "exportPreset": "Export preset",
   "exportPresetAction": "Export",
   "exportConfigOnly": "Configuration only",
