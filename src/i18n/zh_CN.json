@@ -139,7 +139,7 @@
   "defaultFontName": "默认字体",
   "saveTimeout": "保存超时，请检查与思源内核的连接",
   "openInWindow": "在独立窗口中打开",
-  "openInWindowHint": "在单独的窗口中打开插件设置，之后打开设置时也使用此方式",
+  "openInWindowHint": "在单独的窗口中打开插件设置，方便对照文档查看修改效果",
   "openAsDialog": "以弹窗打开",
   "openAsDialogHint": "关闭此窗口，改用悬浮弹窗打开插件设置"
 }

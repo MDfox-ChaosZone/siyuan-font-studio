@@ -699,7 +699,7 @@ export default class SiYuanFontStudio extends Plugin {
       <button type="button" class="b3-button b3-button--outline" data-action="import-preset">${this.i18n.importPresetAction}</button>
       <button type="button" class="b3-button b3-button--outline" data-action="export-preset">${this.i18n.exportPresetAction}</button>
       <button type="button" class="b3-button b3-button--outline" data-action="rename-preset">${this.i18n.rename}</button>
-      <button type="button" class="b3-button b3-button--cancel" data-action="delete-preset" ${this.state.presets.length <= 1 ? "disabled" : ""}>${this.i18n.delete}</button>
+      <button type="button" class="b3-button b3-button--remove" data-action="delete-preset" ${this.state.presets.length <= 1 ? "disabled" : ""}>${this.i18n.delete}</button>
     </div>
     <button type="button" class="b3-button b3-button--text sfs-preset-bar__example" data-action="download-example-preset" title="${escapeHtml(this.i18n.downloadPresetCatalogDescription)}">${this.i18n.downloadPresetCatalog}</button>
     ${this.managerTab || getFrontend() === "desktop" ? `<button type="button" class="b3-button b3-button--text sfs-preset-bar__mode" data-action="switch-manager-mode" title="${escapeHtml(this.managerTab ? this.i18n.openAsDialogHint : this.i18n.openInWindowHint)}"><svg><use xlink:href="#${this.managerTab ? "iconMin" : "iconOpenWindow"}"></use></svg>${this.managerTab ? this.i18n.openAsDialog : this.i18n.openInWindow}</button>` : ""}
@@ -727,7 +727,7 @@ export default class SiYuanFontStudio extends Plugin {
         <span class="bfm-info-tip__content" role="tooltip">${this.i18n.fontFormatHintPrefix}<a href="https://cloudconvert.com/ttf-to-woff2" target="_blank" rel="noopener noreferrer">CloudConvert</a>${this.i18n.fontFormatHintMiddle}<a href="https://github.com/MDfox-ChaosZone/Font-Converter" target="_blank" rel="noopener noreferrer">FontConvert</a>${this.i18n.fontFormatHintSuffix}</span>
       </span>
     </div>
-    <div class="bfm-section__actions"><button class="b3-button b3-button--outline" data-action="open-folder">${this.i18n.openFontFolder}</button><button class="b3-button b3-button--text" data-action="import">${this.i18n.importFonts}</button></div>
+    <div class="bfm-section__actions"><button class="b3-button b3-button--outline" data-action="open-folder">${this.i18n.openFontFolder}</button><button class="b3-button b3-button--outline" data-action="import">${this.i18n.importFonts}</button></div>
   </div>
   <input class="fn__none" type="file" data-role="font-input" accept=".woff2,.woff,.ttf,.otf" multiple>
   <div class="bfm-library">${this.libraryHtml()}</div>

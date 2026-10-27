@@ -85,18 +85,18 @@
   &__example.b3-button,
   &__mode.b3-button {
     background: transparent;
-    box-shadow: none;
-    color: var(--b3-theme-on-surface-light);
+    box-shadow: inset 0 0 0 .6px var(--b3-theme-on-surface-light);
+    color: var(--b3-theme-on-surface);
     flex: none;
     font-size: 12px !important;
     font-weight: 400;
-    padding: 4px 2px;
+    padding: 4px 8px;
 
     &:hover,
     &:focus-visible {
-      background: transparent;
-      box-shadow: none;
-      color: var(--b3-theme-on-surface);
+      background: var(--b3-theme-primary-lightest);
+      box-shadow: inset 0 0 0 1px var(--b3-theme-primary);
+      color: var(--b3-theme-primary);
     }
   }
 

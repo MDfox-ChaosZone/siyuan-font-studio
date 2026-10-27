@@ -139,7 +139,7 @@
   "defaultFontName": "Default font",
   "saveTimeout": "Saving timed out. Check the connection to the SiYuan kernel.",
   "openInWindow": "Open in a separate window",
-  "openInWindowHint": "Open the plugin settings in a separate window, now and from now on",
+  "openInWindowHint": "Open the plugin settings in a separate window to see changes alongside your documents",
   "openAsDialog": "Open as a dialog",
   "openAsDialogHint": "Close this window and open the plugin settings as a floating dialog"
 }
