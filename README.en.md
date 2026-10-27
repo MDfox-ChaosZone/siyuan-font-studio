@@ -2,49 +2,35 @@
 
 [简体中文](https://github.com/MDfox-ChaosZone/siyuan-font-studio/blob/main/README.md)
 
-Font playground:
-
-- Easily customize a wide range of font elements in SiYuan!
-- Freely combine fonts and switch between your font presets!
-
-<img src="assets/screenshots/font-studio-settings.png" alt="SiYuan Font Studio settings" width="480">
-
 ## Features
-
-Customize the fonts and sizes of the following elements:
 
 | Element | Font | Size | Scope |
 | --- | :---: | :---: | --- |
-| Interface | ✅ | ✅ | Menus, settings, the document tree, tab bars, sidebars, and other SiYuan UI elements |
-| Editor | ✅ | ✅ | Body text, headings, lists, blockquotes, tables, and other document content in the editor |
-| Headings | ✅ | ✅ | Independent H1–H6 settings; unset fonts follow the editor font and unset sizes follow SiYuan or the theme |
-| Code | ✅ | ✅ | Inline code and code blocks; each can be configured separately |
-| Formulas | ✅ | ✅ | Inline formulas and formula blocks; each can be configured separately |
+| Interface | ✅ | ✅ | Menus, settings, the document tree, sidebars and other UI |
+| Editor | ✅ | ✅ | Document content in the editor |
+| Headings | ✅ | ✅ | H1–H6 can be set separately |
+| Code | ✅ | ✅ | Inline code and code blocks, which can be set separately |
+| Formulas | ✅ | ✅ | Inline formulas and formula blocks, which can be set separately |
 | Graphs | ✅ | ❌ | Document graphs and the global graph |
-| Mind maps | ✅ | ✅ | Independent node fonts, weights and sizes under Other font settings |
-| Mermaid | ✅ | Partial | Some Mermaid elements use independent fixed font sizes that cannot be overridden consistently |
-| Emoji | ✅ | ❌ | Emoji displayed in the document tree, the editor, and similar locations |
+| Mind maps | ✅ | ✅ | Mind map blocks |
+| Mermaid | ✅ | Partial | Some diagram elements use fixed sizes |
+| Emoji | ✅ | ❌ | Emoji in the document tree, the editor and elsewhere |
 
-- After you import the Bold, Italic and similar files of the same font, bold and italic text uses those real faces instead of browser-simulated ones.
-- Save your settings as presets and switch between them easily. Import and export presets to use them across devices.
-- Select multiple fonts to provide fallbacks for missing characters.
-- Fonts load on demand: startup loads only fonts used by the current preset; other fonts load when previewed or selected.
-
-### Font size settings
-
-- The editor font's size is SiYuan's editor font size: changes in the plugin are saved to SiYuan's settings, and after you change the editor font size with SiYuan's shortcuts, the current preset picks up the new size the next time the plugin window opens.
-- Monospace text and formulas using default sizes scale with the editor font size at the default ratios defined by SiYuan or the theme. Manually set sizes stay fixed; click “Reset size” to follow the editor font size again.
-- With “Set separately” enabled, inline code and code blocks, as well as inline formulas and formula blocks, use independent sizes without affecting each other.
-- Default sizes display their computed values and may include decimals; manual adjustments still use whole pixels.
+- Select several fonts; later fonts fill in characters the earlier ones lack.
+- Save your settings as presets, and import or export them to switch quickly or use them on other devices.
 
 ## Additional notes
 
-- For personal use, WOFF2 is recommended for its smaller file size and reduced memory usage. TTF/OTF fonts can be converted online with [CloudConvert](https://cloudconvert.com/ttf-to-woff2) or with my [FontConvert](https://github.com/MDfox-ChaosZone/Font-Converter) project.
-  - When distributing fonts, keeping their original format is recommended to respect any restrictions in the font license.
+- WOFF2 is recommended for its smaller size. TTF/OTF fonts can be converted with [CloudConvert](https://cloudconvert.com/ttf-to-woff2) or my [FontConvert](https://github.com/MDfox-ChaosZone/Font-Converter); when distributing fonts, keep their original format to respect the font license.
 
 ## Changelog
 
-- **v1.3.0**:
+- **v2.0.0**: The plugin is feature-complete. I'm not using SiYuan for now, but I'll keep maintaining this plugin. Please open an [issue](https://github.com/MDfox-ChaosZone/siyuan-font-studio/issues) if you run into problems.
+
+<details>
+<summary>Earlier entries</summary>
+
+- **v2.0.0 changes in detail**:
   - Settings wording now matches SiYuan, for example “Document font” is now “Editor font”.
   - Bold and italic text uses the real faces of the same font when those files are imported.
   - The editor font's size now sets SiYuan's editor font size, fixing conflicts with SiYuan's font-size shortcuts and broken code-block line heights when line numbers are shown.
@@ -67,6 +53,8 @@ Customize the fonts and sizes of the following elements:
 - **v0.1.6**: Added font weight display and selection, with compatibility for SiYuan 3.8.2.
 - **v0.1.5**: Added on-demand download and automatic import for the example font preset, and refined the preset toolbar layout.
 - **v0.1.4 and earlier**: Completed the plugin's core functionality.
+
+</details>
 
 ## Support and sponsorship
 
