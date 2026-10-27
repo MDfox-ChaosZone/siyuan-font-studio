@@ -554,11 +554,11 @@ export default class SiYuanFontStudio extends Plugin {
     <input class="fn__none" type="file" data-role="preset-input" accept=".json,.zip,application/json,application/zip" multiple>
   </div>
   <details class="bfm-advanced bfm-primary" ${primaryOpen ? "open" : ""}>
-    <summary><span>${this.i18n.primaryFonts}</span></summary>
+    <summary><span>${this.i18n.primaryFonts}</span><small>${this.i18n.primaryFontsDescription}</small></summary>
     <div class="bfm-targets">${SIMPLE_TARGETS.map((target) => this.targetHtml(target)).join("")}</div>
   </details>
   <details class="bfm-advanced bfm-headings" ${headingsOpen ? "open" : ""}>
-    <summary><span>${this.i18n.headingFonts}</span></summary>
+    <summary><span>${this.i18n.headingFonts}</span><small>${this.i18n.headingFontsDescription}</small></summary>
     <div class="bfm-targets">${HEADING_TARGETS.map((target) => this.targetHtml(target)).join("")}</div>
   </details>
   <details class="bfm-advanced bfm-secondary" ${advancedOpen ? "open" : ""}>
@@ -794,6 +794,7 @@ export default class SiYuanFontStudio extends Plugin {
             : this.settingControlsHtml(target, false, bounds);
         const hint = target === "content" ? this.i18n.contentSizeHint
             : target === "math" ? this.i18n.mathFontHint
+            : target === "graph" ? this.i18n.graphFontHint
             : target === "mermaid" ? this.i18n.mermaidSizeHint
                 : target === "mindmap" ? this.i18n.mindmapFontHint
                 : "";
