@@ -1,16 +1,15 @@
 import {sha256} from "./font-utils";
+import {FontTarget} from "./types";
 
 export const EXAMPLE_PRESET_ASSET_NAME = "siyuan-font-studio-preset.zip";
 export const EXAMPLE_PRESET_RELEASE_URL = "https://github.com/MDfox-ChaosZone/siyuan-font-studio/releases/tag/%E7%A4%BA%E4%BE%8B%E5%AD%97%E4%BD%93%E6%96%B9%E6%A1%88";
 export const MAX_EXAMPLE_PRESET_BYTES = 100 * 1024 * 1024;
 
-export type PresetCatalogTarget = "h1" | "h2" | "h3" | "h4" | "h5" | "h6" | "ui" | "content" | "mono" | "inlineCode" | "codeBlock" | "math" | "inlineFormula" | "formulaBlock" | "graph" | "emoji" | "mermaid" | "mindmap";
-
 export interface PresetCatalogRow {
-    target: PresetCatalogTarget;
-    fonts: string[];
-    size: number | null;
-    weights: Array<{value: number | null; variable?: boolean}>;
+    target: FontTarget;
+    /** Fonts in fallback order; null stands for SiYuan's own font. */
+    fonts: Array<string | null>;
+    size?: number;
 }
 
 export interface PresetCatalogItem {
@@ -32,13 +31,13 @@ export const PRESET_CATALOG: PresetCatalogItem[] = [
         releaseUrl: EXAMPLE_PRESET_RELEASE_URL,
         releaseApiUrl: "https://api.github.com/repos/MDfox-ChaosZone/siyuan-font-studio/releases/tags/%E7%A4%BA%E4%BE%8B%E5%AD%97%E4%BD%93%E6%96%B9%E6%A1%88",
         rows: [
-            {target: "ui", fonts: ["LXGWWenKaiScreen"], size: null, weights: [{value: 400}]},
-            {target: "content", fonts: ["AlibabaPuHuiTi-3-55-Regular"], size: null, weights: [{value: 400}]},
-            {target: "mono", fonts: ["MapleMonoNormal-Regular"], size: null, weights: [{value: 400}]},
-            {target: "math", fonts: ["SiYuan", "MiSansVF"], size: null, weights: [{value: null}, {value: 400, variable: true}]},
-            {target: "graph", fonts: ["MiSansVF"], size: null, weights: [{value: 400, variable: true}]},
-            {target: "emoji", fonts: ["twemoji-colr"], size: null, weights: [{value: 400}]},
-            {target: "mermaid", fonts: ["MiSansVF"], size: null, weights: [{value: 400, variable: true}]},
+            {target: "ui", fonts: ["LXGWZhenKaiGB-Regular"], size: 16},
+            {target: "content", fonts: ["AlibabaPuHuiTi-3-55-Regular"]},
+            {target: "mono", fonts: ["MapleMonoNormal-Regular"]},
+            {target: "math", fonts: [null, "MiSansVF"]},
+            {target: "emoji", fonts: ["twemoji-colr"]},
+            {target: "graph", fonts: ["MiSansVF"]},
+            {target: "mermaid", fonts: ["MiSansVF"]},
         ],
     },
 ];

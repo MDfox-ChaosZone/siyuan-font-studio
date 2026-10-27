@@ -22,7 +22,6 @@ import {
     fetchExamplePresetViaSiyuanProxy,
     PRESET_CATALOG,
     PresetCatalogItem,
-    PresetCatalogTarget,
     resolvePresetAsset,
 } from "./example-preset";
 import {activatePreset, clampLibraryPreviewWidth, cloneTargets, parseState, removeFontFromState, syncActivePreset} from "./state";
@@ -1006,7 +1005,7 @@ export default class SiYuanFontStudio extends Plugin {
         this.presetCatalogDialog?.destroy();
         const dialog = new Dialog({
             title: this.i18n.downloadPresetCatalog,
-            width: "820px",
+            width: "640px",
             content: `<div class="sfs-preset-catalog">
   <div class="b3-dialog__content">
     <p class="sfs-preset-catalog__intro">${this.i18n.presetCatalogIntro}</p>
@@ -1031,46 +1030,24 @@ export default class SiYuanFontStudio extends Plugin {
     private presetCatalogCard(item: PresetCatalogItem): string {
         const name = this.presetCatalogName(item);
         const rows = item.rows.map((row) => {
-            const supportsSize = row.target !== "graph" && row.target !== "emoji";
-            const fonts = row.fonts.map((font) => escapeHtml(font === "SiYuan" ? this.i18n.followSiyuan : font)).join("<br>");
-            const size = supportsSize ? (row.size === null ? this.i18n.followSiyuan : `${row.size} px`) : this.i18n.presetMarkdownNotApplicable;
-            const weights = row.weights.map(({value, variable}) => value === null
-                ? escapeHtml(this.i18n.presetMarkdownNotApplicable)
-                : `${value}${variable ? ` (${escapeHtml(this.i18n.variableWeight)})` : ""}`).join("<br>");
-            return `<tr><th scope="row">${escapeHtml(this.presetCatalogTargetLabel(row.target))}</th><td>${fonts}</td><td>${escapeHtml(size)}</td><td>${weights}</td></tr>`;
+            const fonts = row.fonts.map((font) => font === null
+                ? `<span class="sfs-preset-catalog__font sfs-preset-catalog__font--default">${escapeHtml(this.i18n.followSiyuan)}</span>`
+                : `<span class="sfs-preset-catalog__font">${escapeHtml(font)}</span>`).join("");
+            const size = row.size ? `<span class="sfs-preset-catalog__size">${escapeHtml(this.i18n.fontSize)} ${row.size}px</span>` : "";
+            return `<div><dt>${escapeHtml(this.i18n[`${row.target}Font`])}</dt><dd>${fonts}${size}</dd></div>`;
         }).join("");
         return `<article class="sfs-preset-catalog__card">
-  <header><div class="sfs-preset-catalog__heading"><span class="b3-chip">${escapeHtml(this.i18n.examplePresetType)}</span><h3>${escapeHtml(name)}</h3></div><div class="sfs-preset-catalog__actions"><p>${escapeHtml(this.i18n.presetAuthor)}：${escapeHtml(item.author)}</p><button class="b3-button b3-button--text" type="button" data-preset-catalog-download="${item.id}">${this.i18n.downloadAndImportPreset}</button></div></header>
-  <div class="sfs-preset-catalog__table-wrap"><table><thead><tr><th>${this.i18n.presetMarkdownFontElement}</th><th>${this.i18n.presetMarkdownFonts}</th><th>${this.i18n.fontSize}</th><th>${this.i18n.presetMarkdownFontWeight}</th></tr></thead><tbody>${rows}</tbody></table></div>
+  <header>
+    <div class="sfs-preset-catalog__heading"><h3>${escapeHtml(name)}</h3><p>${escapeHtml(this.i18n.presetAuthor)}：<a href="${escapeHtml(item.authorUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(item.author)}</a></p></div>
+    <button class="b3-button" type="button" data-preset-catalog-download="${item.id}">${this.i18n.downloadAndImportPreset}</button>
+  </header>
+  <dl class="sfs-preset-catalog__fonts">${rows}</dl>
+  <p class="sfs-preset-catalog__note">${this.i18n.presetCatalogDefaultNote}</p>
 </article>`;
     }
 
     private presetCatalogName(_item: PresetCatalogItem): string {
         return this.i18n.examplePresetName;
-    }
-
-    private presetCatalogTargetLabel(target: PresetCatalogTarget): string {
-        const labels: Record<PresetCatalogTarget, string> = {
-            h1: this.i18n.h1Font,
-            h2: this.i18n.h2Font,
-            h3: this.i18n.h3Font,
-            h4: this.i18n.h4Font,
-            h5: this.i18n.h5Font,
-            h6: this.i18n.h6Font,
-            ui: this.i18n.uiFont,
-            content: this.i18n.contentFont,
-            mono: this.i18n.monoFont,
-            inlineCode: this.i18n.inlineCode,
-            codeBlock: this.i18n.codeBlock,
-            math: this.i18n.mathFont,
-            inlineFormula: this.i18n.inlineFormula,
-            formulaBlock: this.i18n.formulaBlock,
-            graph: this.i18n.graphFont,
-            emoji: this.i18n.emojiFont,
-            mermaid: this.i18n.mermaidFont,
-            mindmap: this.i18n.mindmapFont,
-        };
-        return labels[target];
     }
 
     private async confirmPresetCatalogDownload(item: PresetCatalogItem): Promise<void> {

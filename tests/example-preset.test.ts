@@ -31,12 +31,12 @@ describe("example preset release", () => {
         expect(asset.size).toBeNull();
     });
 
-    it("only ships the author's example preset with a complete detail table", () => {
+    it("only ships the author's example preset with its fonts listed in settings order", () => {
         expect(PRESET_CATALOG.map(({id}) => id)).toEqual(["example"]);
         const [item] = PRESET_CATALOG;
         expect(item.author).toBeTruthy();
         expect(item.authorUrl).toMatch(/^https:\/\/github\.com\//);
-        expect(item.rows.map(({target}) => target)).toEqual(["ui", "content", "mono", "math", "graph", "emoji", "mermaid"]);
+        expect(item.rows.map(({target}) => target)).toEqual(["ui", "content", "mono", "math", "emoji", "graph", "mermaid"]);
     });
 });
 
