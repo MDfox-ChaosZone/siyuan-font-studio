@@ -2,31 +2,31 @@
 
 [简体中文](https://github.com/MDfox-ChaosZone/siyuan-font-studio/blob/main/README.md)
 
-Typography playground:
+Font playground:
 
-- Easily customize fonts, sizes, letter spacing and line height across SiYuan!
-- Freely combine settings and switch between your typography presets!
+- Easily customize a wide range of font elements in SiYuan!
+- Freely combine fonts and switch between your font presets!
 
 <img src="assets/screenshots/font-studio-settings.png" alt="SiYuan Typography Studio settings" width="480">
 
 ## Features
 
-The settings window has two tabs, “Fonts” and “Spacing & layout”. Switch between them at any time; settings on one tab do not affect the other. Click “Open in a tab” at the top right to open the settings page as a regular SiYuan tab instead of a dialog; the plugin remembers this choice (mobile always uses the dialog). Customize the typography of the following elements:
+Customize the fonts and sizes of the following elements:
 
-| Element | Font | Size | Letter spacing | Line height | Scope |
-| --- | :---: | :---: | :---: | :---: | --- |
-| Interface | ✅ | ✅ | ✅ | ❌ | Menus, settings, the document tree, tab bars, sidebars, and other SiYuan UI elements |
-| Documents | ✅ | ✅ | ✅ | ✅ | Body text, headings, lists, blockquotes, tables, and other document content |
-| Headings | ✅ | ✅ | ✅ | ✅ | Independent H1–H6 settings; unset values follow the document |
-| Code | ✅ | ✅ | ✅ | ✅ | Inline code and code blocks, each configurable separately; line height applies to code blocks |
-| Formulas | ✅ | ✅ | ❌ | ❌ | Inline formulas and formula blocks; each can be configured separately |
-| Graphs | ✅ | ❌ | ❌ | ❌ | Document graphs and the global graph |
-| Mind maps | ✅ | ✅ | ❌ | ❌ | Independent node fonts, weights and sizes under Other font settings |
-| Mermaid | ✅ | Partial | ❌ | ❌ | Some Mermaid elements use independent fixed font sizes that cannot be overridden consistently |
-| Emoji | ✅ | ❌ | ❌ | ❌ | Emoji displayed in the document tree, document content, and similar locations |
-| Keyboard keys | ✅ | ❌ | ❌ | ❌ | Keyboard keys and shortcuts in documents, menus and settings |
+| Element | Font | Size | Scope |
+| --- | :---: | :---: | --- |
+| Interface | ✅ | ✅ | Menus, settings, the document tree, tab bars, sidebars, and other SiYuan UI elements |
+| Documents | ✅ | ✅ | Body text, headings, lists, blockquotes, tables, and other document content |
+| Headings | ✅ | ✅ | Independent H1–H6 settings; unset values follow the document |
+| Code | ✅ | ✅ | Inline code and code blocks; each can be configured separately |
+| Formulas | ✅ | ✅ | Inline formulas and formula blocks; each can be configured separately |
+| Graphs | ✅ | ❌ | Document graphs and the global graph |
+| Mind maps | ✅ | ✅ | Independent node fonts, weights and sizes under Other font settings |
+| Mermaid | ✅ | Partial | Some Mermaid elements use independent fixed font sizes that cannot be overridden consistently |
+| Emoji | ✅ | ❌ | Emoji displayed in the document tree, document content, and similar locations |
+| Keyboard keys | ✅ | ❌ | Keyboard keys and shortcuts in documents, menus and settings |
 
-- In “Fonts”, the document font also offers a bold weight and “No faux bold/italic”; in “Spacing & layout”, documents also offer first-line indent and CJK–Latin spacing. These options only change how text is displayed; document content is never modified.
+- Documents also offer a bold weight and “No faux bold/italic”. These options only change how text is displayed; document content is never modified.
 - After you import the Bold, Italic and similar files of the same font, bold and italic text uses those real faces instead of browser-simulated ones.
 - Save your settings as presets and switch between them easily. Import and export presets to use them across devices.
 - Select multiple fonts to provide fallbacks for missing characters.
@@ -39,13 +39,6 @@ The settings window has two tabs, “Fonts” and “Spacing & layout”. Switch
 - With “Set separately” enabled, inline code and code blocks, as well as inline formulas and formula blocks, use independent sizes without affecting each other.
 - Default sizes display their computed values and may include decimals; manual adjustments still use whole pixels. Hover over the information icon next to “Document font” for an explanation of how sizes follow the document.
 
-### Letter spacing and line height
-
-- Set these on the “Spacing & layout” tab. Unset values follow SiYuan: letter spacing 0 and SiYuan's default line height of 1.625. Unset headings follow the document.
-- Inline code and code blocks always have separate spacing, regardless of the “Set separately” switch in the font settings.
-- Letter spacing is measured in em and scales with each element's size. Unset code does not inherit interface or document letter spacing, so columns stay aligned.
-- Click ↺ next to a slider to reset it.
-
 ## Additional notes
 
 - For personal use, WOFF2 is recommended for its smaller file size and reduced memory usage. TTF/OTF fonts can be converted online with [CloudConvert](https://cloudconvert.com/ttf-to-woff2) or with my [FontConvert](https://github.com/MDfox-ChaosZone/Font-Converter) project.
@@ -54,7 +47,7 @@ The settings window has two tabs, “Fonts” and “Spacing & layout”. Switch
 ## Changelog
 
 - **v1.3.0**:
-  - Renamed to “SiYuan Typography Studio”. Added a “Spacing & layout” tab for letter spacing, line height, first-line indent and CJK–Latin spacing; added bold weight and no faux bold/italic options to the document font; added a keyboard key font; the settings page can open as a tab.
+  - Renamed to “SiYuan Typography Studio”. Added document options for bold weight and no faux bold/italic, and a keyboard key font.
   - Bold and italic text uses the real faces of the same font when those files are imported.
   - The document font size now sets SiYuan's editor font size, fixing conflicts with SiYuan's font-size shortcuts and broken code-block line heights when line numbers are shown.
   - Adapted to SiYuan's newer global fonts, emoji corrections and custom fonts (Docker and mobile); the plugin refreshes when SiYuan's own font settings change.

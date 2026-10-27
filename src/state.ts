@@ -1,5 +1,5 @@
 import {DEFAULT_STATE, FontChoice, FontPreset, FontTarget, ImportedFont, PluginState, TARGETS, TargetSettings} from "./types";
-import {clampLetterSpacing, clampLineHeight, parseContentOptions, supportsLetterSpacing, supportsLineHeight} from "./typography";
+import {parseContentOptions} from "./content-options";
 
 const cloneDefault = (): PluginState => JSON.parse(JSON.stringify(DEFAULT_STATE)) as PluginState;
 export const cloneTargets = (targets: Record<FontTarget, TargetSettings>): Record<FontTarget, TargetSettings> =>
@@ -18,7 +18,6 @@ export function parseState(value: unknown): PluginState {
         ? source.fonts.filter(isImportedFont).map((font) => ({...font}))
         : [];
     fallback.layout.libraryPreviewWidth = clampLibraryPreviewWidth(source.layout?.libraryPreviewWidth);
-    fallback.layout.managerMode = source.layout?.managerMode === "tab" ? "tab" : "dialog";
 
     for (const target of TARGETS) {
         fallback.targets[target] = parseTargetSettings(source.targets?.[target], target);
@@ -46,12 +45,12 @@ export function parseState(value: unknown): PluginState {
 }
 
 function parseTargetSettings(value: unknown, target: FontTarget): TargetSettings {
-    const candidate = value && typeof value === "object" ? value as {fonts?: unknown; size?: unknown; decoupled?: unknown; secondary?: unknown; letterSpacing?: unknown; lineHeight?: unknown; options?: unknown} : {};
+    const candidate = value && typeof value === "object" ? value as {fonts?: unknown; size?: unknown; decoupled?: unknown; secondary?: unknown; options?: unknown} : {};
     const fonts = Array.isArray(candidate.fonts)
         ? candidate.fonts.filter(isFontChoice).map((choice) => ({...choice}))
         : [];
     const secondary = candidate.secondary && typeof candidate.secondary === "object"
-        ? candidate.secondary as {fonts?: unknown; size?: unknown; letterSpacing?: unknown; lineHeight?: unknown}
+        ? candidate.secondary as {fonts?: unknown; size?: unknown}
         : {};
     const secondaryFonts = Array.isArray(secondary.fonts)
         ? secondary.fonts.filter(isFontChoice).map((choice) => ({...choice}))
@@ -59,18 +58,12 @@ function parseTargetSettings(value: unknown, target: FontTarget): TargetSettings
     return {
         fonts,
         size: typeof candidate.size === "number" && Number.isFinite(candidate.size) ? candidate.size : null,
-        ...(supportsLetterSpacing(target) ? {letterSpacing: clampLetterSpacing(candidate.letterSpacing)} : {}),
-        ...(supportsLineHeight(target, false) ? {lineHeight: clampLineHeight(candidate.lineHeight)} : {}),
         ...(target === "content" ? {options: parseContentOptions(candidate.options)} : {}),
         ...(target === "mono" || target === "math" ? {
             decoupled: candidate.decoupled === true,
             secondary: {
                 fonts: secondaryFonts,
                 size: typeof secondary.size === "number" && Number.isFinite(secondary.size) ? secondary.size : null,
-                ...(target === "mono" ? {
-                    letterSpacing: clampLetterSpacing(secondary.letterSpacing),
-                    lineHeight: clampLineHeight(secondary.lineHeight),
-                } : {}),
             },
         } : {}),
     };
@@ -115,16 +108,10 @@ function sanitizeTargets(targets: Record<FontTarget, TargetSettings>, ids: Set<s
         // Raw emoji share text nodes with document content, SiYuan 3.8+ does
         // not expose an independent graph font-size API, and kbd uses 75% text.
         if (target === "emoji" || target === "graph" || target === "kbd") targets[target].size = null;
-        if (targets[target].letterSpacing !== undefined) targets[target].letterSpacing = clampLetterSpacing(targets[target].letterSpacing);
-        if (targets[target].lineHeight !== undefined) targets[target].lineHeight = clampLineHeight(targets[target].lineHeight);
         if (target === "content") targets[target].options = parseContentOptions(targets[target].options);
         if (targets[target].secondary) {
             targets[target].secondary!.fonts = uniqueChoices(targets[target].secondary!.fonts.filter((choice) => choice.kind !== "imported" || ids.has(choice.id)));
             targets[target].secondary!.size = clampSize(target, targets[target].secondary!.size);
-            if (target === "mono") {
-                targets[target].secondary!.letterSpacing = clampLetterSpacing(targets[target].secondary!.letterSpacing);
-                targets[target].secondary!.lineHeight = clampLineHeight(targets[target].secondary!.lineHeight);
-            }
         }
     }
 }

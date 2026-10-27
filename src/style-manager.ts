@@ -2,7 +2,7 @@ import {EMOJI_UNICODE_RANGE, emojiRuntimeFamily, familyForChoices, quoteFamily, 
 import {BaseFontTarget, FontChoice, FontTarget, HEADING_TARGETS, ImportedFont, PluginState} from "./types";
 import {mindmapOverrides} from "./mindmap";
 import {supportsGraphFonts, supportsMindmapFonts} from "./compatibility";
-import {formatLetterSpacing, formatLineHeight, SIYUAN_LINE_HEIGHT} from "./typography";
+import {SIYUAN_LINE_HEIGHT} from "./content-options";
 
 // SiYuan's PDF/HTML export copies every `style[id^="snippetCSS"]` from the
 // main window, so this id carries the plugin's rules into exports. The snippet
@@ -21,16 +21,7 @@ const CONTENT_CONTAINERS = ".b3-typography:not(.b3-typography--default), .protyl
 const INLINE_CODE_SELECTORS = '.b3-typography code:not(.hljs), .protyle-wysiwyg span[data-type~="code"]';
 const MONO_BLOCK_SELECTORS = '.b3-typography .hljs, .protyle-wysiwyg .hljs, .protyle-linenumber__rows, textarea[style*="--b3-font-family-code"], textarea[style*="--b3-font-family-editor-code"]';
 const CODE_BLOCK_SELECTORS = ".b3-typography .code-block, .protyle-wysiwyg .code-block";
-// Mirrors SiYuan's line-height rule; code blocks and databases keep their own metrics.
-const CONTENT_BLOCK_SELECTORS = [
-    '.protyle-wysiwyg [data-node-id]:not([data-type="NodeCodeBlock"]):not([data-type="NodeAttributeView"])',
-    ".b3-typography:not(.b3-typography--default) > p",
-    ".b3-typography:not(.b3-typography--default) li > p",
-    ".b3-typography:not(.b3-typography--default) blockquote > p",
-    '.b3-typography:not(.b3-typography--default) [data-node-id]:not([data-type="NodeCodeBlock"]):not([data-type="NodeAttributeView"])',
-].join(", ");
 const BOLD_SELECTORS = '.protyle-wysiwyg strong, .protyle-wysiwyg b, .protyle-wysiwyg span[data-type~="strong"], .b3-typography:not(.b3-typography--default) strong, .b3-typography:not(.b3-typography--default) b';
-const INDENT_SELECTORS = '.protyle-wysiwyg [data-type="NodeParagraph"]:not(.li > [data-type="NodeParagraph"]) > [contenteditable], .b3-typography:not(.b3-typography--default) > p';
 
 export interface ApplyOptions {
     /** Fallback for SiYuan builds without the editor font-size plugin API. */
@@ -178,11 +169,8 @@ export class StyleManager {
                     family ? `font-family: ${emoji ? `${emoji}, ` : ""}${family}, ${EDITOR_FAMILY} !important;` : "",
                     settings.size !== null ? `font-size: ${settings.size}px !important;` : "",
                     weight !== null ? `font-weight: ${weight} !important;` : "",
-                    settings.letterSpacing != null ? `letter-spacing: ${formatLetterSpacing(settings.letterSpacing)} !important;` : "",
-                    settings.lineHeight != null ? `line-height: ${formatLineHeight(settings.lineHeight)} !important;` : "",
                 ].filter(Boolean).join(" ");
-                // [data-node-id] matches the specificity of the document line-height rule, which comes first.
-                return declarations ? `.protyle-wysiwyg [data-node-id][data-type="NodeHeading"][data-subtype="${target}"], .b3-typography:not(.b3-typography--default) ${target} { ${declarations} }` : "";
+                return declarations ? `.protyle-wysiwyg [data-type="NodeHeading"][data-subtype="${target}"], .b3-typography:not(.b3-typography--default) ${target} { ${declarations} }` : "";
             }),
         ].filter(Boolean).join("\n");
     }
@@ -237,39 +225,20 @@ export class StyleManager {
         }
         const mathBlockSize = state.targets.math.decoupled ? state.targets.math.secondary?.size : null;
         if (mathBlockSize !== null && mathBlockSize !== undefined) rules.push(`.b3-typography .katex-display .katex, .protyle-wysiwyg .katex-display .katex { font-size: ${mathBlockSize}px !important; }`);
-        rules.push(...this.spacingRules(state, monoBlockSize ?? null, options));
+        rules.push(...this.contentRules(state, monoBlockSize ?? null, options));
         return rules.join("\n");
     }
 
-    private spacingRules(state: PluginState, monoBlockSize: number | null, options: ApplyOptions): string[] {
+    private contentRules(state: PluginState, monoBlockSize: number | null, options: ApplyOptions): string[] {
         const rules: string[] = [];
-        const {ui, content, mono} = state.targets;
-        const spacing = (value: number | null | undefined) => value == null ? "normal" : formatLetterSpacing(value);
-        if (ui.letterSpacing != null) rules.push(`body { letter-spacing: ${formatLetterSpacing(ui.letterSpacing)}; }`);
-        // letter-spacing inherits as an absolute length, so documents recompute it per block.
-        if (content.letterSpacing != null || ui.letterSpacing != null) {
-            rules.push(`${CONTENT_CONTAINERS}, ${CONTENT_BLOCK_SELECTORS} { letter-spacing: ${spacing(content.letterSpacing)}; }`);
-        }
-        // Spacing tab: primary mono is inline code and secondary is code blocks, whatever the font tab's decoupling.
-        const inlineCodeSpacing = mono.letterSpacing;
-        const blockCodeSpacing = mono.secondary?.letterSpacing;
-        const inheritsSpacing = content.letterSpacing != null || ui.letterSpacing != null;
-        if (inlineCodeSpacing != null || inheritsSpacing) rules.push(`${INLINE_CODE_SELECTORS} { letter-spacing: ${spacing(inlineCodeSpacing)} !important; }`);
-        if (blockCodeSpacing != null || inheritsSpacing) rules.push(`${MONO_BLOCK_SELECTORS} { letter-spacing: ${spacing(blockCodeSpacing)} !important; }`);
-        if (content.lineHeight != null) rules.push(`${CONTENT_BLOCK_SELECTORS} { line-height: ${formatLineHeight(content.lineHeight)} !important; }`);
+        const {content} = state.targets;
         // SiYuan writes code-block line heights in px from its own editor font size,
         // so any plugin-controlled code size needs a relative line height.
-        const codeLineHeight = mono.secondary?.lineHeight;
-        if (codeLineHeight != null || monoBlockSize !== null || (options.cssEditorFontSize && content.size !== null)) {
-            rules.push(`${CODE_BLOCK_SELECTORS} { line-height: ${formatLineHeight(codeLineHeight ?? SIYUAN_LINE_HEIGHT)} !important; }`);
+        if (monoBlockSize !== null || (options.cssEditorFontSize && content.size !== null)) {
+            rules.push(`${CODE_BLOCK_SELECTORS} { line-height: ${SIYUAN_LINE_HEIGHT} !important; }`);
         }
         const contentOptions = content.options;
         if (contentOptions?.boldWeight != null) rules.push(`${BOLD_SELECTORS} { font-weight: ${contentOptions.boldWeight}; }`);
-        if (contentOptions?.indent) rules.push(`${INDENT_SELECTORS} { text-indent: 2em; }`);
-        if (contentOptions?.autospace) {
-            rules.push(`${CONTENT_CONTAINERS} { text-autospace: normal; }`);
-            rules.push(`${INLINE_CODE_SELECTORS}, ${MONO_BLOCK_SELECTORS} { text-autospace: no-autospace; }`);
-        }
         if (contentOptions?.noSynthesis) rules.push(`${CONTENT_CONTAINERS} { font-synthesis: none; }`);
         return rules;
     }

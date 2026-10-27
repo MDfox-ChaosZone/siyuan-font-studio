@@ -1,5 +1,5 @@
 import * as SiyuanAPI from "siyuan";
-import {confirm, Custom, Dialog, getAllModels, getFrontend, Menu, openTab, Plugin, Setting, showMessage} from "siyuan";
+import {confirm, Dialog, getAllModels, Menu, Plugin, Setting, showMessage} from "siyuan";
 import "./index.scss";
 import {
     companionFonts,
@@ -45,32 +45,18 @@ import {
 import {deleteFontFile, deletePluginStorage, ensureFontDirectory, FONT_STORAGE_ROOT, readFontFile, storedFontFileName, writeFontFile} from "./storage";
 import {StyleManager} from "./style-manager";
 import {FontLoader, selectedFontRequests} from "./font-loader";
-import {ADVANCED_TARGETS, ContentOptions, ManagerMode, DEFAULT_CONTENT_OPTIONS, HEADING_TARGETS, FontChoice, FontPreset, FontTarget, ImportedFont, PluginState, SIMPLE_TARGETS, SpacingSettings, SystemFont} from "./types";
-import {
-    BOLD_WEIGHTS,
-    clampLetterSpacing,
-    clampLineHeight,
-    formatLetterSpacing,
-    formatLineHeight,
-    LETTER_SPACING_RANGE,
-    LINE_HEIGHT_RANGE,
-    SIYUAN_LINE_HEIGHT,
-    supportsLetterSpacing,
-    supportsLineHeight,
-} from "./typography";
+import {ADVANCED_TARGETS, ContentOptions, DEFAULT_CONTENT_OPTIONS, HEADING_TARGETS, FontChoice, FontPreset, FontTarget, ImportedFont, PluginState, SIMPLE_TARGETS, SystemFont} from "./types";
+import {BOLD_WEIGHTS} from "./content-options";
 import {supportsAssignedWeight} from "./weight-controls";
 
 const STATE_FILE = "font-manager.json";
-const MANAGER_TAB_TYPE = "manager";
 // petal: saveData may never settle when the request fails, which would block the save chain.
 const SAVE_TIMEOUT = 15000;
 const CUSTOM_FONT_CONTAINERS = ["docker", "android", "ios", "harmony"];
 // SiYuan's Constants.EDITOR_FONT_SIZE_DEFAULT.
 const SIYUAN_EDITOR_FONT_SIZE = 16;
 
-type SpacingKind = "letterSpacing" | "lineHeight";
-type ManagerTab = "fonts" | "spacing";
-type TargetPane = SpacingSettings & {fonts: FontChoice[]; size: number | null};
+type TargetPane = {fonts: FontChoice[]; size: number | null};
 // Written by versions that offered community presets; removed on load.
 const LEGACY_CATALOG_CACHE_FILE = "community-catalog.json";
 
@@ -104,7 +90,6 @@ export default class SiYuanFontStudio extends Plugin {
     private fontLoader!: FontLoader;
     private systemFonts: SystemFont[] = [];
     private managerDialog?: Dialog;
-    private managerTab?: Custom;
     private renameDialog?: Dialog;
     private presetTransferDialog?: Dialog;
     private presetCatalogDialog?: Dialog;
@@ -116,8 +101,6 @@ export default class SiYuanFontStudio extends Plugin {
     private mermaidScriptObserver?: MutationObserver;
     private saveChain: Promise<void> = Promise.resolve();
     private activeSecondaryTab: Partial<Record<FontTarget, boolean>> = {};
-    private activeManagerTab: ManagerTab = "fonts";
-    private sectionOpen: Record<string, boolean> = {};
     private selectedLibraryVariants = new Map<string, string>();
     private selectedLibraryWeights = new Map<string, number>();
     private fontPreviewObservers = new Map<HTMLElement, IntersectionObserver>();
@@ -144,23 +127,11 @@ export default class SiYuanFontStudio extends Plugin {
   <rect x="19" y="21" width="12" height="2" rx="1"></rect>
   <circle cx="27" cy="22" r="3"></circle>
 </symbol>`);
-        const plugin = this;
-        this.addTab({
-            type: MANAGER_TAB_TYPE,
-            init() {
-                plugin.mountManagerTab(this as unknown as Custom);
-            },
-            destroy() {
-                plugin.unmountManagerTab(this as unknown as Custom);
-            },
-        });
         this.styleManager = new StyleManager();
         this.headingLayout = new HeadingLayout();
         this.state = parseState(await this.loadData(STATE_FILE));
         void this.removeLegacyCatalogCache();
         if (this.disposed) return;
-        // A tab restored from the saved layout may have rendered with default state.
-        this.renderManager();
         this.observeMermaidRuntime();
         await this.ensureSelectedFonts();
         if (this.disposed) return;
@@ -180,7 +151,7 @@ export default class SiYuanFontStudio extends Plugin {
             this.styleManager?.refreshBaselines();
             this.applySettings();
             this.headingLayout?.schedule();
-            if (this.managerRoot()) this.renderManager();
+            if (this.managerDialog) this.renderManager();
         });
         this.themeObserver.observe(document.documentElement, {
             attributes: true,
@@ -207,7 +178,7 @@ export default class SiYuanFontStudio extends Plugin {
         if (this.disposed || !this.styleManager?.refreshBaselines()) return;
         this.applySettings();
         this.headingLayout?.schedule();
-        if (this.managerRoot()) this.renderManager();
+        if (this.managerDialog) this.renderManager();
     }
 
     async onDataChanged(): Promise<void> {
@@ -221,7 +192,7 @@ export default class SiYuanFontStudio extends Plugin {
         this.state = next;
         this.activeSecondaryTab = {};
         this.applySettings();
-        if (this.managerRoot()) this.renderManager();
+        if (this.managerDialog) this.renderManager();
     }
 
     onLayoutReady(): void {
@@ -294,7 +265,7 @@ export default class SiYuanFontStudio extends Plugin {
     private async ensureFont(font: ImportedFont, emoji = false): Promise<void> {
         if (!await this.fontLoader.ensure(font, emoji) || this.disposed) return;
         this.applySettings();
-        this.managerRoot()?.querySelectorAll<HTMLElement>(`[data-library-group="${font.id}"]`).forEach(row => {
+        this.managerDialog?.element.querySelectorAll<HTMLElement>(`[data-library-group="${font.id}"]`).forEach(row => {
             row.classList.toggle("bfm-font--error", Boolean(this.fontLoader.statuses.get(font.id)?.error));
         });
     }
@@ -328,7 +299,7 @@ export default class SiYuanFontStudio extends Plugin {
             this.updateGraphModels();
         }
         const {content, mono} = this.state.targets;
-        const codeBlockSignature = JSON.stringify([content.size, content.fonts, content.letterSpacing, mono, Array.from(loadedIds)]);
+        const codeBlockSignature = JSON.stringify([content.size, content.fonts, mono, Array.from(loadedIds)]);
         if (codeBlockSignature !== this.lastCodeBlockSignature) {
             // The first signature describes the code blocks SiYuan already rendered.
             if (this.lastCodeBlockSignature) this.scheduleCodeBlockRefresh();
@@ -497,7 +468,7 @@ export default class SiYuanFontStudio extends Plugin {
         const unique = new Map<string, SystemFont>();
         for (const font of [...custom, ...system]) unique.set(`${font.family}\u0000${font.weight}`, font);
         this.systemFonts = Array.from(unique.values()).sort((a, b) => a.displayName.localeCompare(b.displayName));
-        if (this.managerRoot()) this.renderManager();
+        if (this.managerDialog) this.renderManager();
     }
 
     private async requestSystemFonts(container: string): Promise<SystemFont[]> {
@@ -534,16 +505,6 @@ export default class SiYuanFontStudio extends Plugin {
             void this.persist();
         }
         this.applySettings();
-        if (this.managerMode() === "tab") {
-            this.managerDialog?.destroy();
-            this.renderManager();
-            // SiYuan focuses the existing tab when one with this id is open.
-            void openTab({
-                app: this.app,
-                custom: {id: this.name + MANAGER_TAB_TYPE, icon: "iconSiYuanFontStudio", title: this.i18n.managerTitle},
-            });
-            return;
-        }
         if (this.managerDialog) {
             this.managerDialog.destroy();
         }
@@ -561,44 +522,14 @@ export default class SiYuanFontStudio extends Plugin {
         this.renderManager();
     }
 
-    private managerMode(): ManagerMode {
-        // Mobile has no editor tabs, so it always uses the dialog.
-        return this.state.layout.managerMode === "tab" && !getFrontend().includes("mobile") ? "tab" : "dialog";
-    }
-
-    private managerRoot(): HTMLElement | null {
-        return (this.managerTab?.element ?? this.managerDialog?.element)?.querySelector<HTMLElement>(".bfm-manager") ?? null;
-    }
-
-    private mountManagerTab(custom: Custom): void {
-        this.managerTab = custom;
-        custom.element.innerHTML = `<div class="bfm-manager bfm-manager--tab"></div>`;
-        this.renderManager();
-    }
-
-    private unmountManagerTab(custom: Custom): void {
-        if (this.managerTab !== custom) return;
-        this.disconnectFontPreviewObservers();
-        this.managerTab = undefined;
-    }
-
-    private async switchManagerMode(): Promise<void> {
-        this.state.layout.managerMode = this.managerMode() === "tab" ? "dialog" : "tab";
-        await this.persist();
-        // Close the current host first so only one settings page exists.
-        if (this.state.layout.managerMode === "tab") this.managerDialog?.destroy();
-        else this.managerTab?.tab?.close();
-        this.openManager();
-    }
-
     private renderManager(): void {
-        const root = this.managerRoot();
+        const root = this.managerDialog?.element.querySelector<HTMLElement>(".bfm-manager");
         if (!root) return;
         this.disconnectFontPreviewObservers();
         root.style.setProperty("--bfm-library-preview-width", `${this.state.layout.libraryPreviewWidth}px`);
-        root.querySelectorAll<HTMLDetailsElement>("details[data-section]").forEach((details) => {
-            this.sectionOpen[details.dataset.section!] = details.open;
-        });
+        const primaryOpen = root.querySelector<HTMLDetailsElement>(".bfm-primary")?.open ?? true;
+        const headingsOpen = root.querySelector<HTMLDetailsElement>(".bfm-headings")?.open ?? false;
+        const advancedOpen = root.querySelector<HTMLDetailsElement>(".bfm-secondary")?.open ?? false;
         const openMenuElement = root.querySelector<HTMLElement>("[data-font-menu]:not([hidden])");
         const openMenu = openMenuElement?.dataset.fontMenu;
         const openMenuScrollTop = openMenuElement?.querySelector<HTMLElement>(".bfm-font-menu__options")?.scrollTop ?? 0;
@@ -620,10 +551,20 @@ export default class SiYuanFontStudio extends Plugin {
     <button type="button" class="b3-button b3-button--text sfs-preset-bar__example" data-action="download-example-preset" title="${escapeHtml(this.i18n.downloadPresetCatalogDescription)}">${this.i18n.downloadPresetCatalog}</button>
     <input class="fn__none" type="file" data-role="preset-input" accept=".json,.zip,application/json,application/zip" multiple>
   </div>
-  <div class="bfm-manager-tabs" role="tablist" aria-label="${escapeHtml(this.i18n.managerTitle)}">${(["fonts", "spacing"] as const).map((tab) => `<button type="button" role="tab" data-manager-tab="${tab}" class="${tab === this.activeManagerTab ? "bfm-manager-tabs--active" : ""}" aria-selected="${tab === this.activeManagerTab}">${tab === "fonts" ? this.i18n.fontTab : this.i18n.spacingTab}</button>`).join("")}${getFrontend().includes("mobile") ? "" : `<button type="button" class="bfm-manager-tabs__mode" data-action="switch-manager-mode" title="${escapeHtml(this.managerTab ? this.i18n.openAsDialogHint : this.i18n.openAsTabHint)}">${this.managerTab ? this.i18n.openAsDialog : this.i18n.openAsTab}</button>`}</div>
-  ${this.activeManagerTab === "fonts" ? this.fontSectionsHtml() : this.spacingSectionsHtml()}
+  <details class="bfm-advanced bfm-primary" ${primaryOpen ? "open" : ""}>
+    <summary><span>${this.i18n.primaryFonts}</span><small>${this.i18n.primaryFontsDescription}</small></summary>
+    <div class="bfm-targets">${SIMPLE_TARGETS.map((target) => this.targetHtml(target)).join("")}</div>
+  </details>
+  <details class="bfm-advanced bfm-headings" ${headingsOpen ? "open" : ""}>
+    <summary><span>${this.i18n.headingFonts}</span><small>${this.i18n.headingFontsDescription}</small></summary>
+    <div class="bfm-targets">${HEADING_TARGETS.map((target) => this.targetHtml(target)).join("")}</div>
+  </details>
+  <details class="bfm-advanced bfm-secondary" ${advancedOpen ? "open" : ""}>
+    <summary><span>${this.i18n.advancedFonts}</span><small>${this.i18n.advancedFontsDescription}</small></summary>
+    <div class="bfm-targets bfm-targets--advanced">${ADVANCED_TARGETS.map((target) => this.targetHtml(target)).join("")}</div>
+  </details>
 </section>
-${this.activeManagerTab === "fonts" ? `<section class="bfm-section">
+<section class="bfm-section">
   <div class="bfm-section__header">
     <div class="bfm-section__heading">
       <h2>${this.i18n.fontLibrary}</h2>
@@ -636,7 +577,7 @@ ${this.activeManagerTab === "fonts" ? `<section class="bfm-section">
   </div>
   <input class="fn__none" type="file" data-role="font-input" accept=".woff2,.woff,.ttf,.otf" multiple>
   <div class="bfm-library">${this.libraryHtml()}</div>
-</section>` : ""}`;
+</section>`;
         this.observeFontPreviews(root, root);
 
         root.querySelectorAll<HTMLButtonElement>("button[data-font-trigger]").forEach((button) => {
@@ -655,16 +596,6 @@ ${this.activeManagerTab === "fonts" ? `<section class="bfm-section">
                         this.closeFontMenu(menu);
                     }
                 }
-            });
-        });
-        root.querySelector<HTMLButtonElement>("button[data-action='switch-manager-mode']")?.addEventListener("click", () => void this.switchManagerMode());
-        root.querySelectorAll<HTMLButtonElement>("button[data-manager-tab]").forEach((button) => {
-            button.addEventListener("click", () => {
-                const tab = button.dataset.managerTab as ManagerTab;
-                if (tab === this.activeManagerTab) return;
-                this.activeManagerTab = tab;
-                this.renderManager();
-                root.scrollTop = 0;
             });
         });
         root.querySelector<HTMLSelectElement>("select[data-role='preset-select']")?.addEventListener("change", (event) => {
@@ -753,29 +684,6 @@ ${this.activeManagerTab === "fonts" ? `<section class="bfm-section">
             });
             input.addEventListener("change", () => void this.commitSize(input.dataset.target as FontTarget, input.dataset.secondary === "true", Number(input.value)));
         });
-        root.querySelectorAll<HTMLInputElement>("input[data-role='spacing']").forEach((input) => {
-            const target = input.dataset.target as FontTarget;
-            const secondary = input.dataset.secondary === "true";
-            const kind = input.dataset.kind as SpacingKind;
-            const scope = `[data-target="${target}"][data-secondary="${secondary}"][data-kind="${kind}"]`;
-            input.addEventListener("input", () => {
-                const value = kind === "letterSpacing" ? clampLetterSpacing(Number(input.value)) : clampLineHeight(Number(input.value));
-                if (value === null) return;
-                this.settingsFor(target, secondary)[kind] = value;
-                const output = root.querySelector<HTMLElement>(`output[data-spacing-output]${scope}`);
-                if (output) output.textContent = this.formatSpacing(kind, value);
-                root.querySelector<HTMLButtonElement>(`button[data-reset-spacing]${scope}`)?.classList.add("bfm-size__reset--active");
-                this.applySettings();
-            });
-            input.addEventListener("change", () => {
-                void this.persist();
-                // Headings preview the document values they inherit.
-                if (target === "content") this.renderManager();
-            });
-        });
-        root.querySelectorAll<HTMLButtonElement>("button[data-reset-spacing]").forEach((button) => {
-            button.addEventListener("click", () => void this.resetSpacing(button.dataset.target as FontTarget, button.dataset.secondary === "true", button.dataset.kind as SpacingKind));
-        });
         root.querySelector<HTMLSelectElement>("select[data-role='bold-weight']")?.addEventListener("change", (event) => {
             const value = Number((event.currentTarget as HTMLSelectElement).value);
             void this.setContentOption({boldWeight: BOLD_WEIGHTS.includes(value) ? value : null});
@@ -839,48 +747,6 @@ ${this.activeManagerTab === "fonts" ? `<section class="bfm-section">
                 });
             }
         }
-    }
-
-    private sectionHtml(key: string, defaultOpen: boolean, title: string, description: string, content: string, className = ""): string {
-        const open = this.sectionOpen[key] ?? defaultOpen;
-        return `<details class="bfm-advanced" data-section="${key}" ${open ? "open" : ""}>
-    <summary><span>${title}</span><small>${description}</small></summary>
-    <div class="bfm-targets${className}">${content}</div>
-  </details>`;
-    }
-
-    private fontSectionsHtml(): string {
-        return [
-            this.sectionHtml("fonts-primary", true, this.i18n.primaryFonts, this.i18n.primaryFontsDescription, SIMPLE_TARGETS.map((target) => this.targetHtml(target)).join("")),
-            this.sectionHtml("fonts-headings", false, this.i18n.headingFonts, this.i18n.headingFontsDescription, HEADING_TARGETS.map((target) => this.targetHtml(target)).join("")),
-            this.sectionHtml("fonts-advanced", false, this.i18n.advancedFonts, this.i18n.advancedFontsDescription, ADVANCED_TARGETS.map((target) => this.targetHtml(target)).join(""), " bfm-targets--advanced"),
-        ].join("\n  ");
-    }
-
-    private spacingSectionsHtml(): string {
-        return [
-            this.sectionHtml("spacing-base", true, this.i18n.spacingBase, this.i18n.spacingBaseDescription, [
-                this.spacingTargetHtml("ui", false, this.i18n.uiSpacing, this.i18n.uiDescription),
-                this.spacingTargetHtml("content", false, this.i18n.contentSpacing, this.i18n.contentDescription, this.contentOptionsHtml("spacing")),
-            ].join("")),
-            this.sectionHtml("spacing-headings", false, this.i18n.spacingHeadings, this.i18n.spacingHeadingsDescription,
-                HEADING_TARGETS.map((target) => this.spacingTargetHtml(target, false, this.i18n[`${target}Font`])).join("")),
-            this.sectionHtml("spacing-code", true, this.i18n.spacingCode, this.i18n.spacingCodeDescription, [
-                this.spacingTargetHtml("mono", false, this.i18n.inlineCode, this.i18n.inlineCodeSpacingDescription),
-                this.spacingTargetHtml("mono", true, this.i18n.codeBlock, this.i18n.codeBlockSpacingDescription),
-            ].join("")),
-        ].join("\n  ");
-    }
-
-    private spacingTargetHtml(target: FontTarget, secondary: boolean, label: string, description = "", extra = ""): string {
-        const kinds: SpacingKind[] = [
-            ...(supportsLetterSpacing(target) ? ["letterSpacing" as const] : []),
-            ...(supportsLineHeight(target, secondary) ? ["lineHeight" as const] : []),
-        ];
-        return `<article class="bfm-target">
-  <div class="bfm-target__title"><div class="bfm-target__label"><strong>${label}</strong>${description ? `<span class="bfm-target__description">${description}</span>` : ""}</div></div>
-  <div class="bfm-setting-pane">${kinds.map((kind) => this.spacingControlHtml(target, secondary, kind)).join("")}${extra}</div>
-</article>`;
     }
 
     private headingSize(target: FontTarget): number {
@@ -1430,43 +1296,16 @@ ${this.activeManagerTab === "fonts" ? `<section class="bfm-section">
         const supportsSize = target !== "emoji" && target !== "graph" && target !== "kbd";
         const sizeControls = supportsSize ? `<div class="bfm-size"><input type="range" aria-label="${escapeHtml(this.i18n[`${target}Font`])}" data-role="size" data-target="${target}" data-secondary="${secondary}" min="${min}" max="${max}" step="${relativeSize ? "any" : "1"}" value="${size}"><output data-size-output="${target}-${secondary}">${size}px</output></div>` : "";
         const resetSize = supportsSize ? `<button class="b3-button bfm-reset ${config.size === null ? "" : "bfm-reset--active"}" data-reset-size="${target}" data-secondary="${secondary}">${this.i18n.resetSize}</button>` : "";
-        const options = target === "content" && !secondary ? this.contentOptionsHtml("fonts") : "";
+        const options = target === "content" && !secondary ? this.contentOptionsHtml() : "";
         return `<div class="bfm-setting-pane">${this.fontPickerHtml(target, secondary, config.fonts)}
   ${sizeControls}${options}
   <div class="bfm-target__actions"><button class="b3-button bfm-reset ${config.fonts.length ? "bfm-reset--active" : ""}" data-reset-font="${target}" data-secondary="${secondary}">${this.i18n.resetFont}</button>${resetSize}</div></div>`;
     }
 
-    private spacingControlHtml(target: FontTarget, secondary: boolean, kind: SpacingKind): string {
-        const value = this.settingsFor(target, secondary)[kind] ?? null;
-        const display = value ?? this.inheritedSpacing(target, kind);
-        const range = kind === "letterSpacing" ? LETTER_SPACING_RANGE : LINE_HEIGHT_RANGE;
-        const label = kind === "letterSpacing" ? this.i18n.letterSpacing : this.i18n.lineHeight;
-        const scope = `data-target="${target}" data-secondary="${secondary}" data-kind="${kind}"`;
-        return `<div class="bfm-size bfm-size--labeled"><span class="bfm-size__label">${label}</span><input type="range" aria-label="${escapeHtml(label)}" data-role="spacing" ${scope} min="${range.min}" max="${range.max}" step="${range.step}" value="${display}"><output data-spacing-output ${scope}>${this.formatSpacing(kind, display)}</output><button type="button" class="bfm-size__reset ${value === null ? "" : "bfm-size__reset--active"}" data-reset-spacing ${scope} aria-label="${escapeHtml(this.i18n.resetSpacing)}" title="${escapeHtml(this.i18n.resetSpacing)}">↺</button></div>`;
-    }
-
-    // Unset values show what the target currently inherits.
-    private inheritedSpacing(target: FontTarget, kind: SpacingKind): number {
-        const heading = HEADING_TARGETS.includes(target as typeof HEADING_TARGETS[number]);
-        if (kind === "letterSpacing") return heading ? this.state.targets.content.letterSpacing ?? 0 : 0;
-        return heading ? this.state.targets.content.lineHeight ?? SIYUAN_LINE_HEIGHT : SIYUAN_LINE_HEIGHT;
-    }
-
-    private formatSpacing(kind: SpacingKind, value: number): string {
-        return kind === "letterSpacing" ? formatLetterSpacing(value) : formatLineHeight(value);
-    }
-
-    // Weight options belong with the document font; layout options with spacing.
-    private contentOptionsHtml(tab: ManagerTab): string {
+    private contentOptionsHtml(): string {
         const options = this.state.targets.content.options || DEFAULT_CONTENT_OPTIONS;
         const toggle = (option: Exclude<keyof ContentOptions, "boldWeight">, label: string, hint: string) =>
             `<label title="${escapeHtml(hint)}"><input type="checkbox" data-role="content-option" data-option="${option}" ${options[option] ? "checked" : ""}><span>${label}</span></label>`;
-        if (tab === "spacing") {
-            return `<div class="bfm-options">
-  ${toggle("indent", this.i18n.firstLineIndent, this.i18n.firstLineIndentHint)}
-  ${toggle("autospace", this.i18n.autospace, this.i18n.autospaceHint)}
-</div>`;
-        }
         return `<div class="bfm-options">
   <label>${this.i18n.boldWeight}<select class="b3-select" data-role="bold-weight"><option value="">${this.i18n.followSiyuan}</option>${BOLD_WEIGHTS.map((weight) => `<option value="${weight}" ${options.boldWeight === weight ? "selected" : ""}>${fontWeightName(weight)} · ${weight}</option>`).join("")}</select></label>
   ${toggle("noSynthesis", this.i18n.noSynthesis, this.i18n.noSynthesisHint)}
@@ -1478,7 +1317,7 @@ ${this.activeManagerTab === "fonts" ? `<section class="bfm-section">
     }
 
     private refreshDefaultSizes(): void {
-        const root = this.managerRoot();
+        const root = this.managerDialog?.element.querySelector<HTMLElement>(".bfm-manager");
         root?.querySelectorAll<HTMLInputElement>('input[data-role="size"][data-target="mono"], input[data-role="size"][data-target="math"]').forEach((input) => {
             const target = input.dataset.target as "mono" | "math";
             const secondary = input.dataset.secondary === "true";
@@ -1867,13 +1706,6 @@ ${this.activeManagerTab === "fonts" ? `<section class="bfm-section">
             this.appliedEditorFontSize = null;
             editorFontSizeAPI()?.(SIYUAN_EDITOR_FONT_SIZE, {notify: false});
         }
-        this.applySettings();
-        await this.persist();
-        this.renderManager();
-    }
-
-    private async resetSpacing(target: FontTarget, secondary: boolean, kind: SpacingKind): Promise<void> {
-        this.settingsFor(target, secondary)[kind] = null;
         this.applySettings();
         await this.persist();
         this.renderManager();

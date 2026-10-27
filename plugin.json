@@ -13,8 +13,8 @@
     "zh-CN": "思源排版工坊"
   },
   "description": {
-    "default": "Customize fonts, sizes, spacing and line height across SiYuan!",
-    "zh-CN": "轻松自定义思源中的字体、字号、字间距与行距！"
+    "default": "Customize every font element in SiYuan!",
+    "zh-CN": "轻松自定义思源中的所有字体元素！"
   },
   "readme": {
     "default": "README.md",
@@ -22,5 +22,5 @@
     "en": "README.en.md"
   },
   "funding": {"custom": ["https://github.com/MDfox-ChaosZone/siyuan-font-studio/blob/main/README.md#支持与赞助"]},
-  "keywords": ["字体", "字体管理", "排版", "自定义", "字号", "字间距", "行距", "font", "font manager", "typography", "customize", "font size", "letter spacing", "line height"]
+  "keywords": ["字体", "字体管理", "自定义", "字号", "font", "font manager", "typography", "customize", "font size"]
 }

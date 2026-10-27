@@ -5,7 +5,7 @@ import {parsePresetConfig, serializePreset} from "../src/preset-io";
 import {StyleManager} from "../src/style-manager";
 import {EDITOR_FAMILY, stubStyleDocument} from "./style-helpers";
 
-const UNSET_HEADING = {fonts: [], size: null, letterSpacing: null, lineHeight: null};
+const UNSET_HEADING = {fonts: [], size: null};
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -26,7 +26,7 @@ describe("heading settings", () => {
         const state = parseState(null);
         state.presets[0].name = "Headings";
         for (const [index, target] of HEADING_TARGETS.entries()) {
-            state.targets[target] = {fonts: [{kind: "system", family: `Heading ${index}`, displayName: `Heading ${index}`, weight: 600}], size: 40 - index * 4, letterSpacing: index / 100, lineHeight: 1 + index / 10};
+            state.targets[target] = {fonts: [{kind: "system", family: `Heading ${index}`, displayName: `Heading ${index}`, weight: 600}], size: 40 - index * 4};
         }
         syncActivePreset(state);
         const imported = parsePresetConfig(JSON.parse(serializePreset(state.presets[0], [])), []);

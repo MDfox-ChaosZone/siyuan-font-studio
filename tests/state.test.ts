@@ -29,17 +29,11 @@ const font: ImportedFont = {
 describe("state parsing", () => {
     it("creates defaults for missing data", () => {
         const initial = parseState("");
-        expect(initial.targets.ui).toEqual({fonts: [], size: null, letterSpacing: null});
-        expect(initial.targets.content.options).toEqual({boldWeight: null, indent: false, autospace: false, noSynthesis: false});
+        expect(initial.targets.ui).toEqual({fonts: [], size: null});
+        expect(initial.targets.content.options).toEqual({boldWeight: null, noSynthesis: false});
         expect(initial.presets).toHaveLength(1);
         expect(initial.activePresetId).toBe("default");
         expect(parseState({version: 3, fonts: [], targets: {}}).targets.graph).toEqual({fonts: [], size: null});
-    });
-
-    it("remembers how the settings page opens", () => {
-        expect(parseState(null).layout.managerMode).toBe("dialog");
-        expect(parseState({version: 3, layout: {managerMode: "tab"}}).layout.managerMode).toBe("tab");
-        expect(parseState({version: 3, layout: {managerMode: "window"}}).layout.managerMode).toBe("dialog");
     });
 
     it("drops dangling imported assignments", () => {
@@ -228,34 +222,21 @@ describe("preset transfer", () => {
     });
 });
 
-describe("typography settings", () => {
-    it("clamps spacing and keeps it only where it applies", () => {
+describe("content options", () => {
+    it("keeps only valid bold weights and switches", () => {
         const state = parseState({version: 3, fonts: [], targets: {
-            ui: {fonts: [], size: null, letterSpacing: 5, lineHeight: 2},
-            content: {fonts: [], size: null, letterSpacing: 0.0333, lineHeight: 0.2, options: {boldWeight: 650, indent: true, autospace: "yes"}},
-            mono: {fonts: [], size: null, decoupled: true, secondary: {fonts: [], size: null, letterSpacing: -1, lineHeight: 1.5}},
-            math: {fonts: [], size: null, letterSpacing: 0.1},
+            ui: {fonts: [], size: null, letterSpacing: 0.1, lineHeight: 2},
+            content: {fonts: [], size: null, options: {boldWeight: 650, indent: true, noSynthesis: "yes"}},
         }});
-        expect(state.targets.ui.letterSpacing).toBe(0.3);
-        expect(state.targets.ui).not.toHaveProperty("lineHeight");
-        expect(state.targets.content.letterSpacing).toBe(0.033);
-        expect(state.targets.content.lineHeight).toBe(1);
-        expect(state.targets.content.options).toEqual({boldWeight: null, indent: true, autospace: false, noSynthesis: false});
-        expect(state.targets.mono.secondary).toMatchObject({letterSpacing: -0.05, lineHeight: 1.5});
-        expect(state.targets.mono).not.toHaveProperty("lineHeight");
-        expect(state.targets.math).not.toHaveProperty("letterSpacing");
-        expect(state.targets.graph).toEqual({fonts: [], size: null});
+        expect(state.targets.ui).toEqual({fonts: [], size: null});
+        expect(state.targets.content.options).toEqual({boldWeight: null, noSynthesis: false});
     });
 
-    it("carries spacing and document options through presets", () => {
+    it("carries document options through presets", () => {
         const state = parseState(null);
-        state.targets.content.letterSpacing = 0.02;
-        state.targets.content.lineHeight = 1.9;
-        state.targets.content.options = {boldWeight: 600, indent: true, autospace: true, noSynthesis: false};
-        state.targets.h3.lineHeight = 1.4;
-        state.targets.mono.secondary = {fonts: [], size: null, letterSpacing: 0.01, lineHeight: 1.5};
+        state.targets.content.options = {boldWeight: 600, noSynthesis: true};
         syncActivePreset(state);
-        const imported = parsePresetConfig(JSON.parse(serializePreset(state.presets[0], [], "Spacing")), []);
+        const imported = parsePresetConfig(JSON.parse(serializePreset(state.presets[0], [], "Options")), []);
         expect(imported.targets).toEqual(state.targets);
     });
 

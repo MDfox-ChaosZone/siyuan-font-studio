@@ -311,76 +311,17 @@ describe("font target isolation", () => {
     });
 });
 
-describe("typography settings", () => {
-    it("applies document spacing per block and keeps code aligned", () => {
+describe("content options", () => {
+    it("applies the bold weight and faux-style switch to documents", () => {
         const style = stubStyleDocument();
         const state = parseState(null);
-        state.targets.content.letterSpacing = 0.05;
-        state.targets.content.lineHeight = 1.8;
-        new StyleManager().apply(state, new Set());
-        const css = style.textContent;
-
-        expect(css).toContain('.protyle-wysiwyg [data-node-id]:not([data-type="NodeCodeBlock"]):not([data-type="NodeAttributeView"])');
-        expect(css).toMatch(/\.protyle-title, \.protyle-wysiwyg \[data-node-id\][^{]+\{ letter-spacing: 0\.05em; \}/);
-        expect(css).toContain("{ line-height: 1.8 !important; }");
-        expect(css).toContain('span[data-type~="code"] { letter-spacing: normal !important; }');
-        expect(css).toContain('textarea[style*="--b3-font-family-editor-code"] { letter-spacing: normal !important; }');
-        expect(css).not.toContain(".code-block { line-height");
-    });
-
-    it("isolates interface letter spacing from documents", () => {
-        const style = stubStyleDocument();
-        const state = parseState(null);
-        state.targets.ui.letterSpacing = 0.02;
-        new StyleManager().apply(state, new Set());
-
-        expect(style.textContent).toContain("body { letter-spacing: 0.02em; }");
-        expect(style.textContent).toMatch(/\.protyle-title, [^{]+\{ letter-spacing: normal; \}/);
-    });
-
-    it("lets headings override the document line height and spacing", () => {
-        const style = stubStyleDocument();
-        const state = parseState(null);
-        state.targets.content.lineHeight = 2;
-        state.targets.h2.lineHeight = 1.3;
-        state.targets.h2.letterSpacing = -0.01;
-        new StyleManager().apply(state, new Set());
-        const css = style.textContent;
-        const heading = css.indexOf('[data-subtype="h2"]');
-
-        expect(heading).toBeGreaterThan(css.indexOf("{ line-height: 2 !important; }"));
-        expect(css).toContain('.protyle-wysiwyg [data-node-id][data-type="NodeHeading"][data-subtype="h2"], .b3-typography:not(.b3-typography--default) h2 { letter-spacing: -0.01em !important; line-height: 1.3 !important; }');
-        expect(css).not.toContain('[data-subtype="h1"]');
-    });
-
-    it.each([false, true])("keeps inline and block code spacing separate when font decoupling is %s", (decoupled) => {
-        const style = stubStyleDocument();
-        const state = parseState(null);
-        state.targets.mono.decoupled = decoupled;
-        state.targets.mono.letterSpacing = 0.01;
-        state.targets.mono.lineHeight = 3;
-        state.targets.mono.secondary = {fonts: [], size: null, letterSpacing: 0.02, lineHeight: 1.5};
-        new StyleManager().apply(state, new Set());
-        const css = style.textContent;
-
-        expect(css).toContain('span[data-type~="code"] { letter-spacing: 0.01em !important; }');
-        expect(css).toContain('textarea[style*="--b3-font-family-editor-code"] { letter-spacing: 0.02em !important; }');
-        expect(css).toContain(".protyle-wysiwyg .code-block { line-height: 1.5 !important; }");
-        expect(css).not.toContain("line-height: 3");
-    });
-
-    it("applies document options without touching code", () => {
-        const style = stubStyleDocument();
-        const state = parseState(null);
-        state.targets.content.options = {boldWeight: 600, indent: true, autospace: true, noSynthesis: true};
+        state.targets.content.options = {boldWeight: 600, noSynthesis: true};
         new StyleManager().apply(state, new Set());
         const css = style.textContent;
 
         expect(css).toContain('span[data-type~="strong"], .b3-typography:not(.b3-typography--default) strong, .b3-typography:not(.b3-typography--default) b { font-weight: 600; }');
-        expect(css).toContain('[data-type="NodeParagraph"]:not(.li > [data-type="NodeParagraph"]) > [contenteditable]');
-        expect(css).toContain("text-indent: 2em;");
-        expect(css).toContain(".protyle-title { text-autospace: normal; }");
-        expect(css).toContain("{ text-autospace: no-autospace; }");
         expect(css).toContain(".protyle-title { font-synthesis: none; }");
+        expect(css).not.toContain("letter-spacing");
+        expect(css).not.toContain("text-indent");
     });
 });

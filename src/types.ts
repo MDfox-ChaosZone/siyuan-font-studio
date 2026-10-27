@@ -49,25 +49,16 @@ export type FontChoice =
     | {kind: "imported"; id: string; weight?: number}
     | {kind: "system"; family: string; displayName: string; weight: number};
 
-export interface SpacingSettings {
-    /** Letter spacing in em; null follows SiYuan or the inherited target. */
-    letterSpacing?: number | null;
-    /** Unitless line height; null follows SiYuan or the inherited target. */
-    lineHeight?: number | null;
-}
-
 export interface ContentOptions {
     boldWeight: number | null;
-    indent: boolean;
-    autospace: boolean;
     noSynthesis: boolean;
 }
 
-export interface TargetSettings extends SpacingSettings {
+export interface TargetSettings {
     fonts: FontChoice[];
     size: number | null;
     decoupled?: boolean;
-    secondary?: SpacingSettings & {
+    secondary?: {
         fonts: FontChoice[];
         size: number | null;
     };
@@ -80,8 +71,6 @@ export interface FontPreset {
     targets: Record<FontTarget, TargetSettings>;
 }
 
-export type ManagerMode = "dialog" | "tab";
-
 export interface PluginState {
     version: 3;
     fonts: ImportedFont[];
@@ -90,8 +79,6 @@ export interface PluginState {
     activePresetId: string;
     layout: {
         libraryPreviewWidth: number;
-        /** Whether the settings page opens as a floating dialog or a SiYuan tab. */
-        managerMode: ManagerMode;
     };
 }
 
@@ -111,7 +98,6 @@ export const DEFAULT_STATE: PluginState = {
     activePresetId: "",
     layout: {
         libraryPreviewWidth: 250,
-        managerMode: "dialog",
     },
     targets: {
         ui: {fonts: [], size: null},
@@ -132,4 +118,4 @@ export const DEFAULT_STATE: PluginState = {
     },
 };
 
-export const DEFAULT_CONTENT_OPTIONS: ContentOptions = {boldWeight: null, indent: false, autospace: false, noSynthesis: false};
+export const DEFAULT_CONTENT_OPTIONS: ContentOptions = {boldWeight: null, noSynthesis: false};

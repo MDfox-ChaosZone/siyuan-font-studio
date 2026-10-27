@@ -1,6 +1,6 @@
 import {strFromU8, strToU8, unzipSync, zip} from "fflate";
 import {parseState} from "./state";
-import {ContentOptions, HEADING_TARGETS, FontChoice, FontPreset, FontTarget, ImportedFont, SpacingSettings, TARGETS, TargetSettings} from "./types";
+import {ContentOptions, HEADING_TARGETS, FontChoice, FontPreset, FontTarget, ImportedFont, TARGETS, TargetSettings} from "./types";
 
 export const PRESET_FILE_FORMAT = "siyuan-font-studio-preset";
 export const PRESET_FILE_VERSION = 1;
@@ -10,11 +10,11 @@ type PortableFontChoice =
     | {kind: "system"; family: string; displayName: string; weight: number}
     | {kind: "imported"; sha256: string; displayName: string; weight?: number};
 
-interface PortableTargetSettings extends SpacingSettings {
+interface PortableTargetSettings {
     fonts: PortableFontChoice[];
     size: number | null;
     decoupled?: boolean;
-    secondary?: SpacingSettings & {
+    secondary?: {
         fonts: PortableFontChoice[];
         size: number | null;
     };
@@ -114,7 +114,6 @@ function serializeTarget(settings: TargetSettings, fonts: ImportedFont[]): Porta
             return portable ? [portable] : [];
         }),
         size: settings.size,
-        ...spacingFields(settings),
         ...(settings.options ? {options: {...settings.options}} : {}),
         ...(settings.decoupled !== undefined ? {decoupled: settings.decoupled} : {}),
         ...(settings.secondary ? {
@@ -124,16 +123,8 @@ function serializeTarget(settings: TargetSettings, fonts: ImportedFont[]): Porta
                     return portable ? [portable] : [];
                 }),
                 size: settings.secondary.size,
-                ...spacingFields(settings.secondary),
             },
         } : {}),
-    };
-}
-
-function spacingFields(settings: SpacingSettings): SpacingSettings {
-    return {
-        ...(settings.letterSpacing !== undefined ? {letterSpacing: settings.letterSpacing} : {}),
-        ...(settings.lineHeight !== undefined ? {lineHeight: settings.lineHeight} : {}),
     };
 }
 
@@ -221,7 +212,6 @@ function deserializeTarget(value: PortableTargetSettings, fonts: ImportedFont[],
                 return local ? [local] : [];
             }),
             size: value.secondary.size,
-            ...spacingFields(value.secondary),
         }
         : undefined;
     return {
@@ -230,7 +220,6 @@ function deserializeTarget(value: PortableTargetSettings, fonts: ImportedFont[],
             return local ? [local] : [];
         }),
         size: value.size,
-        ...spacingFields(value),
         ...(value.options ? {options: value.options} : {}),
         ...(typeof value.decoupled === "boolean" ? {decoupled: value.decoupled} : {}),
         ...(secondary ? {secondary} : {}),
