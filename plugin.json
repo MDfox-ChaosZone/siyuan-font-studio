@@ -9,8 +9,8 @@
   "frontends": ["all"],
   "disabledInPublish": true,
   "displayName": {
-    "default": "SiYuan Typography Studio",
-    "zh-CN": "思源排版工坊"
+    "default": "SiYuan Font Studio",
+    "zh-CN": "思源字体工坊"
   },
   "description": {
     "default": "Customize every font element in SiYuan!",

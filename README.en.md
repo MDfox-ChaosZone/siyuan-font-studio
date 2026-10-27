@@ -1,4 +1,4 @@
-# SiYuan Typography Studio
+# SiYuan Font Studio
 
 [简体中文](https://github.com/MDfox-ChaosZone/siyuan-font-studio/blob/main/README.md)
 
@@ -7,7 +7,7 @@ Font playground:
 - Easily customize a wide range of font elements in SiYuan!
 - Freely combine fonts and switch between your font presets!
 
-<img src="assets/screenshots/font-studio-settings.png" alt="SiYuan Typography Studio settings" width="480">
+<img src="assets/screenshots/font-studio-settings.png" alt="SiYuan Font Studio settings" width="480">
 
 ## Features
 
@@ -47,7 +47,7 @@ Customize the fonts and sizes of the following elements:
 ## Changelog
 
 - **v1.3.0**:
-  - Renamed to “SiYuan Typography Studio”. Added document options for bold weight and no faux bold/italic, and a keyboard key font.
+  - Added document options for bold weight and no faux bold/italic, and a keyboard key font.
   - Bold and italic text uses the real faces of the same font when those files are imported.
   - The document font size now sets SiYuan's editor font size, fixing conflicts with SiYuan's font-size shortcuts and broken code-block line heights when line numbers are shown.
   - Adapted to SiYuan's newer global fonts, emoji corrections and custom fonts (Docker and mobile); the plugin refreshes when SiYuan's own font settings change.

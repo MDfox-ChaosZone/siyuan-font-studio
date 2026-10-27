@@ -1,4 +1,4 @@
-# 思源排版工坊
+# 思源字体工坊
 
 [English](https://github.com/MDfox-ChaosZone/siyuan-font-studio/blob/main/README.en.md)
 
@@ -7,7 +7,7 @@
 - 轻松自定义思源中的多种字体元素！
 - 自由组合并轻松切换你的字体方案！
 
-<img src="assets/screenshots/font-studio-settings.png" alt="思源排版工坊设置界面" width="480">
+<img src="assets/screenshots/font-studio-settings.png" alt="思源字体工坊设置界面" width="480">
 
 ## 功能
 
@@ -47,7 +47,7 @@
 ## 更新记录
 
 - **v1.3.0**：
-  - 更名为“思源排版工坊”；新增文档的粗体字重和禁止伪粗斜体选项，新增键盘按键字体。
+  - 新增文档的粗体字重和禁止伪粗斜体选项，新增键盘按键字体。
   - 导入同一字体的粗体、斜体文件后自动使用真实字形。
   - 文档字号改为直接调整思源编辑器字号，修复与思源字号快捷键冲突、开启行号时代码块行高错乱的问题。
   - 适配思源新版的全局字体、Emoji 修正与自定义字体（Docker、移动端）；思源原生字体设置变化后自动刷新。
