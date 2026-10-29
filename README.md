@@ -21,9 +21,13 @@
 
 ## 额外说明
 
-- 推荐使用体积更小的 WOFF2 格式。TTF/OTF 可用 [CloudConvert](https://cloudconvert.com/ttf-to-woff2) 或我的 [FontConvert](https://github.com/MDfox-ChaosZone/Font-Converter) 转换；分发字体时建议保留原格式，以遵守字体协议。
+- 自己使用时推荐使用体积更小的 WOFF2 字体格式以减小内存和存储占用。
+  - TTF/OTF 格式可用 [CloudConvert](https://cloudconvert.com/ttf-to-woff2) 或我的 [FontConvert](https://github.com/MDfox-ChaosZone/Font-Converter) 小工具转换
+  - 但涉及到分发字体时要使用原字体，以遵守字体协议中可能存在的限制。
 
 ## 更新记录
+
+- **v2.0.1**：修复部分主题下字体选择菜单被设置分组裁剪、等宽和公式字体列表显示不全的问题。
 
 - **v2.0.0**：插件功能开发完结。作者暂时不用思源啦，但会保持维护该插件。有问题提 [issue](https://github.com/MDfox-ChaosZone/siyuan-font-studio/issues) 哦。
 
@@ -37,6 +41,7 @@
   - 适配思源新版的全局字体、Emoji 修正与自定义字体（Docker、移动端）；思源原生字体设置变化后自动刷新。
   - 修复导入方案时提示信息可被注入 HTML 的安全问题；修复 Emoji 字体覆盖思源编辑器字体等问题；同步后无需重载插件即可应用新设置。
   - 移除社区方案投稿与下载，仅保留作者示例方案下载。
+
 - **v1.2.0**：优化字体加载，启动时仅加载当前方案使用的字体，预览随滚动加载；复用字体信息缓存，Emoji 字体仅在使用时加载。
 - **v1.1.2**：
   - 等宽默认字号显示实际计算值；调整文档字号时，等宽和公式的默认字号数值即时刷新。

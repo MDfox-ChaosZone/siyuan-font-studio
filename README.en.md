@@ -21,9 +21,13 @@
 
 ## Additional notes
 
-- WOFF2 is recommended for its smaller size. TTF/OTF fonts can be converted with [CloudConvert](https://cloudconvert.com/ttf-to-woff2) or my [FontConvert](https://github.com/MDfox-ChaosZone/Font-Converter); when distributing fonts, keep their original format to respect the font license.
+- For personal use, the smaller WOFF2 font format is recommended to reduce memory and storage usage.
+  - TTF/OTF fonts can be converted with [CloudConvert](https://cloudconvert.com/ttf-to-woff2) or my [FontConvert](https://github.com/MDfox-ChaosZone/Font-Converter) tool.
+  - When distributing fonts, use the original font files to comply with any restrictions in their licenses.
 
 ## Changelog
+
+- **v2.0.1**: Fixed font selection menus being clipped by settings groups in some themes, leaving the monospace and formula font lists only partially visible.
 
 - **v2.0.0**: The plugin is feature-complete. I'm not using SiYuan for now, but I'll keep maintaining this plugin. Please open an [issue](https://github.com/MDfox-ChaosZone/siyuan-font-studio/issues) if you run into problems.
 
@@ -37,6 +41,7 @@
   - Adapted to SiYuan's newer global fonts, emoji corrections and custom fonts (Docker and mobile); the plugin refreshes when SiYuan's own font settings change.
   - Fixed a security issue where preset import messages could inject HTML, fixed the emoji font overriding SiYuan's editor font, and applied synced settings without reloading the plugin.
   - Removed community preset submission and downloads; only the author's example preset remains.
+
 - **v1.2.0**: Improved font loading: startup loads only fonts used by the current preset, and previews load as you scroll. Font metadata is cached, and Emoji faces load only when used.
 - **v1.1.2**:
   - Monospace default sizes now display their computed values. Default monospace and formula size values update immediately when the document font size changes.
