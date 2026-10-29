@@ -27,7 +27,7 @@
 
 ## Changelog
 
-- **v2.0.1**: Fixed font selection menus being clipped by settings groups in some themes, leaving the monospace and formula font lists only partially visible.
+- **v2.0.1**: Fixed font selection menus being clipped by settings groups in Neo and other themes, leaving the monospace and formula font lists only partially visible.
 
 - **v2.0.0**: The plugin is feature-complete. I'm not using SiYuan for now, but I'll keep maintaining this plugin. Please open an [issue](https://github.com/MDfox-ChaosZone/siyuan-font-studio/issues) if you run into problems.
 
